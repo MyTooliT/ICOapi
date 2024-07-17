@@ -1,7 +1,8 @@
-import sys, os
+import os
+import sys
 from enum import Enum
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def getEnvPath() -> str:
@@ -10,9 +11,11 @@ def getEnvPath() -> str:
         extDataDir = sys._MEIPASS # type: ignore[attr-defined]
     return os.path.join(extDataDir, '.env')
 
+
 class Mode(Enum):
     DEV = 'development'
     PROD = 'production'
+
 
 class Settings(BaseSettings):
     HOST: str = '127.0.0.1'

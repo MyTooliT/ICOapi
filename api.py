@@ -1,13 +1,14 @@
-import time
-
-from fastapi import FastAPI, status
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import Settings
+from .config import Settings
+from .routers import devices, common
 
 settings = Settings()
 
 app = FastAPI()
+app.include_router(prefix='/api/v1', router=devices.router)
+app.include_router(prefix='/api/v1', router=common.router)
 
 origins = [
     "http://localhost",
@@ -19,18 +20,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.get("/ping", status_code=status.HTTP_200_OK)
-def ping():
-    return "OK"
-
-
-@app.get("/delay", status_code=status.HTTP_200_OK)
-def delay():
-    time.sleep(1)
-    return "OK"
-
 
 if __name__ == "__main__":
     import asyncio
