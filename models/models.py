@@ -22,6 +22,18 @@ class STHDeviceResponseModel(BaseModel):
             rssi=original_object.rssi)
 
 
+class STHRenameRequestModel(BaseModel):
+    device_number: int
+    new_name: str
+
+
+class STHRenameResponseModel(BaseModel):
+    """Response Model for renaming a STH device"""
+    name: str
+    old_name: str
+    mac_address: str
+
+
 @dataclass
 class STUDeviceResponseModel:
     """Response Model for STU devices"""

@@ -5,7 +5,9 @@ from typing import List
 from mytoolit.can import Network
 from mytoolit.can.network import STHDeviceInfo
 
+from ..models.models import STHRenameResponseModel
 from ..scripts.stu_scripts import get_stu_devices
+from ..scripts.errors import NoResponseError
 
 
 async def get_sth_devices_from_network() -> List[STHDeviceInfo]:
@@ -36,6 +38,7 @@ async def connect_sth_device_by_mac(mac: str) -> None:
     """Connect a STH device by a given MAC address"""
     async with Network() as network:
         await network.connect_sensor_device(mac)
+        print(await network.is_connected("STU 1"))
 
 
 async def disconnect_sth_devices() -> None:
@@ -45,3 +48,18 @@ async def disconnect_sth_devices() -> None:
     async with Network() as network:
         for device in devices:
             await network.deactivate_bluetooth(f"STU {device.device_number}")
+
+
+async def rename_sth_device(device_number: int, new_name: str) -> STHRenameResponseModel:
+    """Rename a STH device based on its Node name"""
+    async with Network() as network:
+        node = f"STH {device_number + 1}"
+        await network.connect_sensor_device(device_number)
+        mac_address = await network.get_mac_address(node)
+        old_name = await network.get_name(node)
+
+        await network.set_name(new_name, node)
+        name = await network.get_name(node)
+
+        return STHRenameResponseModel(name=name, mac_address=mac_address.format(), old_name=old_name)
+
