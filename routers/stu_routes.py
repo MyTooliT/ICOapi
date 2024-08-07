@@ -1,27 +1,19 @@
 from typing import Annotated
-from fastapi import APIRouter, status, HTTPException, Body, Request
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, status, Body
+from fastapi.responses import Response
 from ..models.models import STHDeviceResponseModel, STUDeviceResponseModel
-from ..scripts.sth import get_sth_devices_from_network
-from ..scripts.stu import get_stu_devices, reset_stu, enable_ota, disable_ota
+from ..scripts.stu_scripts import get_stu_devices, reset_stu, enable_ota, disable_ota
 from ..scripts.errors import NoResponseError
 
 router = APIRouter(
-    prefix="/devices",
+    prefix="/stu",
     tags=["devices"],
     responses={404: {"description": "Not found"}},
 )
 
 
 @router.get(
-    '/sth', status_code=status.HTTP_200_OK)
-async def sth() -> list[STHDeviceResponseModel]:
-    devices = await get_sth_devices_from_network()
-    return [STHDeviceResponseModel.from_network(device) for device in devices]
-
-
-@router.get(
-    '/stu',
+    '',
     status_code=status.HTTP_200_OK,
     response_model=list[STUDeviceResponseModel],
     responses={
@@ -39,13 +31,8 @@ async def stu(response: Response) -> list[STUDeviceResponseModel]:
     return await get_stu_devices()
 
 
-@router.options('/stu/reset')
-def options():
-    return
-
-
 @router.put(
-    '/stu/reset',
+    '/reset',
     response_model=None | NoResponseError,
     status_code=status.HTTP_502_BAD_GATEWAY,
     responses={
@@ -67,7 +54,7 @@ async def stu_reset(name: Annotated[str, Body(embed=True)], response: Response) 
         return NoResponseError()
 
 
-@router.put('/stu/ota/enable')
+@router.put('/ota/enable')
 async def stu_enable_ota(name: Annotated[str, Body(embed=True)], response: Response) -> None | NoResponseError:
     if await enable_ota(name):
         response.status_code = status.HTTP_204_NO_CONTENT
@@ -77,7 +64,7 @@ async def stu_enable_ota(name: Annotated[str, Body(embed=True)], response: Respo
         return NoResponseError()
 
 
-@router.put('/stu/ota/disable')
+@router.put('/ota/disable')
 async def stu_disable_ota(name: Annotated[str, Body(embed=True)], response: Response) -> None | NoResponseError:
     if await disable_ota(name):
         response.status_code = status.HTTP_204_NO_CONTENT

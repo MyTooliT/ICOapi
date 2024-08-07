@@ -2,12 +2,13 @@ from fastapi import FastAPI, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import Settings
-from .routers import devices, common
+from .routers import stu_routes, sth_routes, common
 
 settings = Settings()
 
 app = FastAPI()
-app.include_router(prefix='/api/v1', router=devices.router)
+app.include_router(prefix='/api/v1', router=stu_routes.router)
+app.include_router(prefix='/api/v1', router=sth_routes.router)
 app.include_router(prefix='/api/v1', router=common.router)
 
 origins = [
