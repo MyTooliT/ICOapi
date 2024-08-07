@@ -50,11 +50,11 @@ async def disconnect_sth_devices() -> None:
             await network.deactivate_bluetooth(f"STU {device.device_number}")
 
 
-async def rename_sth_device(device_number: int, new_name: str) -> STHRenameResponseModel:
+async def rename_sth_device(mac_address: str, new_name: str) -> STHRenameResponseModel:
     """Rename a STH device based on its Node name"""
     async with Network() as network:
-        node = f"STH {device_number + 1}"
-        await network.connect_sensor_device(device_number)
+        node = "STH 1"
+        await network.connect_sensor_device(mac_address)
         mac_address = await network.get_mac_address(node)
         old_name = await network.get_name(node)
 

@@ -23,7 +23,7 @@ class STHDeviceResponseModel(BaseModel):
 
 
 class STHRenameRequestModel(BaseModel):
-    device_number: int
+    mac_address: str
     new_name: str
 
 

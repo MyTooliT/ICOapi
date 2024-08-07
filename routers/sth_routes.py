@@ -94,7 +94,7 @@ async def sth_disconnect(response: Response) -> None:
 )
 async def sth_rename(device_info: STHRenameRequestModel, response: Response) -> STHRenameResponseModel | NoResponseError:
     try:
-        return await rename_sth_device(device_info.device_number, device_info.new_name)
+        return await rename_sth_device(device_info.mac_address, device_info.new_name)
     except TimeoutError:
         response.status_code = status.HTTP_502_BAD_GATEWAY
         return NoResponseError()
