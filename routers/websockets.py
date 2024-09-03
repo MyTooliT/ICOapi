@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, Body
+from fastapi import FastAPI, WebSocket
 from functools import partial
 from mytoolit.can import Network, NoResponseError, UnsupportedFeatureException
 from mytoolit.can.adc import ADCConfiguration
@@ -7,18 +7,24 @@ from mytoolit.measurement import convert_raw_to_g
 from mytoolit.measurement.sensor import SensorConfig
 from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 from time import time
-from typing import Annotated
-
+from ..models.models import WSMetaData
 from starlette.websockets import WebSocketDisconnect
 
 router = FastAPI()
 
 
-@router.websocket('/ws/{mac}/{acqTime}')
-async def websocket_endpoint(mac: str, acqTime: int, websocket: WebSocket):
+@router.websocket('/ws/measure')
+async def websocket_endpoint(websocket: WebSocket):
+    config: WSMetaData | None = None
     await websocket.accept()
+    received_init = False
+    while not received_init:
+        data = await websocket.receive_json()
+        config = WSMetaData(**data)
+        received_init = True
+
     async with Network() as network:
-        await network.connect_sensor_device(mac)
+        await network.connect_sensor_device(config.mac)
 
         adc_config = ADCConfiguration(
             prescaler=2,
@@ -29,9 +35,9 @@ async def websocket_endpoint(mac: str, acqTime: int, websocket: WebSocket):
         print(f"Sample Rate: {adc_config.sample_rate()} Hz")
 
         user_sensor_config = SensorConfig(
-            first=1,
-            second=2,
-            third=3,
+            first=config.first,
+            second=config.second,
+            third=config.third,
         )
 
         if user_sensor_config.requires_channel_configuration_support():
@@ -59,7 +65,7 @@ async def websocket_endpoint(mac: str, acqTime: int, websocket: WebSocket):
                     measurements.append(data.first)
                     await websocket.send_text(data.first.__repr__())
 
-                    if time() - start_time >= acqTime:
+                    if time() - start_time >= config.time:
                         await websocket.close()
                         break
         except KeyboardInterrupt:
@@ -71,6 +77,8 @@ async def websocket_endpoint(mac: str, acqTime: int, websocket: WebSocket):
         except NoResponseError:
             print(f"timeout after {len(measurements)}")
         except WebSocketDisconnect:
+            print(f"disconnected")
+        finally:
             await websocket.close()
 
     print(len(measurements))

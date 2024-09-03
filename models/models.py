@@ -45,3 +45,14 @@ class STUDeviceResponseModel:
 
 class STUName(BaseModel):
     name: str
+
+
+@dataclass
+class WSMetaData:
+    """Data model for measurement WS"""
+
+    mac: str
+    time: int
+    first: int
+    second: int
+    third: int
