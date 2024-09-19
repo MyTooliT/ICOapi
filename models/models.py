@@ -1,4 +1,4 @@
-from typing import List
+from typing import Optional
 
 from pydantic import BaseModel
 from dataclasses import dataclass
@@ -56,3 +56,13 @@ class WSMetaData:
     first: int
     second: int
     third: int
+
+
+@dataclass
+class ADCValues:
+    """Data model for ADC values"""
+
+    prescaler: Optional[int]
+    acquisition_time: Optional[int]
+    oversampling_rate: Optional[int]
+    reference_voltage: Optional[float]

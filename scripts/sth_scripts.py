@@ -5,10 +5,11 @@ from functools import partial
 
 from mytoolit.can.network import STHDeviceInfo
 from mytoolit.can import Network
+from mytoolit.can.adc import ADCConfiguration
 from mytoolit.measurement import convert_raw_to_g
 from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 
-from ..models.models import STHRenameResponseModel
+from ..models.models import STHRenameResponseModel, ADCValues
 from ..scripts.stu_scripts import get_stu_devices
 from ..scripts.errors import NoResponseError
 
@@ -87,3 +88,21 @@ async def stream_sth_measurement(mac_address: str) -> list:
             pass
 
         return measurements
+
+
+async def read_sth_adc(mac_address: str) -> ADCConfiguration:
+    async with Network() as network:
+        await network.connect_sensor_device(mac_address)
+        return await network.read_adc_configuration()
+
+
+async def write_sth_adc(mac_address: str, config: ADCValues) -> None:
+    async with Network() as network:
+        await network.connect_sensor_device(mac_address)
+        adc = ADCConfiguration(
+            reference_voltage=config.reference_voltage,
+            prescaler=config.prescaler,
+            acquisition_time=config.acquisition_time,
+            oversampling_rate=config.oversampling_rate
+        )
+        await network.write_adc_configuration(**adc)

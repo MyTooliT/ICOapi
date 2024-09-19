@@ -1,8 +1,9 @@
-from fastapi import APIRouter, status, Response, Body
+from fastapi import APIRouter, status, Response, Body, Path
 from typing import Annotated
 from mytoolit.can.network import CANInitError
-from ..models.models import STHDeviceResponseModel, STHRenameRequestModel, STHRenameResponseModel
-from ..scripts.sth_scripts import get_sth_devices_from_network, connect_sth_device_by_mac, disconnect_sth_devices, rename_sth_device
+from mytoolit.can.adc import ADCConfiguration
+from ..models.models import STHDeviceResponseModel, STHRenameRequestModel, STHRenameResponseModel, ADCValues
+from ..scripts.sth_scripts import get_sth_devices_from_network, connect_sth_device_by_mac, disconnect_sth_devices, rename_sth_device, read_sth_adc, write_sth_adc
 from ..scripts.errors import ConnectionTimeoutError, NoResponseError, Error
 
 router = APIRouter(
@@ -91,3 +92,51 @@ async def sth_rename(device_info: STHRenameRequestModel, response: Response) -> 
     except TimeoutError:
         response.status_code = status.HTTP_502_BAD_GATEWAY
         return NoResponseError()
+
+
+@router.get(
+    "/read-adc/{mac}",
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {
+            "content": "application/json",
+            "description": "ADC reading was successful"
+        },
+        504: {
+            "content": "application/json",
+            "description": "ADC reading timed out"
+        }
+    }
+)
+async def read_adc(mac: Annotated[str, Path(title="MAC Address of the STH")], response: Response) -> ADCValues | ConnectionTimeoutError:
+    print(mac)
+    try:
+        values = await read_sth_adc(mac)
+        return ADCValues(**values)
+    except Error:
+        response.status_code = status.HTTP_502_BAD_GATEWAY
+        return ConnectionTimeoutError()
+
+
+@router.put(
+    "/write-adc",
+    status_code=status.HTTP_200_OK,
+    responses={
+        200: {
+            "content": "application/json",
+            "description": "ADC writing was successful"
+        },
+        504: {
+            "content": "application/json",
+            "description": "ADC writing timed out"
+        }
+    }
+)
+async def write_adc(mac: Annotated[str, Body(embed=True)], config: ADCValues, response: Response) -> None | ConnectionTimeoutError:
+    try:
+        await write_sth_adc(mac, config)
+    except Error:
+        response.status_code = status.HTTP_502_BAD_GATEWAY
+        return ConnectionTimeoutError()
+
+
