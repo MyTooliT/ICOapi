@@ -4,7 +4,7 @@ from typing import List
 from functools import partial
 
 from mytoolit.can.network import STHDeviceInfo
-from mytoolit.can import Network
+from mytoolit.can import Network, NetworkError
 from mytoolit.can.adc import ADCConfiguration
 from mytoolit.measurement import convert_raw_to_g
 from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
@@ -86,13 +86,15 @@ async def stream_sth_measurement(mac_address: str) -> list:
         return measurements
 
 
-async def read_sth_adc(network: Network, mac_address: str) -> ADCConfiguration:
-    await network.connect_sensor_device(mac_address)
+async def read_sth_adc(network: Network, mac_address: str) -> ADCConfiguration | NetworkError:
+    if not network.is_connected():
+        return NetworkError()
     return await network.read_adc_configuration()
 
 
-async def write_sth_adc(network: Network, mac_address: str, config: ADCValues) -> None:
-    await network.connect_sensor_device(mac_address)
+async def write_sth_adc(network: Network, mac_address: str, config: ADCValues) -> None | NetworkError:
+    if not network.is_connected():
+        return NetworkError()
     adc = ADCConfiguration(
         reference_voltage=config.reference_voltage,
         prescaler=config.prescaler,
