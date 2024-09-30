@@ -1,5 +1,5 @@
 from typing import Optional
-
+from json import JSONEncoder
 from pydantic import BaseModel
 from dataclasses import dataclass
 from mytoolit.can.network import STHDeviceInfo
@@ -66,3 +66,13 @@ class ADCValues:
     acquisition_time: Optional[int]
     oversampling_rate: Optional[int]
     reference_voltage: Optional[float]
+
+
+class DataValueModel(BaseModel, JSONEncoder):
+    """Data model for sending measured data"""
+
+    timestamp: float
+    first: float | None
+    second: float | None
+    third: float | None
+    counter: int

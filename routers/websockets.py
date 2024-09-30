@@ -1,5 +1,6 @@
 from fastapi import WebSocket, APIRouter, Depends
 from functools import partial
+from json import JSONEncoder
 from mytoolit.can import Network, NoResponseError, UnsupportedFeatureException
 from mytoolit.can.adc import ADCConfiguration
 from mytoolit.can.streaming import StreamingTimeoutError
@@ -7,7 +8,7 @@ from mytoolit.measurement import convert_raw_to_g
 from mytoolit.measurement.sensor import SensorConfig
 from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 from starlette.websockets import WebSocketDisconnect
-from ..models.models import WSMetaData
+from ..models.models import WSMetaData, DataValueModel
 from ..models.GlobalNetwork import get_network
 
 router = APIRouter()
@@ -59,10 +60,17 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
         async with network.open_data_stream(**streaming_config) as stream:
             async for data in stream:
                 data.apply(conversion_to_g)
-                print(data.first)
-                current = float(data.first.__repr__().split(',')[0].split(' ')[1].split('@')[1])
+                current = data.first[0].timestamp
                 timestamps.append(current)
-                await websocket.send_text(data.first.__repr__())
+                data_wrapped: DataValueModel = DataValueModel(
+                    first=data.first[0].value.magnitude if data.first else None,
+                    second=data.second[0].value.magnitude if data.second else None,
+                    third=data.third[0].value.magnitude if data.third else None,
+                    counter=data.first[0].counter,
+                    timestamp=current
+                )
+                print(data_wrapped)
+                await websocket.send_json(data_wrapped.model_dump())
 
                 if not timestamps[0]:
                     continue
