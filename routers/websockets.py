@@ -65,8 +65,6 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
                 current = data.first[0].timestamp
                 timestamps.append(current)
 
-                ift_values = []
-
                 if config.ift_requested:
                     ift_timestamps.append(current)
 
@@ -77,27 +75,36 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
                     else:
                         ift_relevant_channel.append(data.third[0].value.magnitude)
 
-                    ift_values = maybe_get_ift_value(ift_relevant_channel, window_length=config.ift_window_width / 1000)
 
                 data_wrapped: DataValueModel = DataValueModel(
                     first=data.first[0].value.magnitude if data.first else None,
                     second=data.second[0].value.magnitude if data.second else None,
                     third=data.third[0].value.magnitude if data.third else None,
-                    ift=create_objects(ift_timestamps, ift_values, timestamps[0]) if ift_values is not None else None,
+                    ift=None,
                     counter=data.first[0].counter,
                     timestamp=current
                 )
                 await websocket.send_json(data_wrapped.model_dump())
-
-                if ift_values is not None:
-                    ift_relevant_channel.clear()
-                    ift_timestamps.clear()
 
                 if not timestamps[0]:
                     continue
 
                 if current - timestamps[0] >= config.time:
                     break
+
+            if config.ift_requested:
+                ift_values = maybe_get_ift_value(ift_relevant_channel, window_length=config.ift_window_width / 1000)
+
+                ift_wrapped: DataValueModel = DataValueModel(
+                    first=None,
+                    second=None,
+                    third=None,
+                    ift=create_objects(ift_timestamps, ift_values, timestamps[0]),
+                    counter=1,
+                    timestamp=1
+                )
+                await websocket.send_json(ift_wrapped.model_dump())
+
             await websocket.close()
     except KeyboardInterrupt:
         pass
@@ -117,11 +124,11 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
     print(f"measured for {float(timestamps[-1]) - float(timestamps[0])}s resulting in {len(timestamps) / (float(timestamps[-1]) - float(timestamps[0]))}Hz")
 
 
-def create_objects(timestamps, ift_first, first_timestamp) -> list[dict[str, float]]:
-    if len(timestamps) != len(ift_first):
+def create_objects(timestamps, ift_vals, first_timestamp) -> list[dict[str, float]]:
+    if len(timestamps) != len(ift_vals):
         raise ValueError("Both arrays must have the same length")
 
-    result = [{'x': t, 'y': i} for t, i in zip(delta_from_timestamps(timestamps, first_timestamp), ift_first)]
+    result = [{'x': t, 'y': i} for t, i in zip(delta_from_timestamps(timestamps, first_timestamp), ift_vals)]
     return result
 
 
