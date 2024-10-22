@@ -3,9 +3,9 @@ from functools import partial
 from icolyzer import iftlibrary
 from mytoolit.can import Network, NoResponseError, UnsupportedFeatureException
 from mytoolit.can.adc import ADCConfiguration
-from mytoolit.can.streaming import StreamingTimeoutError
+from mytoolit.can.streaming import StreamingTimeoutError, StreamingConfiguration
 from mytoolit.measurement import convert_raw_to_g
-from mytoolit.measurement.sensor import SensorConfig
+from mytoolit.measurement.sensor import SensorConfiguration
 from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 from starlette.websockets import WebSocketDisconnect
 from ..models.models import WSMetaData, DataValueModel
@@ -34,7 +34,7 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
     await network.write_adc_configuration(**adc_config)
     print(f"Sample Rate: {adc_config.sample_rate()} Hz")
 
-    user_sensor_config = SensorConfig(
+    user_sensor_config = SensorConfiguration(
         first=config.first,
         second=config.second,
         third=config.third,
@@ -51,37 +51,43 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
 
     sensor_range = await read_acceleration_sensor_range_in_g(network)
     conversion_to_g = partial(convert_raw_to_g, max_value=sensor_range)
-    streaming_config = {
+    streaming_config: StreamingConfiguration = StreamingConfiguration(**{
         key: bool(value) for key, value in user_sensor_config.items()
-    }
+    })
+
+    # NOTE: The array data.values only contains the activated channels. This means we need to compute the
+    #       index at which each channel is located. This may not be pretty, but it works.
+
+    first_index_if_present = 0
+    second_index_if_present = 1 if streaming_config.first else 0
+    third_index_if_present = (second_index_if_present + 1) if streaming_config.second else (first_index_if_present + 1)
 
     timestamps = []
     try:
-        async with network.open_data_stream(**streaming_config) as stream:
+        async with network.open_data_stream(streaming_config) as stream:
             ift_relevant_channel = []
             ift_timestamps = []
-            async for data in stream:
+            async for data, _ in stream:
                 data.apply(conversion_to_g)
-                current = data.first[0].timestamp
+                current = data.timestamp
                 timestamps.append(current)
 
                 if config.ift_requested:
                     ift_timestamps.append(current)
 
                     if config.ift_channel == 'first':
-                        ift_relevant_channel.append(data.first[0].value.magnitude)
+                        ift_relevant_channel.append(data.values[0])
                     elif config.ift_channel == 'second':
-                        ift_relevant_channel.append(data.second[0].value.magnitude)
+                        ift_relevant_channel.append(data.values[1])
                     else:
-                        ift_relevant_channel.append(data.third[0].value.magnitude)
-
+                        ift_relevant_channel.append(data.values[2])
 
                 data_wrapped: DataValueModel = DataValueModel(
-                    first=data.first[0].value.magnitude if data.first else None,
-                    second=data.second[0].value.magnitude if data.second else None,
-                    third=data.third[0].value.magnitude if data.third else None,
+                    first=data.values[first_index_if_present] if streaming_config.first else None,
+                    second=data.values[second_index_if_present] if streaming_config.second else None,
+                    third=data.values[third_index_if_present] if streaming_config.third else None,
                     ift=None,
-                    counter=data.first[0].counter,
+                    counter=data.counter,
                     timestamp=current
                 )
                 await websocket.send_json(data_wrapped.model_dump())
