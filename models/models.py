@@ -49,7 +49,19 @@ class STUName(BaseModel):
 
 @dataclass
 class WSMetaData:
-    """Data model for measurement WS"""
+    """
+    Data model for measurement WS
+
+    Attributes:
+        mac (str): MAC address
+        time (int): Measurement time
+        first (int): First measurement channel number
+        second (int): Second measurement channel number
+        third (int): Third measurement channel number
+        ift_requested (bool): IFT value should be calculated
+        ift_channel: which channel should be used for IFT value
+        ift_window_width (int): IFT window width
+    """
 
     mac: str
     time: int

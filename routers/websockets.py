@@ -1,117 +1,108 @@
 from fastapi import WebSocket, APIRouter, Depends
 from functools import partial
-from icolyzer import iftlibrary
 from mytoolit.can import Network, NoResponseError, UnsupportedFeatureException
-from mytoolit.can.adc import ADCConfiguration
 from mytoolit.can.streaming import StreamingTimeoutError, StreamingConfiguration
-from mytoolit.measurement import convert_raw_to_g
 from mytoolit.measurement.sensor import SensorConfiguration
-from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 from starlette.websockets import WebSocketDisconnect
 from ..models.models import WSMetaData, DataValueModel
 from ..models.GlobalNetwork import get_network
+from ..scripts.measurement import write_sensor_config_if_required, get_conversion_function, get_measurement_indices, create_objects, maybe_get_ift_value, setup_adc
 
 router = APIRouter()
 
 
 @router.websocket('/ws/measure')
 async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(get_network)):
-    config: WSMetaData | None = None
+    # Await initial WS acceptance
     await websocket.accept()
+
+    # Await first message from client with measurement information
+    instructions: WSMetaData | None = None
     received_init = False
     while not received_init:
         data = await websocket.receive_json()
-        config = WSMetaData(**data)
+        instructions = WSMetaData(**data)
         received_init = True
 
-    print(config)
+    # Write ADC configuration to holder
+    await setup_adc(network, instructions)
 
-    adc_config = ADCConfiguration(
-        prescaler=2,
-        acquisition_time=8,
-        oversampling_rate=64
-    )
-    await network.write_adc_configuration(**adc_config)
-    print(f"Sample Rate: {adc_config.sample_rate()} Hz")
-
-    user_sensor_config = SensorConfiguration(
-        first=config.first,
-        second=config.second,
-        third=config.third,
-    )
-
-    if user_sensor_config.requires_channel_configuration_support():
-        try:
-            await network.write_sensor_configuration(**user_sensor_config)
-        except UnsupportedFeatureException as exception:
-            raise UnsupportedFeatureException(
-                f"Sensor channel configuration “{user_sensor_config}” is "
-                f"not supported by the sensor node"
-            ) from exception
-
-    sensor_range = await read_acceleration_sensor_range_in_g(network)
-    conversion_to_g = partial(convert_raw_to_g, max_value=sensor_range)
-    streaming_config: StreamingConfiguration = StreamingConfiguration(**{
-        key: bool(value) for key, value in user_sensor_config.items()
+    # Create a SensorConfiguration and a StreamingConfiguration object
+    # `SensorConfiguration` sets which sensor channels map to the measurement channels, e.g. that 'first' -> channel 3.
+    # `StreamingConfiguration sets the active channels based on if the channel number is > 0.`
+    sensor_configuration = SensorConfiguration(instructions.first, instructions.second, instructions.third)
+    streaming_configuration: StreamingConfiguration = StreamingConfiguration(**{
+        key: bool(value) for key, value in sensor_configuration.items()
     })
+
+    # Write sensor configuration to holder if possible / necessary.
+    await write_sensor_config_if_required(network, sensor_configuration)
+
+    # Create conversion function to apply to data received from stream
+    conversion_to_g: partial = await get_conversion_function(network)
 
     # NOTE: The array data.values only contains the activated channels. This means we need to compute the
     #       index at which each channel is located. This may not be pretty, but it works.
+    [first_index, second_index, third_index] = get_measurement_indices(streaming_configuration)
 
-    first_index_if_present = 0
-    second_index_if_present = 1 if streaming_config.first else 0
-    third_index_if_present = (second_index_if_present + 1) if streaming_config.second else (first_index_if_present + 1)
-
-    timestamps = []
     try:
-        async with network.open_data_stream(streaming_config) as stream:
+        async with network.open_data_stream(streaming_configuration) as stream:
+
+            timestamps = []
             ift_relevant_channel = []
-            ift_timestamps = []
+
             async for data, _ in stream:
+                # `data` here represents a single measurement frame from the holder.
+                # Apply conversion function
                 data.apply(conversion_to_g)
-                current = data.timestamp
-                timestamps.append(current)
+                timestamps.append(data.timestamp)
 
-                if config.ift_requested:
-                    ift_timestamps.append(current)
-
-                    if config.ift_channel == 'first':
-                        ift_relevant_channel.append(data.values[0])
-                    elif config.ift_channel == 'second':
-                        ift_relevant_channel.append(data.values[1])
+                # Collect relevant channel data if required for IFT value calculation.
+                if instructions.ift_requested:
+                    if instructions.ift_channel == 'first':
+                        ift_relevant_channel.append(data.values[first_index])
+                    elif instructions.ift_channel == 'second':
+                        ift_relevant_channel.append(data.values[second_index])
                     else:
-                        ift_relevant_channel.append(data.values[2])
+                        ift_relevant_channel.append(data.values[third_index])
 
-                data_wrapped: DataValueModel = DataValueModel(
-                    first=data.values[first_index_if_present] if streaming_config.first else None,
-                    second=data.values[second_index_if_present] if streaming_config.second else None,
-                    third=data.values[third_index_if_present] if streaming_config.third else None,
+                # Send single measurement data frame. IFT value is intentionally blank. This enables us to use the same
+                # response model for IFT value and single data frames.
+                data_to_send: DataValueModel = DataValueModel(
+                    first=data.values[first_index] if streaming_configuration.first else None,
+                    second=data.values[second_index] if streaming_configuration.second else None,
+                    third=data.values[third_index] if streaming_configuration.third else None,
                     ift=None,
                     counter=data.counter,
-                    timestamp=current
+                    timestamp=data.timestamp
                 )
-                await websocket.send_json(data_wrapped.model_dump())
+                await websocket.send_json(data_to_send.model_dump())
 
+                # Exit condition
                 if not timestamps[0]:
                     continue
 
-                if current - timestamps[0] >= config.time:
+                # Exit condition
+                if data.timestamp - timestamps[0] >= instructions.time:
                     break
 
-            if config.ift_requested:
-                ift_values = maybe_get_ift_value(ift_relevant_channel, window_length=config.ift_window_width / 1000)
+            # Send IFT value values at once after measurement is finished.
+            if instructions.ift_requested:
+                ift_values = maybe_get_ift_value(ift_relevant_channel, window_length=instructions.ift_window_width / 1000)
 
                 ift_wrapped: DataValueModel = DataValueModel(
                     first=None,
                     second=None,
                     third=None,
-                    ift=create_objects(ift_timestamps, ift_values, timestamps[0]),
+                    ift=create_objects(timestamps, ift_values, timestamps[0]),
                     counter=1,
                     timestamp=1
                 )
                 await websocket.send_json(ift_wrapped.model_dump())
 
+            # Close websocket.
             await websocket.close()
+
     except KeyboardInterrupt:
         pass
     except StreamingTimeoutError:
@@ -123,35 +114,6 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
     except WebSocketDisconnect:
         print(f"disconnected")
     except UnsupportedFeatureException:
-        print(f"measurement: from {timestamps[0]} to {timestamps[-1]}")
+        print(f"UnsupportedFeatureException")
     except RuntimeError:
-        pass
-
-    print(f"measured for {float(timestamps[-1]) - float(timestamps[0])}s resulting in {len(timestamps) / (float(timestamps[-1]) - float(timestamps[0]))}Hz")
-
-
-def create_objects(timestamps, ift_vals, first_timestamp) -> list[dict[str, float]]:
-    if len(timestamps) != len(ift_vals):
-        raise ValueError("Both arrays must have the same length")
-
-    result = [{'x': t, 'y': i} for t, i in zip(delta_from_timestamps(timestamps, first_timestamp), ift_vals)]
-    return result
-
-
-def delta_from_timestamps(timestamps: list[float], first_timestamp: float) -> list[float]:
-    ret: list[float] = []
-    for i in range(len(timestamps) - 1):
-        ret.append(timestamps[i] - first_timestamp)
-
-    return ret
-
-
-def maybe_get_ift_value(samples, sample_frequency=9524/3, window_length=0.15) -> list[float] | None:
-    if (
-            (len(samples) <= 0.6 * sample_frequency) or
-            (sample_frequency < 200) or
-            (window_length < 0.005) or
-            (window_length > 1)
-    ):
-        return None
-    return iftlibrary.ift_value(samples, sample_frequency, window_length)
+        print(f"RuntimeError")
