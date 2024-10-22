@@ -9,9 +9,9 @@ from mytoolit.can.adc import ADCConfiguration
 from mytoolit.measurement import convert_raw_to_g
 from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 
-from ..models.models import STHRenameResponseModel, ADCValues
-from ..scripts.stu_scripts import get_stu_devices
-from ..scripts.errors import NoResponseError
+from models.models import STHRenameResponseModel, ADCValues
+from scripts.stu_scripts import get_stu_devices
+from scripts.errors import NoResponseError
 
 
 async def get_sth_devices_from_network(network: Network) -> List[STHDeviceInfo]:

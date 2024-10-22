@@ -2,7 +2,7 @@ import time
 
 from fastapi import APIRouter, status
 
-from ..models.GlobalNetwork import NetworkSingleton
+from models.GlobalNetwork import NetworkSingleton
 
 router = APIRouter()
 

@@ -4,9 +4,9 @@ from mytoolit.can import Network, NoResponseError, UnsupportedFeatureException
 from mytoolit.can.streaming import StreamingTimeoutError, StreamingConfiguration
 from mytoolit.measurement.sensor import SensorConfiguration
 from starlette.websockets import WebSocketDisconnect
-from ..models.models import WSMetaData, DataValueModel
-from ..models.GlobalNetwork import get_network
-from ..scripts.measurement import write_sensor_config_if_required, get_conversion_function, get_measurement_indices, create_objects, maybe_get_ift_value, setup_adc
+from models.models import WSMetaData, DataValueModel
+from models.GlobalNetwork import get_network
+from scripts.measurement import write_sensor_config_if_required, get_conversion_function, get_measurement_indices, create_objects, maybe_get_ift_value, setup_adc
 
 router = APIRouter()
 

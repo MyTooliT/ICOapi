@@ -7,7 +7,7 @@ from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 from mytoolit.measurement import convert_raw_to_g
 from icolyzer import iftlibrary
 
-from ..models.models import WSMetaData
+from models.models import WSMetaData
 
 
 async def setup_adc(network: Network, instructions: WSMetaData) -> None:

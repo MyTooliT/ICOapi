@@ -3,10 +3,10 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Path, Response, status, Depends
 from mytoolit.can.network import CANInitError, Network
 
-from ..models.models import ADCValues, STHDeviceResponseModel, STHRenameRequestModel, STHRenameResponseModel
-from ..models.GlobalNetwork import get_network
-from ..scripts.errors import ConnectionTimeoutError, Error, NoResponseError
-from ..scripts.sth_scripts import connect_sth_device_by_mac, disconnect_sth_devices, get_sth_devices_from_network, \
+from models.models import ADCValues, STHDeviceResponseModel, STHRenameRequestModel, STHRenameResponseModel
+from models.GlobalNetwork import get_network
+from scripts.errors import ConnectionTimeoutError, Error, NoResponseError
+from scripts.sth_scripts import connect_sth_device_by_mac, disconnect_sth_devices, get_sth_devices_from_network, \
     read_sth_adc, rename_sth_device, write_sth_adc
 
 router = APIRouter(

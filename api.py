@@ -2,13 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocket
 from contextlib import asynccontextmanager
-from mytoolit.can.network import Network
 
-from .config import Settings
-from .routers import stu_routes, sth_routes, common, websockets
-from .models.GlobalNetwork import NetworkSingleton
+from routers import stu_routes, sth_routes, common, websockets
+from models.GlobalNetwork import NetworkSingleton
 
-settings = Settings()
 
 
 @asynccontextmanager
@@ -47,10 +44,11 @@ async def live_websocket(websocket: WebSocket):
 
 
 if __name__ == "__main__":
-    import asyncio
     import uvicorn
-
-    event_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(event_loop)
-
-    event_loop.run_until_complete(uvicorn.run(app, host=settings.HOST, port=settings.PORT)) # type: ignore[func-returns-value]
+    uvicorn.run(
+        "api:app",
+        host="0.0.0.0",
+        port=8000,
+        log_level="debug",
+        reload=True,
+    )

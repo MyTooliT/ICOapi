@@ -1,6 +1,6 @@
 from mytoolit.can import Network, NoResponseError
 from netaddr import EUI
-from ..models.models import STUDeviceResponseModel
+from models.models import STUDeviceResponseModel
 
 
 async def get_stu_mac(network: Network, node: str = 'STU 1') -> EUI | None:
