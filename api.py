@@ -56,5 +56,4 @@ if __name__ == "__main__":
         host=HOST,
         port=PORT,
         log_level="debug",
-        reload=True,
     )
