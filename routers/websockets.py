@@ -1,18 +1,28 @@
+import datetime
+import os.path
+import time
+
 from fastapi import WebSocket, APIRouter, Depends
 from functools import partial
 from mytoolit.can import Network, NoResponseError, UnsupportedFeatureException
 from mytoolit.can.streaming import StreamingTimeoutError, StreamingConfiguration
+from mytoolit.measurement import Storage
 from mytoolit.measurement.sensor import SensorConfiguration
+from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
+from starlette.responses import FileResponse
 from starlette.websockets import WebSocketDisconnect
 from models.models import WSMetaData, DataValueModel
 from models.GlobalNetwork import get_network
 from scripts.measurement import write_sensor_config_if_required, get_conversion_function, get_measurement_indices, create_objects, maybe_get_ift_value, setup_adc
 
+from pathlib import Path
+from os import getenv
+
 router = APIRouter()
 
 
 @router.websocket('/ws/measure')
-async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(get_network)):
+async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(get_network)) -> FileResponse | None:
     # Await initial WS acceptance
     await websocket.accept()
 
@@ -45,72 +55,93 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
     #       index at which each channel is located. This may not be pretty, but it works.
     [first_index, second_index, third_index] = get_measurement_indices(streaming_configuration)
 
+    # Get sensor range for metadata in HDF5 file.
+    sensor_range = await read_acceleration_sensor_range_in_g(network)
+
+    # Get .env variable for measurement directory
+    local_appdata_dir = getenv("LOCALAPPDATA")
+    measurement_dir = getenv("VITE_BACKEND_MEASUREMENT_DIR")
+    full_path = os.path.join(local_appdata_dir, measurement_dir)
+
     try:
         async with network.open_data_stream(streaming_configuration) as stream:
 
-            timestamps = []
-            ift_relevant_channel = []
-            counter = 0
-            data_collected_for_send: list = []
+            name = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-            async for data, _ in stream:
-                # `data` here represents a single measurement frame from the holder.
-                # Apply conversion function
-                data.apply(conversion_to_g)
-                timestamps.append(data.timestamp)
+            with Storage(Path(f'{full_path}/{name}.hdf5'), streaming_configuration) as storage:
 
-                # Collect relevant channel data if required for IFT value calculation.
-                if instructions.ift_requested:
-                    if instructions.ift_channel == 'first':
-                        ift_relevant_channel.append(data.values[first_index])
-                    elif instructions.ift_channel == 'second':
-                        ift_relevant_channel.append(data.values[second_index])
+                storage.add_acceleration_meta(
+                    "Sensor_Range", f"± {sensor_range / 2} g₀"
+                )
+
+                timestamps = []
+                ift_relevant_channel = []
+                counter = 0
+                data_collected_for_send: list = []
+                start_time = time.time()
+
+                async for data, _ in stream:
+                    # `data` here represents a single measurement frame from the holder.
+                    # Apply conversion function
+                    data.apply(conversion_to_g)
+                    timestamps.append(data.timestamp)
+
+                    # Collect relevant channel data if required for IFT value calculation.
+                    if instructions.ift_requested:
+                        if instructions.ift_channel == 'first':
+                            ift_relevant_channel.append(data.values[first_index])
+                        elif instructions.ift_channel == 'second':
+                            ift_relevant_channel.append(data.values[second_index])
+                        else:
+                            ift_relevant_channel.append(data.values[third_index])
+
+                    # Send single measurement data frame. IFT value is intentionally blank. This enables us to use the same
+                    # response model for IFT value and single data frames.
+                    data_to_send: DataValueModel = DataValueModel(
+                        first=data.values[first_index] if streaming_configuration.first else None,
+                        second=data.values[second_index] if streaming_configuration.second else None,
+                        third=data.values[third_index] if streaming_configuration.third else None,
+                        ift=None,
+                        counter=data.counter,
+                        timestamp=data.timestamp
+                    )
+
+                    storage.add_streaming_data(data)
+
+                    if counter >= (sample_rate // 60):
+                        await websocket.send_json(data_collected_for_send)
+                        data_collected_for_send.clear()
+                        counter = 0
                     else:
-                        ift_relevant_channel.append(data.values[third_index])
+                        data_collected_for_send.append(data_to_send.model_dump())
+                        counter += 1
 
-                # Send single measurement data frame. IFT value is intentionally blank. This enables us to use the same
-                # response model for IFT value and single data frames.
-                data_to_send: DataValueModel = DataValueModel(
-                    first=data.values[first_index] if streaming_configuration.first else None,
-                    second=data.values[second_index] if streaming_configuration.second else None,
-                    third=data.values[third_index] if streaming_configuration.third else None,
-                    ift=None,
-                    counter=data.counter,
-                    timestamp=data.timestamp
-                )
+                    # Exit condition
+                    if not timestamps[0]:
+                        continue
 
-                if counter >= (sample_rate // 60):
-                    await websocket.send_json(data_collected_for_send)
-                    data_collected_for_send.clear()
-                    counter = 0
-                else:
-                    data_collected_for_send.append(data_to_send.model_dump())
-                    counter += 1
+                    # Exit condition
+                    if data.timestamp - timestamps[0] >= instructions.time:
+                        break
 
-                # Exit condition
-                if not timestamps[0]:
-                    continue
+                # Send IFT value values at once after measurement is finished.
+                if instructions.ift_requested:
+                    ift_values = maybe_get_ift_value(ift_relevant_channel, window_length=instructions.ift_window_width / 1000)
 
-                # Exit condition
-                if data.timestamp - timestamps[0] >= instructions.time:
-                    break
+                    ift_wrapped: DataValueModel = DataValueModel(
+                        first=None,
+                        second=None,
+                        third=None,
+                        ift=create_objects(timestamps, ift_values, timestamps[0]),
+                        counter=1,
+                        timestamp=1
+                    )
+                    await websocket.send_json([ift_wrapped.model_dump()])
 
-            # Send IFT value values at once after measurement is finished.
-            if instructions.ift_requested:
-                ift_values = maybe_get_ift_value(ift_relevant_channel, window_length=instructions.ift_window_width / 1000)
+                print(f"Python local time: {time.time() - start_time}")
+                # Close websocket.
+                await websocket.close()
 
-                ift_wrapped: DataValueModel = DataValueModel(
-                    first=None,
-                    second=None,
-                    third=None,
-                    ift=create_objects(timestamps, ift_values, timestamps[0]),
-                    counter=1,
-                    timestamp=1
-                )
-                await websocket.send_json([ift_wrapped.model_dump()])
-
-            # Close websocket.
-            await websocket.close()
 
     except KeyboardInterrupt:
         pass
