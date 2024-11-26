@@ -49,12 +49,20 @@ if __name__ == "__main__":
     from os import getenv, path
     from dotenv import load_dotenv
 
-    load_dotenv(dotenv_path='../ico-front/.env')
-    PORT = int(getenv("VITE_API_PORT"))
-    HOST = getenv("VITE_API_HOSTNAME")
+    PORT: int = 33215
+    HOST: str = "0.0.0.0"
+    measurement_dir: str = "icogui"
 
+
+    env_found = load_dotenv(dotenv_path='../.env')
+    if env_found:
+        PORT = int(getenv("VITE_API_PORT"))
+        HOST = getenv("VITE_API_HOSTNAME")
+        measurement_dir = getenv("VITE_BACKEND_MEASUREMENT_DIR")
+
+    # This is system-wide on Windows and thus not dependent on .env
     local_appdata = getenv("LOCALAPPDATA")
-    measurement_dir = getenv("VITE_BACKEND_MEASUREMENT_DIR")
+
     full_path = path.join(local_appdata, measurement_dir)
     ensure_folder_exists(full_path)
 
