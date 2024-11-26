@@ -10,8 +10,10 @@ router = APIRouter(prefix="/files")
 
 def get_measurement_dir() -> str:
     """To be used for dependency injection."""
-    load_dotenv("../ico-front/.env")
-    measurement_dir = os.getenv("VITE_BACKEND_MEASUREMENT_DIR")
+    measurement_dir = "icogui"
+    env_loaded = load_dotenv("../ico-front/.env")
+    if env_loaded:
+        measurement_dir = os.getenv("VITE_BACKEND_MEASUREMENT_DIR")
     data_dir = ""
 
     if os.name == "nt":
