@@ -86,12 +86,13 @@ class ADCValues:
 class DataValueModel(BaseModel, JSONEncoder):
     """Data model for sending measured data"""
 
-    timestamp: float
+    timestamp: float | None
     first: float | None
     second: float | None
     third: float | None
     ift: list | None
-    counter: int
+    counter: int | None
+    dataloss: float | None
 
 
 @dataclass

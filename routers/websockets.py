@@ -1,5 +1,4 @@
 import datetime
-import os.path
 import time
 
 from fastapi import WebSocket, APIRouter, Depends
@@ -9,20 +8,18 @@ from mytoolit.can.streaming import StreamingTimeoutError, StreamingConfiguration
 from mytoolit.measurement import Storage
 from mytoolit.measurement.sensor import SensorConfiguration
 from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
-from starlette.responses import FileResponse
 from starlette.websockets import WebSocketDisconnect
 from models.models import WSMetaData, DataValueModel
 from models.GlobalNetwork import get_network
 from scripts.measurement import write_sensor_config_if_required, get_conversion_function, get_measurement_indices, create_objects, maybe_get_ift_value, setup_adc
 from routers.file_routes import get_measurement_dir
 from pathlib import Path
-from os import getenv
 
 router = APIRouter()
 
 
 @router.websocket('/ws/measure')
-async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(get_network), measurement_dir: str = Depends(get_measurement_dir)) -> FileResponse | None:
+async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(get_network), measurement_dir: str = Depends(get_measurement_dir)) -> None:
     # Await initial WS acceptance
     await websocket.accept()
 
@@ -98,7 +95,8 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
                         third=data.values[third_index] if streaming_configuration.third else None,
                         ift=None,
                         counter=data.counter,
-                        timestamp=data.timestamp
+                        timestamp=data.timestamp,
+                        dataloss=None
                     )
 
                     storage.add_streaming_data(data)
@@ -120,6 +118,18 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
                         if data.timestamp - timestamps[0] >= instructions.time:
                             break
 
+                # Send dataloss
+                await websocket.send_json([DataValueModel(
+                    first=None,
+                    second=None,
+                    third=None,
+                    ift=None,
+                    counter=None,
+                    timestamp=None,
+                    dataloss=storage.dataloss()
+                ).model_dump()])
+
+
                 # Send IFT value values at once after measurement is finished.
                 if instructions.ift_requested:
                     ift_values = maybe_get_ift_value(ift_relevant_channel, window_length=instructions.ift_window_width / 1000)
@@ -130,7 +140,8 @@ async def websocket_endpoint(websocket: WebSocket, network: Network = Depends(ge
                         third=None,
                         ift=create_objects(timestamps, ift_values, timestamps[0]),
                         counter=1,
-                        timestamp=1
+                        timestamp=1,
+                        dataloss=None
                     )
                     await websocket.send_json([ift_wrapped.model_dump()])
 
