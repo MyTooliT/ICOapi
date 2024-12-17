@@ -1,5 +1,5 @@
 import pandas
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.params import Depends
 from fastapi.responses import FileResponse
 import os
@@ -98,6 +98,34 @@ async def get_analyzed_file(name: str, measurement_dir: str = Depends(get_measur
     else:
         raise HTTPException(status_code=404, detail="File not found")
 
+
+@router.post("/analyze")
+async def post_analyzed_file(file: UploadFile, measurement_dir: str = Depends(get_measurement_dir)) -> ParsedMeasurement:
+    file_path = os.path.join(measurement_dir, f"{file.filename}_TEMP")
+    print(file_path)
+    with open(file_path, "wb") as f:
+        f.write(file.file.read())
+
+    data = pd.read_hdf(file_path, key="acceleration")
+    os.remove(file_path)
+
+    try:
+        df = ensure_dataframe_with_columns(data, {"counter", "timestamp", "x"})
+    except TypeError:
+        raise HTTPException(status_code=404, detail="File not readable")
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Missing data columns")
+
+    df_dict = df.to_dict(orient="list")
+    datasets = df_dict.copy()
+    datasets.__delitem__("timestamp")
+    datasets.__delitem__("counter")
+
+    return ParsedMeasurement(
+        counter=df_dict["counter"],
+        timestamp=df_dict["timestamp"],
+        datasets=[Dataset(name=key, data=values) for key, values in datasets.items()],
+    )
 
 def ensure_dataframe_with_columns(df, required_columns) -> pd.DataFrame:
     """
