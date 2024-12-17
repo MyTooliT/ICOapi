@@ -109,3 +109,17 @@ class APIStateModel:
     """Data model for API state"""
     can_ready: bool
 
+
+@dataclass
+class Dataset:
+    data: list[float]
+    name: str
+
+
+@dataclass
+class ParsedMeasurement:
+    """Data model for parsed measurement for analyze tab"""
+
+    counter: list[int]
+    timestamp: list[float]
+    datasets: list[Dataset]

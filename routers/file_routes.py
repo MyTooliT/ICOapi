@@ -1,11 +1,12 @@
+import pandas
 from fastapi import APIRouter, HTTPException
 from fastapi.params import Depends
 from fastapi.responses import FileResponse
 import os
 from datetime import datetime
-from models.models import MeasurementFileDetails
+from models.models import Dataset, MeasurementFileDetails, ParsedMeasurement
 from scripts.file_handling import get_measurement_dir, is_dangerous_filename
-
+import pandas as pd
 router = APIRouter(prefix="/files")
 
 
@@ -65,3 +66,61 @@ async def delete_file(name: str, measurement_dir: str = Depends(get_measurement_
             raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
     else:
         raise HTTPException(status_code=404, detail="File not found")
+
+
+@router.get("/analyze/{name}")
+async def get_analyzed_file(name: str, measurement_dir: str = Depends(get_measurement_dir)) -> ParsedMeasurement:
+    # Sanitization
+    danger, cause = is_dangerous_filename(name)
+    if danger:
+        raise HTTPException(status_code=405, detail=f"Method not allowed: {cause}")
+
+    if os.path.isfile(os.path.join(measurement_dir, name)):
+        data = pd.read_hdf(os.path.join(measurement_dir, name), key="acceleration")
+        try:
+            df = ensure_dataframe_with_columns(data, {"counter", "timestamp", "x"})
+        except TypeError:
+            raise HTTPException(status_code=404, detail="File not readable")
+        except ValueError:
+            raise HTTPException(status_code=404, detail=f"Missing data columns")
+
+        df_dict = df.to_dict(orient="list")
+        datasets = df_dict.copy()
+        datasets.__delitem__("timestamp")
+        datasets.__delitem__("counter")
+
+        return ParsedMeasurement(
+            counter=df_dict["counter"],
+            timestamp=df_dict["timestamp"],
+            datasets=[Dataset(name=key, data=values) for key, values in datasets.items()],
+        )
+
+    else:
+        raise HTTPException(status_code=404, detail="File not found")
+
+
+def ensure_dataframe_with_columns(df, required_columns) -> pd.DataFrame:
+    """
+    Ensures the object is a DataFrame and contains the required columns.
+
+    Parameters:
+        df: The object to check.
+        required_columns: A list or set of column names that must be present.
+
+    Returns:
+        The DataFrame if it meets the requirements.
+
+    Raises:
+        TypeError: If the object is not a DataFrame.
+        ValueError: If required columns are missing.
+    """
+    # Ensure the object is a DataFrame
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(f"Expected a pandas DataFrame, but got {type(df).__name__}")
+
+    # Check for required columns
+    missing_columns = set(required_columns) - set(df.columns)
+    if missing_columns:
+        raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
+
+    return df
