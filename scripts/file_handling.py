@@ -1,8 +1,13 @@
 import os
+import platform
 from os import PathLike
-from typing import Tuple, TypedDict
+from typing import Tuple
+import shutil
 
 from dotenv import load_dotenv
+
+from models.models import DiskCapacity
+
 
 def get_measurement_dir() -> str:
     """To be used for dependency injection."""
@@ -70,3 +75,30 @@ def is_dangerous_filename(filename: str) -> Tuple[bool, str | None]:
     return False, None
 
 
+def get_disk_space_in_gb(path_or_drive: str | os.PathLike= "/") -> DiskCapacity:
+    """
+    Get available and total disk space in GB for the specified path.
+    Works on both Windows and Linux.
+
+    Args:
+        path_or_drive (str): The path to check disk space for (default is root directory "/").
+                    On Windows, you may use a specific drive like "C:\".
+
+    Returns:
+        tuple: (total_space_gb, available_space_gb)
+    """
+    try:
+        total, used, free = shutil.disk_usage(path_or_drive)
+
+        total_gb = round(total / (2**30), 2)
+        available_gb = round(free / (2**30), 2)
+
+        return DiskCapacity(total_gb, available_gb)
+    except Exception as e:
+        print(f"Error retrieving disk space: {e}")
+        return DiskCapacity(None, None)
+
+
+def get_drive_or_root_path() -> str:
+    os_type = platform.system()
+    return "C:\\" if os_type == "Windows" else "/"

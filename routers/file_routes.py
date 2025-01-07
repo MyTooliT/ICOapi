@@ -4,15 +4,17 @@ from fastapi.params import Depends
 from fastapi.responses import FileResponse
 import os
 from datetime import datetime
-from models.models import Dataset, MeasurementFileDetails, ParsedMeasurement
-from scripts.file_handling import get_measurement_dir, is_dangerous_filename
+from models.models import Dataset, DiskCapacity, FileListResponseModel, MeasurementFileDetails, ParsedMeasurement
+from scripts.file_handling import get_disk_space_in_gb, get_drive_or_root_path, get_measurement_dir, \
+    is_dangerous_filename
 import pandas as pd
 router = APIRouter(prefix="/files")
 
 
 @router.get("")
-async def list_files(measurement_dir: str = Depends(get_measurement_dir)) -> list[MeasurementFileDetails]:
+async def list_files_and_capacity(measurement_dir: str = Depends(get_measurement_dir)) -> FileListResponseModel:
     try:
+        capacity = get_disk_space_in_gb(get_drive_or_root_path())
         files_info: list[MeasurementFileDetails] = []
         # Iterate over files in the directory
         for filename in os.listdir(measurement_dir):
@@ -28,7 +30,7 @@ async def list_files(measurement_dir: str = Depends(get_measurement_dir)) -> lis
                     created=creation_time
                 )
                 files_info.append(details)
-        return files_info
+        return FileListResponseModel(capacity, files_info)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Directory not found")
     except Exception as e:

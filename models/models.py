@@ -105,6 +105,22 @@ class MeasurementFileDetails:
 
 
 @dataclass
+class DiskCapacity:
+    """Data model for disk capacity"""
+
+    total: float | None
+    available: float | None
+
+
+@dataclass
+class FileListResponseModel:
+    """Data model for file list response"""
+
+    capacity: DiskCapacity
+    files: list[MeasurementFileDetails]
+
+
+@dataclass
 class APIStateModel:
     """Data model for API state"""
     can_ready: bool
