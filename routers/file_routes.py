@@ -1,3 +1,5 @@
+import re
+
 import pandas
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.params import Depends
@@ -6,7 +8,7 @@ import os
 from datetime import datetime
 from models.models import Dataset, DiskCapacity, FileListResponseModel, MeasurementFileDetails, ParsedMeasurement
 from scripts.file_handling import get_disk_space_in_gb, get_drive_or_root_path, get_measurement_dir, \
-    is_dangerous_filename
+    get_suffixed_filename, is_dangerous_filename
 import pandas as pd
 router = APIRouter(prefix="/files")
 
@@ -103,13 +105,15 @@ async def get_analyzed_file(name: str, measurement_dir: str = Depends(get_measur
 
 @router.post("/analyze")
 async def post_analyzed_file(file: UploadFile, measurement_dir: str = Depends(get_measurement_dir)) -> ParsedMeasurement:
-    file_path = os.path.join(measurement_dir, f"{file.filename}_TEMP")
-    print(file_path)
+
+    filename = get_suffixed_filename(file.filename, measurement_dir)
+
+    file_path = os.path.join(measurement_dir, filename)
+
     with open(file_path, "wb") as f:
         f.write(file.file.read())
 
     data = pd.read_hdf(file_path, key="acceleration")
-    os.remove(file_path)
 
     try:
         df = ensure_dataframe_with_columns(data, {"counter", "timestamp", "x"})

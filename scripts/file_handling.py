@@ -3,6 +3,7 @@ import platform
 from os import PathLike
 from typing import Tuple
 import shutil
+import re
 
 from dotenv import load_dotenv
 
@@ -76,17 +77,6 @@ def is_dangerous_filename(filename: str) -> Tuple[bool, str | None]:
 
 
 def get_disk_space_in_gb(path_or_drive: str | os.PathLike= "/") -> DiskCapacity:
-    """
-    Get available and total disk space in GB for the specified path.
-    Works on both Windows and Linux.
-
-    Args:
-        path_or_drive (str): The path to check disk space for (default is root directory "/").
-                    On Windows, you may use a specific drive like "C:\".
-
-    Returns:
-        tuple: (total_space_gb, available_space_gb)
-    """
     try:
         total, used, free = shutil.disk_usage(path_or_drive)
 
@@ -102,3 +92,20 @@ def get_disk_space_in_gb(path_or_drive: str | os.PathLike= "/") -> DiskCapacity:
 def get_drive_or_root_path() -> str:
     os_type = platform.system()
     return "C:\\" if os_type == "Windows" else "/"
+
+
+def get_suffixed_filename(base_name: str, directory: str) -> str:
+    possible_filename = base_name
+    suffix: int = 0
+    while possible_filename in os.listdir(directory):
+        suffix += 1
+        tokens = possible_filename.split(".")
+        extension = tokens[-1]
+        # reassemble filename if dots were used in it (bad user, bad!)
+        name = ".".join(tokens[:-1])
+        has_suffix = bool(re.search(r"__\d+$", name))
+        if has_suffix:
+            name = "__".join(name.split("__")[:-1])
+        possible_filename = f"{name}__{suffix}.{extension}"
+
+    return possible_filename
