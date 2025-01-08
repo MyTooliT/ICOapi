@@ -89,10 +89,10 @@ async def stu_disable_ota(
         return NoResponseError()
 
 
-@router.get('/connected')
+@router.post('/connected')
 async def stu_connected(name: Annotated[str, Body(embed=True)], network: Network = Depends(get_network)):
     try:
-        return network.is_connected(name)
+        return await network.is_connected(name)
     except NoResponseError:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="No response from CAN network.")
     except ErrorResponseError:
