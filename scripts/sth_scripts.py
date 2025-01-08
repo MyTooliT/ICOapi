@@ -54,8 +54,10 @@ async def disconnect_sth_devices(network: Network) -> None:
 async def rename_sth_device(network: Network, mac_address: str, new_name: str) -> STHRenameResponseModel:
     """Rename a STH device based on its Node name"""
     node = "STH 1"
-    await network.connect_sensor_device(mac_address)
-    mac_address = await network.get_mac_address(node)
+
+    if not await network.is_connected("STU 1"):
+        await network.connect_sensor_device(mac_address)
+
     old_name = await network.get_name(node)
 
     await network.set_name(new_name, node)
