@@ -1,19 +1,16 @@
 from time import time
 from asyncio import sleep
 from typing import List
-from functools import partial
 
 from mytoolit.can.network import STHDeviceInfo, NoResponseError
 from mytoolit.can import Network, NetworkError
 from mytoolit.can.adc import ADCConfiguration
-from mytoolit.measurement import convert_raw_to_g
-from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 
 from models.models import STHRenameResponseModel, ADCValues
 from scripts.stu_scripts import get_stu_devices
+from scripts.errors import CANResponseError
 
-
-async def get_sth_devices_from_network(network: Network) -> List[STHDeviceInfo]:
+async def get_sth_devices_from_network(network: Network) -> List[STHDeviceInfo] | CANResponseError:
     """Print a list of available sensor devices"""
 
     timeout = time() + 5
@@ -34,7 +31,7 @@ async def get_sth_devices_from_network(network: Network) -> List[STHDeviceInfo]:
             sensor_devices = await network.get_sensor_devices()
             await sleep(0.5)
     except NoResponseError:
-        pass
+        return CANResponseError()
 
     return sensor_devices
 
@@ -73,37 +70,15 @@ async def rename_sth_device(network: Network, mac_address: str, new_name: str) -
     return STHRenameResponseModel(name=name, mac_address=mac_address.format(), old_name=old_name)
 
 
-async def stream_sth_measurement(mac_address: str) -> list:
-    async with Network() as network:
-        await network.connect_sensor_device(mac_address)
-        sensor_range = await read_acceleration_sensor_range_in_g(network)
-        conversion_to_g = partial(convert_raw_to_g, max_value=sensor_range)
-        measurements = []
-        try:
-            async with network.open_data_stream(first=True, second=True, third=True) as stream:
-                start_time = time()
-                async for data in stream:
-                    data.apply(conversion_to_g)
-                    print(data.first)
-                    #measurements.append(data.first)
-
-                    if time() - start_time >= 10:
-                        break
-        except KeyboardInterrupt:
-            pass
-
-        return measurements
-
-
-async def read_sth_adc(network: Network, mac_address: str) -> ADCConfiguration | NetworkError:
+async def read_sth_adc(network: Network, mac_address: str) -> ADCConfiguration | CANResponseError:
     if not await network.is_connected():
-        return NetworkError()
+        return CANResponseError()
     return await network.read_adc_configuration()
 
 
-async def write_sth_adc(network: Network, mac_address: str, config: ADCValues) -> None | NetworkError:
+async def write_sth_adc(network: Network, mac_address: str, config: ADCValues) -> None | CANResponseError:
     if not network.is_connected():
-        return NetworkError()
+        return CANResponseError()
     adc = ADCConfiguration(
         reference_voltage=config.reference_voltage,
         prescaler=config.prescaler,

@@ -5,7 +5,7 @@ from mytoolit.can.network import CANInitError, Network
 
 from models.models import ADCValues, STHDeviceResponseModel, STHRenameRequestModel, STHRenameResponseModel
 from models.GlobalNetwork import get_network
-from scripts.errors import ConnectionTimeoutError, Error, NoResponseError
+from scripts.errors import ConnectionTimeoutError, Error, CANResponseError
 from scripts.sth_scripts import connect_sth_device_by_mac, disconnect_sth_devices, get_sth_devices_from_network, \
     read_sth_adc, rename_sth_device, write_sth_adc
 
@@ -49,7 +49,7 @@ async def sth_connect(
     mac: Annotated[str, Body(embed=True)],
     response: Response,
     network: Network = Depends(get_network)
-) -> None | ConnectionTimeoutError | NoResponseError:
+) -> None | ConnectionTimeoutError | CANResponseError:
     try:
         await connect_sth_device_by_mac(network, mac)
     except TimeoutError:
@@ -57,7 +57,7 @@ async def sth_connect(
         return ConnectionTimeoutError()
     except CANInitError:
         response.status_code = status.HTTP_404_NOT_FOUND
-        return NoResponseError()
+        return CANResponseError()
 
 
 @router.put(
@@ -97,12 +97,12 @@ async def sth_rename(
     device_info: STHRenameRequestModel,
     response: Response,
     network: Network = Depends(get_network)
-) -> STHRenameResponseModel | NoResponseError:
+) -> STHRenameResponseModel | CANResponseError:
     try:
         return await rename_sth_device(network, device_info.mac_address, device_info.new_name)
     except TimeoutError:
         response.status_code = status.HTTP_502_BAD_GATEWAY
-        return NoResponseError()
+        return CANResponseError()
 
 
 @router.get(

@@ -7,7 +7,7 @@ async def get_stu_mac(network: Network, node: str = 'STU 1') -> EUI | None:
     try:
         return await network.get_mac_address(node)
 
-    except:
+    except NoResponseError:
         # NOTE: We simply pass here as the consequence for the user is
         #       the same is with no STU being found.
         return None

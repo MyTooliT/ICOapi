@@ -6,10 +6,10 @@ class Error(BaseModel):
     message: str
 
 
-class NoResponseError(Error):
+class CANResponseError(Error):
     def __init__(self):
         super().__init__(
-            name="NoResponseError",
+            name="CANResponseError",
             message="CAN Network did not respond."
         )
 

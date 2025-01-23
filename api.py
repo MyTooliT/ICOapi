@@ -1,13 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mytoolit.can.network import CANInitError
-from starlette.websockets import WebSocket, WebSocketDisconnect
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
-
 from routers import stu_routes, sth_routes, common, websockets, file_routes
 from models.GlobalNetwork import NetworkSingleton
-from scripts.setup import ensure_folder_exists
+from scripts.file_handling import ensure_folder_exists
 
 
 @asynccontextmanager
@@ -42,9 +39,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
-
-
-
 
 
 if __name__ == "__main__":

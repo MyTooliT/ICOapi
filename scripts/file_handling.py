@@ -1,6 +1,5 @@
 import os
 import platform
-from os import PathLike
 from typing import Tuple
 import shutil
 import re
@@ -47,7 +46,7 @@ def linux_get_preferred_data_dir(app_name: str) -> str:
     raise PermissionError("No writable XDG_DATA_DIRS found")
 
 
-def tries_to_traverse_directory(received_filename: str | PathLike) -> bool:
+def tries_to_traverse_directory(received_filename: str | os.PathLike) -> bool:
     directory_traversal_linux_chars = ["/", "%2F"]
     directory_traversal_windows_chars = ["\\", "%5C"]
     forbidden_substrings = ["..", *directory_traversal_linux_chars, *directory_traversal_windows_chars]
@@ -109,3 +108,11 @@ def get_suffixed_filename(base_name: str, directory: str) -> str:
         possible_filename = f"{name}__{suffix}.{extension}"
 
     return possible_filename
+
+
+def ensure_folder_exists(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+        print(f"Folder created at: {path}")
+    else:
+        print(f"Folder already exists at: {path}")
