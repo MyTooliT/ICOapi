@@ -1,0 +1,15 @@
+stages:
+  - deploy
+
+before_script:
+  - hostname
+  - python3 --version
+
+deploy-revpi:
+  stage: deploy
+  tags:
+    - revpi104544
+    - shell
+  script:
+    - chmod +x install.sh
+    - ./install.sh

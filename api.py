@@ -1,3 +1,5 @@
+from os import getenv
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mytoolit.can.network import CANInitError
@@ -28,9 +30,9 @@ app.include_router(prefix='/api/v1', router=common.router)
 app.include_router(prefix='/api/v1', router=file_routes.router)
 app.include_router(prefix='', router=websockets.router)
 
-origins = [
-    "http://localhost",
-]
+origins = getenv("VITE_API_ORIGINS", "")
+origins = origins.split(",")
+print(origins)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -43,7 +45,8 @@ app.add_middleware(
 
 if __name__ == "__main__":
     import uvicorn
-    from os import getenv, path
+    from platform import system
+    from os import path
     from dotenv import load_dotenv
 
     PORT: int = 33215
@@ -54,7 +57,8 @@ if __name__ == "__main__":
     if env_found:
         PORT = int(getenv("VITE_API_PORT"))
         HOST = getenv("VITE_API_HOSTNAME")
-        measurement_dir = getenv("VITE_BACKEND_MEASUREMENT_DIR")
+        DATA_DIR = getenv("VITE_BACKEND_DATA_DIR")
+        MEASUREMENT_DIR = getenv("VITE_BACKEND_MEASUREMENT_DIR")
 
     ensure_folder_exists(get_measurement_dir())
 
