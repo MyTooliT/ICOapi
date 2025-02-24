@@ -4,6 +4,7 @@ from typing import Tuple
 import shutil
 import re
 
+import dotenv
 from dotenv import load_dotenv
 
 from models.models import DiskCapacity
@@ -11,13 +12,18 @@ from models.models import DiskCapacity
 
 def get_measurement_dir() -> str:
     """To be used for dependency injection."""
-    measurement_dir = "icogui"
-    env_loaded = load_dotenv("../.env")
-    if env_loaded:
-        measurement_dir = os.getenv("VITE_BACKEND_MEASUREMENT_DIR")
-    else:
-        raise EnvironmentError(".env not set")
+    env_loaded = load_dotenv(".env")
+    if not env_loaded:
+        raise EnvironmentError(".env not found")
 
+    # Check for full path in .env
+    full_path = os.getenv("VITE_BACKEND_FULL_MEASUREMENT_PATH")
+    if full_path:
+        return os.path.abspath(full_path)
+    else:
+        measurement_dir = os.getenv("VITE_BACKEND_MEASUREMENT_DIR", "icogui")
+
+    # No full path, so combine measurement directory with default location
     if os.name == "nt":
         data_dir = os.getenv("LOCALAPPDATA")
     elif os.name == "posix":
