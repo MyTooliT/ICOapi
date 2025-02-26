@@ -32,7 +32,7 @@ app.include_router(prefix='', router=websockets.router)
 
 origins = getenv("VITE_API_ORIGINS", "")
 origins = origins.split(",")
-print(origins)
+print(f"origins: {origins}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -45,20 +45,15 @@ app.add_middleware(
 
 if __name__ == "__main__":
     import uvicorn
-    from platform import system
-    from os import path
     from dotenv import load_dotenv
 
     PORT: int = 33215
     HOST: str = "0.0.0.0"
-    measurement_dir: str = "icogui"
 
-    env_found = load_dotenv(dotenv_path='.env')
+    env_found = load_dotenv(".env")
     if env_found:
-        PORT = int(getenv("VITE_API_PORT"))
+        PORT = int(getenv("VITE_API_PORT", PORT))
         HOST = getenv("VITE_API_HOSTNAME")
-        DATA_DIR = getenv("VITE_BACKEND_DATA_DIR")
-        MEASUREMENT_DIR = getenv("VITE_BACKEND_MEASUREMENT_DIR")
 
     ensure_folder_exists(get_measurement_dir())
 
