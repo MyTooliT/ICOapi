@@ -153,7 +153,7 @@ class ControlResponse:
 
 
 @dataclass
-class APIStateModel:
+class SystemStateModel:
     """Data model for API state"""
     can_ready: bool
     disk_capacity: DiskCapacity
