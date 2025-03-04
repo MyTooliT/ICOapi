@@ -12,7 +12,7 @@ from models.models import DiskCapacity
 
 def get_measurement_dir() -> str:
     """To be used for dependency injection."""
-    env_loaded = load_dotenv(".env")
+    env_loaded = load_dotenv()
     if not env_loaded:
         raise EnvironmentError(".env not found")
 
