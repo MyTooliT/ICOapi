@@ -1,10 +1,10 @@
 import os
 import platform
+import sys
 from typing import Tuple
 import shutil
 import re
 
-import dotenv
 from dotenv import load_dotenv
 
 from models.models import DiskCapacity
@@ -12,7 +12,12 @@ from models.models import DiskCapacity
 
 def get_measurement_dir() -> str:
     """To be used for dependency injection."""
-    env_loaded = load_dotenv()
+    env_loaded = load_dotenv(".env")
+    if getattr(sys, 'frozen', False):
+        # we are running in a bundle
+        bundle_dir = sys._MEIPASS
+        print(os.path.join(bundle_dir, ".env"))
+        env_loaded = env_loaded | load_dotenv(os.path.join(bundle_dir, ".env"))
     if not env_loaded:
         raise EnvironmentError(".env not found")
 
