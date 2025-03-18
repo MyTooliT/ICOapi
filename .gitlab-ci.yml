@@ -11,5 +11,6 @@ deploy-revpi:
     - revpi104544
     - shell
   script:
+    - echo "$ENV_CONFIG" > .env
     - chmod +x install.sh
-    - ./install.sh
+    - ./install.sh --force

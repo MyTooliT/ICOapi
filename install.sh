@@ -5,13 +5,23 @@ set -e
 SERVICE_NAME="icoapi"
 INSTALL_DIR="/etc/icoapi"
 SERVICE_PATH="/etc/systemd/system"
+FORCE_REINSTALL=false
 
-echo "Stopping and removing old files..."
-sudo systemctl start $SERVICE_NAME.service
-sudo rm -rf $INSTALL_DIR
+# Check for --force flag
+if [[ "$1" == "--force" ]]; then
+  FORCE_REINSTALL=true
+  echo "Forcing reinstallation: Deleting existing installation..."
+fi
 
-echo "Creating installation directory..."
-sudo rm -rf $INSTALL_DIR
+echo "Stopping service..."
+sudo systemctl stop $SERVICE_NAME.service || true
+
+# Handle force reinstallation
+if [ "$FORCE_REINSTALL" = true ]; then
+  sudo rm -rf $INSTALL_DIR
+fi
+
+echo "Creating installation directory if not exists..."
 sudo mkdir -p $INSTALL_DIR
 sudo chown $USER:$USER $INSTALL_DIR
 
@@ -19,18 +29,23 @@ echo "Copying application files..."
 FILES_AND_DIRS=(".env" "api.py" "models" "requirements.txt" "routers" "scripts")
 
 for ITEM in "${FILES_AND_DIRS[@]}"; do
-  cp -r "$ITEM" "$INSTALL_DIR"
+  #cp -r "$ITEM" "$INSTALL_DIR"
+  rsync -av --exclude='__pycache__' "$ITEM" "$INSTALL_DIR"
 done
 cd $INSTALL_DIR
 
-echo "Setting up virtual environment..."
-python3 -m venv venv
+echo "Checking for existing virtual environment..."
+if [ "$FORCE_REINSTALL" = true ] || [ ! -d "venv" ]; then
+  echo "Setting up virtual environment..."
+  python3 -m venv venv
+fi
+
 source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 deactivate
 
-echo "Creating systemd service..."
+echo "Ensuring systemd service exists..."
 sudo bash -c "cat << EOF > $SERVICE_PATH/$SERVICE_NAME.service
 [Unit]
 Description=ICOapi Service
@@ -46,7 +61,7 @@ Restart=always
 WantedBy=multi-user.target
 EOF"
 
-echo "Reloading systemd and starting service..."
+echo "Reloading systemd and restarting service..."
 sudo systemctl daemon-reload
 sudo systemctl enable $SERVICE_NAME.service
 sudo systemctl start $SERVICE_NAME.service
