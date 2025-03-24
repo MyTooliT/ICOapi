@@ -4,6 +4,7 @@ from mytoolit.can.network import Network
 from starlette.websockets import WebSocket
 
 from models.models import MeasurementInstructions, MeasurementStatus
+from models.trident import StorageClient, TridentClient
 
 
 class NetworkSingleton:
@@ -115,3 +116,23 @@ class MeasurementSingleton:
 
 def get_measurement_state():
     return MeasurementSingleton().get_instance()
+
+
+class TridentHandler:
+    """Singleton Wrapper for the Trident API client"""
+
+    client: StorageClient | None = None
+
+    @classmethod
+    async def create_client(cls, service: str, username: str, password: str, default_bucket: str):
+        if cls.client is None:
+            cls.client = StorageClient(service, username, password, default_bucket)
+            print(f"Created Trident Client for service <{service}>")
+
+    @classmethod
+    def get_client(cls):
+        return cls.client
+
+
+def get_trident_client():
+    return TridentHandler.get_client()

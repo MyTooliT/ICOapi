@@ -161,3 +161,18 @@ class SystemStateModel:
     can_ready: bool
     disk_capacity: DiskCapacity
     measurement_status: MeasurementStatus
+
+
+@dataclass
+class TridentBucketMeta:
+    Name: str
+    CreationDate: str
+
+
+@dataclass
+class TridentBucketObject:
+    Key: str
+    LastModified: str
+    ETag: str
+    Size: int
+    StorageClass: str

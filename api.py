@@ -2,11 +2,13 @@ from os import getenv
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from httpx import HTTPStatusError
 from mytoolit.can.network import CANInitError
 from contextlib import asynccontextmanager
+
 from routers import stu_routes, sth_routes, common, file_routes, measurement_routes
 from scripts.file_handling import ensure_folder_exists, get_measurement_dir
-from models.globals import MeasurementSingleton, NetworkSingleton
+from models.globals import MeasurementSingleton, NetworkSingleton, TridentHandler, get_trident_client
 
 
 @asynccontextmanager
@@ -16,8 +18,19 @@ async def lifespan(app: FastAPI):
     Anything before <yield> will be run on startup; everything after on shutdown.
     See https://fastapi.tiangolo.com/advanced/events/#lifespan
     """
+    MeasurementSingleton.create_instance_if_none()
     try:
-        MeasurementSingleton.create_instance_if_none()
+        await TridentHandler.create_client(
+            service=getenv("TRIDENT_API_BASE_URL"),
+            username=getenv("TRIDENT_API_USERNAME"),
+            password=getenv("TRIDENT_API_PASSWORD"),
+            default_bucket=getenv("TRIDENT_API_BUCKET"),
+        )
+
+    except HTTPStatusError:
+        print("Cannot establish Trident connection")
+
+    try:
         await NetworkSingleton.create_instance_if_none()
     except CANInitError:
         print("Error initializing CAN network. CAN adapter may not be connected.")

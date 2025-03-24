@@ -1,19 +1,17 @@
-import re
-
-import pandas
 from fastapi import APIRouter, HTTPException, UploadFile
-from fastapi.params import Depends
+from fastapi.params import Body, Depends
 from fastapi.responses import FileResponse, StreamingResponse
 import os
 from datetime import datetime
-import pandas as pd
 import json
 import asyncio
-from typing import AsyncGenerator
+from typing import Annotated, AsyncGenerator
 
 from starlette.responses import PlainTextResponse
 
+from models.globals import get_trident_client
 from models.models import Dataset, DiskCapacity, FileListResponseModel, MeasurementFileDetails, ParsedMeasurement
+from models.trident import StorageClient
 from scripts.file_handling import get_disk_space_in_gb, get_drive_or_root_path, get_measurement_dir, \
     get_suffixed_filename, is_dangerous_filename
 import pandas as pd
@@ -180,3 +178,12 @@ def ensure_dataframe_with_columns(df, required_columns) -> pd.DataFrame:
         raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
 
     return df
+
+@router.post("/upload")
+async def upload_file(filename: Annotated[str, Body(embed=True)], client: StorageClient = Depends(get_trident_client), measurement_dir: str = Depends(get_measurement_dir)):
+    try:
+        client.upload_file(os.path.join(measurement_dir, filename), filename)
+        print(f"Successfully uploaded file <{filename}>")
+    except HTTPException as e:
+        print(e)
+
