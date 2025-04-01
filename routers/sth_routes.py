@@ -11,8 +11,7 @@ from scripts.sth_scripts import connect_sth_device_by_mac, disconnect_sth_device
 
 router = APIRouter(
     prefix="/sth",
-    tags=["devices"],
-    responses={404: {"description": "Not found"}},
+    tags=["Sensory Tool Holder (STH)"],
 )
 
 

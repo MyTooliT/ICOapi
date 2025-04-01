@@ -40,7 +40,7 @@ app.include_router(prefix='/api/v1', router=sth_routes.router)
 app.include_router(prefix='/api/v1', router=common.router)
 app.include_router(prefix='/api/v1', router=file_routes.router)
 app.include_router(prefix='/api/v1', router=cloud_routes.router)
-app.include_router(prefix='/api/v1/measurement', router=measurement_routes.router)
+app.include_router(prefix='/api/v1', router=measurement_routes.router)
 
 origins = getenv("VITE_API_ORIGINS", "")
 origins = origins.split(",")

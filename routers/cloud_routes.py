@@ -7,7 +7,10 @@ from models.models import TridentBucketObject
 from models.trident import StorageClient
 from scripts.file_handling import get_measurement_dir
 
-router = APIRouter(prefix="/cloud")
+router = APIRouter(
+    prefix="/cloud",
+    tags=["Cloud Connection"]
+)
 
 @router.post("/upload")
 async def upload_file(filename: Annotated[str, Body(embed=True)], client: StorageClient = Depends(get_trident_client), measurement_dir: str = Depends(get_measurement_dir)):

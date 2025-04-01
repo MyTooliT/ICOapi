@@ -6,7 +6,9 @@ from models.models import SystemStateModel
 from models.trident import StorageClient
 from scripts.file_handling import get_disk_space_in_gb
 
-router = APIRouter()
+router = APIRouter(
+    tags=["General"]
+)
 
 
 @router.get("/state", status_code=status.HTTP_200_OK)

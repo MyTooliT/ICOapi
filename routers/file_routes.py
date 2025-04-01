@@ -17,7 +17,10 @@ from models.trident import StorageClient
 from scripts.file_handling import get_disk_space_in_gb, get_drive_or_root_path, get_measurement_dir, \
     get_suffixed_filename, is_dangerous_filename
 import pandas as pd
-router = APIRouter(prefix="/files")
+router = APIRouter(
+    prefix="/files",
+    tags=["File Handling"]
+)
 
 
 @router.get("")

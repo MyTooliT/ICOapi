@@ -9,7 +9,10 @@ from models.models import MeasurementStatus, ControlResponse, MeasurementInstruc
 from models.globals import get_network, get_measurement_state, MeasurementState, Network
 from scripts.measurement import run_measurement
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/measurement",
+    tags=["Measurement"]
+)
 
 @router.post("/start", response_model=ControlResponse)
 async def start_measurement(

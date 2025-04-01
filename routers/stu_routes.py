@@ -10,8 +10,7 @@ import mytoolit.can
 
 router = APIRouter(
     prefix="/stu",
-    tags=["devices"],
-    responses={404: {"description": "Not found"}},
+    tags=["Stationary Transceiver Unit (STH)"],
 )
 
 
