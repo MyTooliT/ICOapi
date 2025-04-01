@@ -66,6 +66,7 @@ class TridentClient:
             self.session.close()
             self.session = requests.Session()
             logger.warning("Refresh failed. Started new session.")
+            self._ensure_auth()
 
     def _ensure_auth(self):
         """Ensure an access token is available before making a request."""
@@ -79,10 +80,13 @@ class TridentClient:
     def authenticate(self):
         self._ensure_auth()
 
+    def refresh(self):
+        self._refresh_token()
+
     def request(self, method, path, **kwargs):
         """Generic request handler with authentication and retry on token expiration."""
-        self._ensure_auth()
         self._refresh_token()
+        self._ensure_auth()
         url = self.service + path
 
 
@@ -116,16 +120,52 @@ class TridentClient:
         return self.request("DELETE", path, params=params)
 
 
-class StorageClient:
+class BaseClient:
+    def get_buckets(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def get_bucket_objects(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def upload_file(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def authenticate(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def refresh(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def request(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def post(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def put(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def get(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def delete(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def is_authenticated(self):
+        raise NotImplementedError
+
+
+
+class StorageClient(BaseClient):
     def __init__(self, service: str, username: str, password: str, default_bucket: str):
-        self.client = TridentClient(service, username, password)
+        self._client = TridentClient(service, username, password)
         self.default_bucket = default_bucket
 
     def get_buckets(self):
-        return self.client.get("/s3/buckets").json()
+        return self._client.get("/s3/buckets").json()
 
     def get_bucket_objects(self, bucket: str|None = None):
-        response = self.client.get(f"/s3/list?bucket={bucket if bucket else self.default_bucket}")
+        response = self._client.get(f"/s3/list?bucket={bucket if bucket else self.default_bucket}")
         try:
             return response.json()
         except json.decoder.JSONDecodeError:
@@ -134,4 +174,33 @@ class StorageClient:
 
     def upload_file(self, file_path: str, filename: str, bucket: str | None = None):
         with open(file_path, "rb") as f:
-            return self.client.request("POST", "/s3/upload", files={"file": f}, data={"bucket": bucket if bucket else self.default_bucket, "key": filename})
+            return self._client.request("POST", "/s3/upload", files={"file": f}, data={"bucket": bucket if bucket else self.default_bucket, "key": filename})
+
+    def authenticate(self, *args, **kwargs):
+        self._client.authenticate()
+
+    def refresh(self, *args, **kwargs):
+        self._client.refresh()
+
+    def is_authenticated(self):
+        return self._client.is_authenticated()
+
+
+class NoopClient(BaseClient):
+    def get_buckets(self, *args, **kwargs):
+        logger.info("No cloud connection. Skipped <get_buckets>")
+
+    def get_bucket_objects(self, *args, **kwargs):
+        logger.info("No cloud connection. Skipped <get_bucket_objects>")
+
+    def upload_file(self, *args, **kwargs):
+        logger.info("No cloud connection. Skipped <upload_file>")
+
+    def authenticate(self, *args, **kwargs):
+        logger.info("No cloud connection. Skipped <authenticate>")
+
+    def refresh(self, *args, **kwargs):
+        logger.info("No cloud connection. Skipped <refresh>")
+
+    def is_authenticated(self, *args, **kwargs):
+        logger.info("No cloud connection. Skipped <is_authenticated>")

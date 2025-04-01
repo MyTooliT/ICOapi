@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, APIRouter
+from fastapi import HTTPException, APIRouter
 from fastapi.params import Depends, Annotated, Body
 import os
 
@@ -21,7 +21,7 @@ async def upload_file(filename: Annotated[str, Body(embed=True)], client: Storag
 @router.post("/authenticate")
 async def authenticate(storage: StorageClient = Depends(get_trident_client)):
     try:
-        storage.client.authenticate()
+        storage.authenticate()
     except HTTPException as e:
         print(e)
 

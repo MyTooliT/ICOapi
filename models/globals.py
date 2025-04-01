@@ -1,10 +1,11 @@
 import asyncio
+from os import getenv
 from typing import List
 from mytoolit.can.network import Network
 from starlette.websockets import WebSocket
 
 from models.models import MeasurementInstructions, MeasurementStatus
-from models.trident import StorageClient, TridentClient
+from models.trident import BaseClient, NoopClient, StorageClient
 
 
 class NetworkSingleton:
@@ -132,10 +133,17 @@ class TridentHandler:
     @classmethod
     async def get_client(cls):
         if cls.client is None:
-            await cls.create_client()
+            await cls.create_client(
+                service=getenv("TRIDENT_API_BASE_URL"),
+                username=getenv("TRIDENT_API_USERNAME"),
+                password=getenv("TRIDENT_API_PASSWORD"),
+                default_bucket=getenv("TRIDENT_API_BUCKET"))
         return cls.client
 
 
-async def get_trident_client():
-    client = await TridentHandler.get_client()
-    return client
+async def get_trident_client() -> BaseClient:
+    if getenv("TRIDENT_API_ENABLED") == "True":
+        client = await TridentHandler.get_client()
+        return client
+    else:
+        return NoopClient()

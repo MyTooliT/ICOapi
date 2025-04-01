@@ -20,13 +20,8 @@ async def lifespan(app: FastAPI):
     """
     MeasurementSingleton.create_instance_if_none()
     try:
-        handler = await TridentHandler.create_client(
-            service=getenv("TRIDENT_API_BASE_URL"),
-            username=getenv("TRIDENT_API_USERNAME"),
-            password=getenv("TRIDENT_API_PASSWORD"),
-            default_bucket=getenv("TRIDENT_API_BUCKET"),
-        )
-        handler.client.authenticate()
+        handler = await get_trident_client()
+        handler.authenticate()
 
     except HTTPStatusError:
         print("Cannot establish Trident connection")

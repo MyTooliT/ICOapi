@@ -29,12 +29,11 @@ async def list_files_and_capacity(
         capacity = get_disk_space_in_gb(get_drive_or_root_path())
         files_info: list[MeasurementFileDetails] = []
         cloud_files: list[TridentBucketObject] = []
-        if os.getenv("TRIDENT_API_ENABLED") == "True":
-            try:
-                objects = storage.get_bucket_objects()
-                cloud_files = [TridentBucketObject(**obj) for obj in objects]
-            except Exception as e:
-                print(e)
+        try:
+            objects = storage.get_bucket_objects()
+            cloud_files = [TridentBucketObject(**obj) for obj in objects]
+        except Exception as e:
+            print(e)
         # Iterate over files in the directory
         for filename in os.listdir(measurement_dir):
             file_path = os.path.join(measurement_dir, filename)
