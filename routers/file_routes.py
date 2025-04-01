@@ -10,7 +10,9 @@ from typing import Annotated, AsyncGenerator
 from starlette.responses import PlainTextResponse
 
 from models.globals import get_trident_client
-from models.models import Dataset, DiskCapacity, FileListResponseModel, MeasurementFileDetails, ParsedMeasurement
+from models.models import Dataset, DiskCapacity, FileCloudDetails, FileListResponseModel, MeasurementFileDetails, \
+    ParsedMeasurement, \
+    TridentBucketObject
 from models.trident import StorageClient
 from scripts.file_handling import get_disk_space_in_gb, get_drive_or_root_path, get_measurement_dir, \
     get_suffixed_filename, is_dangerous_filename
@@ -19,10 +21,19 @@ router = APIRouter(prefix="/files")
 
 
 @router.get("")
-async def list_files_and_capacity(measurement_dir: str = Depends(get_measurement_dir)) -> FileListResponseModel:
+async def list_files_and_capacity(
+        measurement_dir: str = Depends(get_measurement_dir),
+        storage: StorageClient = Depends(get_trident_client)
+) -> FileListResponseModel:
     try:
         capacity = get_disk_space_in_gb(get_drive_or_root_path())
         files_info: list[MeasurementFileDetails] = []
+        cloud_files: list[TridentBucketObject] = []
+        try:
+            objects = storage.get_bucket_objects()
+            cloud_files = [TridentBucketObject(**obj) for obj in objects]
+        except Exception as e:
+            print(e)
         # Iterate over files in the directory
         for filename in os.listdir(measurement_dir):
             file_path = os.path.join(measurement_dir, filename)
@@ -30,11 +41,21 @@ async def list_files_and_capacity(measurement_dir: str = Depends(get_measurement
                 # Get file creation time and size
                 creation_time = datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
                 file_size = os.path.getsize(file_path)
+                cloud_details = FileCloudDetails(
+                    is_uploaded=False,
+                    upload_timestamp=None
+                )
+                if os.getenv("TRIDENT_API_ENABLED") == "True":
+                    matches = [file for file in cloud_files if file.Key == filename]
+                    if matches:
+                        cloud_details.is_uploaded = True
+                        cloud_details.upload_timestamp = matches[0].LastModified
 
                 details = MeasurementFileDetails(
                     name=filename,
                     size=file_size,
-                    created=creation_time
+                    created=creation_time,
+                    cloud=cloud_details
                 )
                 files_info.append(details)
         return FileListResponseModel(capacity, files_info, measurement_dir)
@@ -178,12 +199,3 @@ def ensure_dataframe_with_columns(df, required_columns) -> pd.DataFrame:
         raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
 
     return df
-
-@router.post("/upload")
-async def upload_file(filename: Annotated[str, Body(embed=True)], client: StorageClient = Depends(get_trident_client), measurement_dir: str = Depends(get_measurement_dir)):
-    try:
-        client.upload_file(os.path.join(measurement_dir, filename), filename)
-        print(f"Successfully uploaded file <{filename}>")
-    except HTTPException as e:
-        print(e)
-

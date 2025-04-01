@@ -101,12 +101,20 @@ class DataValueModel(BaseModel, JSONEncoder):
 
 
 @dataclass
+class FileCloudDetails:
+    """Data model for details of file on cloud"""
+    is_uploaded: bool
+    upload_timestamp: str | None
+
+
+@dataclass
 class MeasurementFileDetails:
     """Data model for measurement files"""
 
     name: str
     created: str
     size: int
+    cloud: FileCloudDetails
 
 
 @dataclass
@@ -161,6 +169,7 @@ class SystemStateModel:
     can_ready: bool
     disk_capacity: DiskCapacity
     measurement_status: MeasurementStatus
+    cloud_status: bool
 
 
 @dataclass

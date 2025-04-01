@@ -6,7 +6,7 @@ from httpx import HTTPStatusError
 from mytoolit.can.network import CANInitError
 from contextlib import asynccontextmanager
 
-from routers import stu_routes, sth_routes, common, file_routes, measurement_routes
+from routers import stu_routes, sth_routes, common, file_routes, measurement_routes, cloud_routes
 from scripts.file_handling import ensure_folder_exists, get_measurement_dir
 from models.globals import MeasurementSingleton, NetworkSingleton, TridentHandler, get_trident_client
 
@@ -20,12 +20,8 @@ async def lifespan(app: FastAPI):
     """
     MeasurementSingleton.create_instance_if_none()
     try:
-        await TridentHandler.create_client(
-            service=getenv("TRIDENT_API_BASE_URL"),
-            username=getenv("TRIDENT_API_USERNAME"),
-            password=getenv("TRIDENT_API_PASSWORD"),
-            default_bucket=getenv("TRIDENT_API_BUCKET"),
-        )
+        handler = await get_trident_client()
+        handler.authenticate()
 
     except HTTPStatusError:
         print("Cannot establish Trident connection")
@@ -43,6 +39,7 @@ app.include_router(prefix='/api/v1', router=stu_routes.router)
 app.include_router(prefix='/api/v1', router=sth_routes.router)
 app.include_router(prefix='/api/v1', router=common.router)
 app.include_router(prefix='/api/v1', router=file_routes.router)
+app.include_router(prefix='/api/v1', router=cloud_routes.router)
 app.include_router(prefix='/api/v1/measurement', router=measurement_routes.router)
 
 origins = getenv("VITE_API_ORIGINS", "")
