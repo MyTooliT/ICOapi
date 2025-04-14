@@ -10,7 +10,7 @@ Additionally, when the API is running, it hosts an OpenAPI compliant documentati
 
 This repository can be setup manually for Windows and Linux or using the installation script for Linux.
 
-## Manual Installation
+## Manual Installation (Development)
 
 For a Linux environment:
 ```sh
@@ -25,7 +25,7 @@ On Windows, also include this dependency:
 pip install windows-curses==2.3.3
 ```
 
-## Installation Script (Linux)
+## Service Installation (Linux)
 
 For Linux, there is an installation script which sets the directory for the actual installation, the directory for the 
 systemd service and the used systemd service name. The (sensible) defaults are:
@@ -148,7 +148,12 @@ python3 generate_metadata.py --input <input_path> --output <output_path>
 
 # Run
 
-```sh
+On Linux, if the installation script was used, the service runs automatically - but as-is, without any updates on 
+changes to the repository as the service simply installs the current version.
+
+For any other usage or for local development, run:
+
+```shell
 python3 api.py
 ```
 
