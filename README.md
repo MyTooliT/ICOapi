@@ -10,6 +10,10 @@ Additionally, when the API is running, it hosts an OpenAPI compliant documentati
 
 This repository can be setup manually for Windows and Linux or using the installation script for Linux.
 
+## Prerequisites
+
+- Python 3.10+, from the official [Python Website](https://www.python.org/downloads/)
+
 ## Manual Installation (Development)
 
 For a Linux environment:
