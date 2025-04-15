@@ -9,6 +9,7 @@ from routers import stu_routes, sth_routes, common, file_routes, measurement_rou
 from scripts.file_handling import ensure_folder_exists, get_measurement_dir
 from models.globals import MeasurementSingleton, NetworkSingleton, get_trident_client
 from utils.logging_setup import setup_logging
+import logging
 
 
 @asynccontextmanager
@@ -44,9 +45,11 @@ app.include_router(prefix='/api/v1', router=cloud_routes.router)
 app.include_router(prefix='/api/v1', router=measurement_routes.router)
 app.include_router(prefix='/api/v1', router=log_routes.router)
 
+
+logger = logging.getLogger(__name__)
 origins = getenv("VITE_API_ORIGINS", "")
 origins = origins.split(",")
-print(f"origins: {origins}")
+logger.info(f"Accepted origins for CORS: {origins}")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -76,4 +79,5 @@ if __name__ == "__main__":
         "api:app",
         host=HOST,
         port=PORT,
+        log_config=None
     )

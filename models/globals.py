@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from os import getenv
 from typing import List
 from mytoolit.can.network import Network
@@ -7,6 +8,7 @@ from starlette.websockets import WebSocket
 from models.models import MeasurementInstructions, MeasurementStatus
 from models.trident import BaseClient, NoopClient, StorageClient
 
+logger = logging.getLogger(__name__)
 
 class NetworkSingleton:
     """
@@ -27,21 +29,20 @@ class NetworkSingleton:
             if cls._instance is None:
                 cls._instance = Network()
                 await cls._instance.__aenter__()
-                print(f"Created Network instance with ID <{id(cls._instance)}>")
+                logger.info(f"Created CAN Network instance with ID <{id(cls._instance)}>")
 
     @classmethod
     async def get_instance(cls):
         await cls.create_instance_if_none()
-        print(f"Using Network instance with ID <{id(cls._instance)}>")
         return cls._instance
 
     @classmethod
     async def close_instance(cls):
         async with cls._lock:
             if cls._instance is not None:
-                print(f"Shutting down Network instance with ID <{id(cls._instance)}>")
+                logger.debug(f"Trying to shut down CAN Network instance with ID <{id(cls._instance)}>")
                 await cls._instance.__aexit__(None, None, None)
-                print(f"Shut down Network instance with ID <{id(cls._instance)}>")
+                logger.info(f"Successfully shut down CAN Network instance with ID <{id(cls._instance)}>")
                 cls._instance = None
 
     @classmethod
@@ -101,7 +102,7 @@ class MeasurementSingleton:
     def create_instance_if_none(cls):
         if cls._instance is None:
             cls._instance = MeasurementState()
-            print(f"Created Measurement instance with ID <{id(cls._instance)}>")
+            logger.info(f"Created Measurement instance with ID <{id(cls._instance)}>")
 
     @classmethod
     def get_instance(cls):
@@ -110,8 +111,9 @@ class MeasurementSingleton:
 
     @classmethod
     def clear_clients(cls):
+        num_of_clients = len(cls._instance.clients)
         cls._instance.clients.clear()
-        print("Cleared clients")
+        logger.info(f"Cleared {num_of_clients} clients from measurement WebSocket list")
 
 
 def get_measurement_state():

@@ -184,4 +184,31 @@ For any other usage or for local development, run:
 python3 api.py
 ```
 
- 
+# Development Guidelines
+
+These guidelines are a work-in-progress and aim to explain development decisions and support consistency.
+
+## Logging
+
+The application is set up to log _everything_. This is how the logging is set up.
+
+### Guidelines
+
+- Log only after success
+- Don't log intent, like "Creating user..." or "Initializing widget..." unless it's for debugging.
+- Do log outcomes, like "User created successfully." — but only after the operation completes without error.
+- Avoid logging in constructors unless they cannot fail
+  - Prefer logging in methods that complete the actual operation, 
+  - or use a factory method to wrap creation and success logging.
+
+### Levels
+
+| Action                            | Log Level            | Description (taken from [Python docs](https://docs.python.org/3/library/logging.html#logging-levels)) |
+|-----------------------------------|----------------------|-------------------------------------------------------------------------------------------------------|
+| Starting a process / intention    | `DEBUG`              | Detailed information for diagnosing problems. Mostly useful for developers.                           |
+| Successfully completed action     | `INFO`               | For confirming that things are working as expected.                                                   |
+| Recoverable error / edge case     | `WARNING`            | Indicates something unexpected happened or could cause problems later.                                |
+| Expected failure / validation     | `ERROR`              | Used for serious problems that caused a function to fail.                                             |
+| Critical Failure / unrecoverable  | `CRITICAL`           | For very serious errors. Indicates a critical condition — program may abort.                          |
+| Unexpected exception (with trace) | `logger.exception()` | Serious errors, but the exception was caught.                                                         |
+
