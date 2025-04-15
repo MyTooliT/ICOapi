@@ -5,9 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from mytoolit.can.network import CANInitError
 from contextlib import asynccontextmanager
 
-from routers import stu_routes, sth_routes, common, file_routes, measurement_routes, cloud_routes
+from routers import stu_routes, sth_routes, common, file_routes, measurement_routes, cloud_routes, log_routes
 from scripts.file_handling import ensure_folder_exists, get_measurement_dir
 from models.globals import MeasurementSingleton, NetworkSingleton, get_trident_client
+from utils.logging_setup import setup_logging
 
 
 @asynccontextmanager
@@ -41,6 +42,7 @@ app.include_router(prefix='/api/v1', router=common.router)
 app.include_router(prefix='/api/v1', router=file_routes.router)
 app.include_router(prefix='/api/v1', router=cloud_routes.router)
 app.include_router(prefix='/api/v1', router=measurement_routes.router)
+app.include_router(prefix='/api/v1', router=log_routes.router)
 
 origins = getenv("VITE_API_ORIGINS", "")
 origins = origins.split(",")
@@ -56,6 +58,7 @@ app.add_middleware(
 
 
 if __name__ == "__main__":
+    setup_logging()
     import uvicorn
     from dotenv import load_dotenv
 
