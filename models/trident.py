@@ -28,12 +28,8 @@ class TridentClient:
             access_token = token_data.get("access_token")
             refresh_token = token_data.get("refresh_token")
 
-            logger.log(logging.INFO, f"access: {access_token}")
-            logger.log(logging.INFO, f"refresh: {refresh_token}")
-
             self.session.headers.update({"Authorization": f"Bearer {access_token}"})
             self.session.cookies.set("refresh_token", refresh_token, domain="iot.ift.tuwien.ac.at")
-            logger.log(logging.INFO, f"refresh cookie: {self.session.cookies.get('refresh_token', domain='iot.ift.tuwien.ac.at')}")
 
             logger.info("Successfully retrieved access token.")
             return access_token
@@ -92,9 +88,6 @@ class TridentClient:
 
         try:
             logger.info(f"{method} request for {url}")
-            logger.warning(f"REQUEST: Auth header: {self.session.headers.get('Authorization')}")
-            logger.warning(f"REQUEST: Cookies: {self.session.cookies}")
-            logger.warning(f"REQUEST: Refresh token: {self.session.cookies.get('refresh_token')}")
             response = self.session.request(method, url, **kwargs)
             if response.status_code == 401:
                 logger.warning("Token expired. Refreshing token...")
