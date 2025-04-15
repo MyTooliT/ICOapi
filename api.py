@@ -2,13 +2,12 @@ from os import getenv
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from httpx import HTTPStatusError
 from mytoolit.can.network import CANInitError
 from contextlib import asynccontextmanager
 
 from routers import stu_routes, sth_routes, common, file_routes, measurement_routes, cloud_routes
 from scripts.file_handling import ensure_folder_exists, get_measurement_dir
-from models.globals import MeasurementSingleton, NetworkSingleton, TridentHandler, get_trident_client
+from models.globals import MeasurementSingleton, NetworkSingleton, get_trident_client
 
 
 @asynccontextmanager
@@ -23,8 +22,9 @@ async def lifespan(app: FastAPI):
         handler = await get_trident_client()
         handler.authenticate()
 
-    except HTTPStatusError:
+    except Exception as e:
         print("Cannot establish Trident connection")
+        print(e)
 
     try:
         await NetworkSingleton.create_instance_if_none()
