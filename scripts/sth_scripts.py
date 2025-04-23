@@ -1,14 +1,16 @@
 from time import time
 from asyncio import sleep
 from typing import List
-
+import logging
 from mytoolit.can.network import STHDeviceInfo, NoResponseError
-from mytoolit.can import Network, NetworkError
+from mytoolit.can import Network
 from mytoolit.can.adc import ADCConfiguration
 
 from models.models import STHRenameResponseModel, ADCValues
 from scripts.stu_scripts import get_stu_devices
 from scripts.errors import CANResponseError
+
+logger = logging.getLogger(__name__)
 
 async def get_sth_devices_from_network(network: Network) -> List[STHDeviceInfo] | CANResponseError:
     """Print a list of available sensor devices"""
@@ -39,7 +41,7 @@ async def get_sth_devices_from_network(network: Network) -> List[STHDeviceInfo] 
 async def connect_sth_device_by_mac(network: Network, mac: str) -> None:
     """Connect a STH device by a given MAC address"""
     await network.connect_sensor_device(mac)
-    print(await network.is_connected("STU 1"))
+    logger.info(f"STU 1 has connection: {await network.is_connected('STU 1')}")
 
 
 async def disconnect_sth_devices(network: Network) -> None:

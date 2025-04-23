@@ -1,9 +1,10 @@
+import asyncio
 import json
 import os
 import time
 from functools import partial
 from pathlib import Path
-
+import logging
 from mytoolit.can import Network, UnsupportedFeatureException
 from mytoolit.can.adc import ADCConfiguration
 from mytoolit.can.streaming import StreamingConfiguration, StreamingTimeoutError
@@ -17,6 +18,7 @@ from scripts.file_handling import get_measurement_dir
 from models.globals import MeasurementState
 from models.models import DataValueModel, MeasurementInstructions
 
+logger = logging.getLogger(__name__)
 
 async def setup_adc(network: Network, instructions: MeasurementInstructions) -> int:
     """
@@ -36,7 +38,7 @@ async def setup_adc(network: Network, instructions: MeasurementInstructions) -> 
     await network.write_adc_configuration(**adc_config)
 
     sample_rate = adc_config.sample_rate()
-    print(f"Sample Rate: {sample_rate} Hz")
+    logger.info(f"Sample Rate: {sample_rate} Hz")
 
     return sample_rate
 
@@ -117,13 +119,38 @@ def maybe_get_ift_value(samples: list[float], sample_frequency=9524/3, window_le
     return iftlibrary.ift_value(samples, sample_frequency, window_length)
 
 
+async def send_ift_values(
+        timestamps: list[float],
+        values: list[float],
+        instructions: MeasurementInstructions,
+        measurement_state: MeasurementState
+) -> None:
+    logger.debug(f"IFT value computation requested for channel: <{instructions.ift_channel}>")
+
+    ift_values = maybe_get_ift_value(values, window_length=instructions.ift_window_width / 1000)
+
+    ift_wrapped: DataValueModel = DataValueModel(
+        first=None,
+        second=None,
+        third=None,
+        ift=create_objects(timestamps, ift_values, timestamps[0]),
+        counter=1,
+        timestamp=1,
+        dataloss=None
+    )
+    for client in measurement_state.clients:
+        try:
+            await client.send_json([ift_wrapped.model_dump()])
+            logger.debug(f"Sent IFT value to client <{client.client}>")
+        except RuntimeError:
+            logger.warning("Client must be disconnected, passing")
+
+
 async def run_measurement(
         network: Network,
         instructions: MeasurementInstructions,
         measurement_state: MeasurementState
 ) -> None:
-    print("STARTED MEASUREMENT")
-
     # Write ADC configuration to holder
     sample_rate = await setup_adc(network, instructions)
 
@@ -148,10 +175,17 @@ async def run_measurement(
     # Get sensor range for metadata in HDF5 file.
     sensor_range = await read_acceleration_sensor_range_in_g(network)
 
+    timestamps: list[float] = []
+    ift_relevant_channel: list[float] = []
+    ift_sent: bool = False
+    start_time: float
+
     try:
         async with network.open_data_stream(streaming_configuration) as stream:
 
             with Storage(Path(f'{get_measurement_dir()}/{measurement_state.name}.hdf5'), streaming_configuration) as storage:
+
+                logger.info(f"Measurement started for file <{get_measurement_dir()}/{measurement_state.name}.hdf5>")
 
                 storage.add_acceleration_meta(
                     "Sensor_Range", f"± {sensor_range / 2} g₀"
@@ -165,10 +199,10 @@ async def run_measurement(
                     storage.add_acceleration_meta(
                         "metadata_version", METADATA_VERSION
                     )
+                    logger.debug("Added measurement metadata")
 
-                timestamps = []
-                ift_relevant_channel = []
-                counter = 0
+
+                counter: int = 0
                 data_collected_for_send: list = []
                 start_time = time.time()
 
@@ -211,7 +245,7 @@ async def run_measurement(
                             try:
                                 await client.send_json(data_collected_for_send)
                             except RuntimeError:
-                                print("Failed to send data to client, must be disconnected.")
+                                logger.warning(f"Failed to send data to client <{client.client}>")
                         data_collected_for_send.clear()
                         counter = 0
                     else:
@@ -225,6 +259,7 @@ async def run_measurement(
                     # Exit condition
                     if instructions.time is not None:
                         if data.timestamp - timestamps[0] >= instructions.time:
+                            logger.debug(f"Timeout reached at {data.timestamp - timestamps[0]}s")
                             break
 
                 # Send dataloss
@@ -240,37 +275,28 @@ async def run_measurement(
                             dataloss=storage.dataloss()
                         ).model_dump()])
                     except RuntimeError:
-                        print("client must be disconnected, passing")
+                        logger.warning("Client must be disconnected, passing")
 
                 # Send IFT value values at once after measurement is finished.
                 if instructions.ift_requested:
-                    ift_values = maybe_get_ift_value(ift_relevant_channel, window_length=instructions.ift_window_width / 1000)
-
-                    ift_wrapped: DataValueModel = DataValueModel(
-                        first=None,
-                        second=None,
-                        third=None,
-                        ift=create_objects(timestamps, ift_values, timestamps[0]),
-                        counter=1,
-                        timestamp=1,
-                        dataloss=None
-                    )
-
-                    for client in measurement_state.clients:
-                        try:
-                            await client.send_json([ift_wrapped.model_dump()])
-                        except RuntimeError:
-                            print("client must be disconnected, passing")
-
-
-                print(f"Python local time: {time.time() - start_time}")
+                    await send_ift_values(timestamps, ift_relevant_channel, instructions, measurement_state)
+                    ift_sent = True
 
     except StreamingTimeoutError as e:
+        logger.debug("Stream timeout error")
         for client in measurement_state.clients:
             await client.send_json({"error": True, "type": type(e).__name__, "message": str(e)})
+        measurement_state.clients.clear()
+    except asyncio.CancelledError as e:
+        logger.debug("Measurement cancelled.")
+        if instructions.ift_requested and not ift_sent:
+            await send_ift_values(timestamps, ift_relevant_channel, instructions, measurement_state)
+        raise asyncio.CancelledError from e
+    except Exception as e:
+        logger.debug("Unhandled measurement error")
+    finally:
+        clients = len(measurement_state.clients)
         for client in measurement_state.clients:
             await client.close()
-        measurement_state.clients.clear()
-    finally:
-        measurement_state.running = False
-    print("ENDED MEASUREMENT")
+        logger.info(f"Ended measurement and cleared {clients} clients")
+        measurement_state.reset()

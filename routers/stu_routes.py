@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, status, Body, Depends
 from fastapi.responses import Response
 from mytoolit.can.network import Network
 from models.models import STUDeviceResponseModel
-from models.globals import get_network
+from models.globals import MeasurementState, get_measurement_state, get_network
 from scripts.stu_scripts import get_stu_devices, reset_stu, enable_ota, disable_ota
 from scripts.errors import CANResponseError
 import mytoolit.can
@@ -52,9 +52,11 @@ async def stu_reset(
     name: Annotated[str, Body(embed=True)],
     response: Response,
     network: Network = Depends(get_network),
+    measurement_state: MeasurementState = Depends(get_measurement_state)
 ) -> None | CANResponseError:
     if await reset_stu(network, name):
         response.status_code = status.HTTP_204_NO_CONTENT
+        measurement_state.reset()
     else:
         response.status_code = status.HTTP_502_BAD_GATEWAY
         return CANResponseError()
