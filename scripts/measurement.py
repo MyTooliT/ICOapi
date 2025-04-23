@@ -85,11 +85,11 @@ def get_measurement_indices(streaming_configuration: StreamingConfiguration) -> 
     return [first_index, second_index, third_index]
 
 
-def create_objects(timestamps, ift_vals, first_timestamp) -> list[dict[str, float]]:
+def create_objects(timestamps, ift_vals) -> list[dict[str, float]]:
     if len(timestamps) != len(ift_vals):
         raise ValueError("Both arrays must have the same length")
 
-    result = [{'x': t, 'y': i} for t, i in zip(delta_from_timestamps(timestamps, first_timestamp), ift_vals)]
+    result = [{'x': t, 'y': i} for t, i in zip(timestamps, ift_vals)]
     return result
 
 
@@ -133,7 +133,7 @@ async def send_ift_values(
         first=None,
         second=None,
         third=None,
-        ift=create_objects(timestamps, ift_values, timestamps[0]),
+        ift=create_objects(timestamps, ift_values),
         counter=1,
         timestamp=1,
         dataloss=None
@@ -288,12 +288,13 @@ async def run_measurement(
             await client.send_json({"error": True, "type": type(e).__name__, "message": str(e)})
         measurement_state.clients.clear()
     except asyncio.CancelledError as e:
-        logger.debug("Measurement cancelled.")
+        logger.debug(f"Measurement cancelled. IFT: requested <{instructions.ift_requested}> | already sent: <{ift_sent}>")
         if instructions.ift_requested and not ift_sent:
             await send_ift_values(timestamps, ift_relevant_channel, instructions, measurement_state)
         raise asyncio.CancelledError from e
     except Exception as e:
-        logger.debug("Unhandled measurement error")
+        logger.error("Unhandled measurement error")
+        logger.error(e)
     finally:
         clients = len(measurement_state.clients)
         for client in measurement_state.clients:
