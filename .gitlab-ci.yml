@@ -17,7 +17,7 @@ deploy-revpi-tt:
     - chmod +x install.sh
     - ./install.sh --force
 
-deploy-revpi-gm:
+deploy-revpi-mb:
   only:
     - main
   stage: deploy
