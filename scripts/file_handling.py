@@ -1,3 +1,4 @@
+import logging
 import os
 import platform
 import sys
@@ -9,6 +10,7 @@ from dotenv import load_dotenv
 
 from models.models import DiskCapacity
 
+logger = logging.getLogger(__name__)
 
 def get_measurement_dir() -> str:
     """To be used for dependency injection."""
@@ -16,14 +18,16 @@ def get_measurement_dir() -> str:
     if getattr(sys, 'frozen', False):
         # we are running in a bundle
         bundle_dir = sys._MEIPASS
-        print(os.path.join(bundle_dir, ".env"))
+        logger.info(f"Detected installed application state - bundle directory: {bundle_dir}")
         env_loaded = env_loaded | load_dotenv(os.path.join(bundle_dir, ".env"))
     if not env_loaded:
+        logger.critical(f"Environment variables not found")
         raise EnvironmentError(".env not found")
 
     # Check for full path in .env
     full_path = os.getenv("VITE_BACKEND_FULL_MEASUREMENT_PATH")
     if full_path:
+        logger.info(f"Used full / absolute path for measurements: {full_path}")
         return os.path.abspath(full_path)
     else:
         measurement_dir = os.getenv("VITE_BACKEND_MEASUREMENT_DIR", "icogui")
@@ -31,12 +35,16 @@ def get_measurement_dir() -> str:
     # No full path, so combine measurement directory with default location
     if os.name == "nt":
         data_dir = os.getenv("LOCALAPPDATA")
+        logger.info(f"Detected Windows; used local appdata directory: {data_dir}")
     elif os.name == "posix":
         data_dir = linux_get_preferred_data_dir(measurement_dir)
+        logger.info(f"Detected Windows; directory: {data_dir}")
     else:
         raise EnvironmentError("Unsupported operating system")
 
-    return os.path.join(data_dir, measurement_dir)
+    final_dir = os.path.join(data_dir, measurement_dir)
+    logger.info(f"Measurement directory: {final_dir}")
+    return final_dir
 
 
 def linux_get_xdg_data_dirs() -> list[str]:
@@ -96,7 +104,7 @@ def get_disk_space_in_gb(path_or_drive: str | os.PathLike= "/") -> DiskCapacity:
 
         return DiskCapacity(total_gb, available_gb)
     except Exception as e:
-        print(f"Error retrieving disk space: {e}")
+        logger.error(f"Error retrieving disk space: {e}")
         return DiskCapacity(None, None)
 
 
@@ -125,6 +133,4 @@ def get_suffixed_filename(base_name: str, directory: str) -> str:
 def ensure_folder_exists(path):
     if not os.path.exists(path):
         os.makedirs(path)
-        print(f"Folder created at: {path}")
-    else:
-        print(f"Folder already exists at: {path}")
+        logger.info(f"Created directory {path}")

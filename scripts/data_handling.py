@@ -1,7 +1,10 @@
+from os import path
 from typing import List, Optional
 import yaml
 from models.models import MeasurementInstructionChannel, Sensor
 import logging
+
+from scripts.file_handling import ensure_folder_exists, get_measurement_dir
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +13,7 @@ def get_voltage_from_raw(v_ref: float) -> float:
     return v_ref / 2**16
 
 def get_sensors() -> list[Sensor]:
-    return [
+    defaults = [
         Sensor(name="Acceleration 100g", sensor_type="ADXL1001", sensor_id="acc100g_01", unit="g", phys_min=-100, phys_max=100, volt_min=0.33, volt_max=2.97),
         Sensor(name="Acceleration 40g", sensor_type="ADXL358C", sensor_id="acc40g_01", unit="g", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
         Sensor(name="Temperature", sensor_type="ADXL358C", sensor_id="temp_01", unit="°C", phys_min=-440, phys_max=125, volt_min=0.772, volt_max=1.267),
@@ -19,36 +22,23 @@ def get_sensors() -> list[Sensor]:
         Sensor(name="Battery Voltage", sensor_type=None, sensor_id="vbat_01", unit="V", phys_min=2.9, phys_max=4.2, volt_min=0.509, volt_max=0.737)
     ]
 
+    config_dir = path.join(get_measurement_dir(), "config")
+    file_path=path.join(config_dir, "sensors.yaml")
+    ensure_folder_exists(config_dir)
 
-def read_sensors_from_yaml(file_path: str) -> List[Sensor]:
-    """
-    Reads a YAML file containing sensor definitions and returns a list of Sensor objects.
+    try:
+        with open(file_path, "r") as file:
+            data = yaml.safe_load(file)
+            sensors = [Sensor(**sensor) for sensor in data['sensors']]
+            logger.info(f"Found {len(sensors)} sensors in {file_path}")
+            return sensors
+    except FileNotFoundError:
+        with open(file_path, "w") as file:
+            default_data = {"sensors": [sensor.dict() for sensor in defaults]}
+            yaml.dump(default_data, file)
+            logger.info(f"File not found. Created new sensor.yaml with {len(defaults)} default sensors.")
+        return defaults
 
-    Args:
-    - file_path (str): Absolute path to the YAML file.
-
-    Returns:
-    - List[Sensor]: A list of Sensor dataclass instances.
-    """
-    with open(file_path, 'r') as file:
-        data = yaml.safe_load(file)
-
-    sensors_data = data.get("sensors", [])
-    sensors = [
-        Sensor(
-            name=sensor['name'],
-            sensor_type=sensor['sensor_type'],
-            sensor_id=sensor['sensor_id'],
-            unit=sensor['unit'],
-            phys_min=sensor['phys_min'],
-            phys_max=sensor['phys_max'],
-            volt_min=sensor['volt_min'],
-            volt_max=sensor['volt_max']
-        )
-        for sensor in sensors_data
-    ]
-
-    return sensors
 
 def find_sensor_by_id(sensors: List[Sensor], sensor_id: str) -> Optional[Sensor]:
     """
