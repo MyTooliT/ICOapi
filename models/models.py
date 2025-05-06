@@ -1,7 +1,6 @@
-import dataclasses
 from typing import List, Optional
 from json import JSONEncoder
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from dataclasses import dataclass
 from mytoolit.can.network import STHDeviceInfo
 
@@ -217,3 +216,35 @@ class LogListResponse:
     directory: str
     max_bytes: int
     backup_count: int
+
+
+class Sensor(BaseModel):
+    name: str
+    sensor_type: str | None
+    sensor_id: str
+    unit: str
+    phys_min: float
+    phys_max: float
+    volt_min: float
+    volt_max: float
+    scaling_factor: float = 1
+    offset: float = 0
+
+    # This will be called after the model is initialized
+    @model_validator(mode="before")
+    def calculate_scaling_factor_and_offset(cls, values):
+        phys_min = values.get('phys_min')
+        phys_max = values.get('phys_max')
+        volt_min = values.get('volt_min')
+        volt_max = values.get('volt_max')
+
+        scaling_factor = (phys_max - phys_min) / (volt_max - volt_min)
+        offset = phys_max - scaling_factor * volt_max
+
+        values['scaling_factor'] = scaling_factor
+        values['offset'] = offset
+        return values
+
+
+    def convert_to_phys(self, volt_value: float) -> float:
+        return volt_value * self.scaling_factor + self.offset

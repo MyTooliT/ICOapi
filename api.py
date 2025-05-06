@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from mytoolit.can.network import CANInitError
 from contextlib import asynccontextmanager
 
-from routers import stu_routes, sth_routes, common, file_routes, measurement_routes, cloud_routes, log_routes
+from routers import sensor_routes, stu_routes, sth_routes, common, file_routes, measurement_routes, cloud_routes, \
+    log_routes
 from scripts.file_handling import ensure_folder_exists, get_measurement_dir
 from models.globals import MeasurementSingleton, NetworkSingleton, get_trident_client
 from utils.logging_setup import setup_logging
@@ -44,6 +45,7 @@ app.include_router(prefix='/api/v1', router=file_routes.router)
 app.include_router(prefix='/api/v1', router=cloud_routes.router)
 app.include_router(prefix='/api/v1', router=measurement_routes.router)
 app.include_router(prefix='/api/v1', router=log_routes.router)
+app.include_router(prefix='/api/v1', router=sensor_routes.router)
 
 
 logger = logging.getLogger(__name__)
