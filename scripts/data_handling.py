@@ -1,6 +1,10 @@
 from os import path
 from typing import List, Optional
 import yaml
+from mytoolit.measurement import Storage
+from mytoolit.measurement.storage import StorageData
+from tables import Float32Col, IsDescription, StringCol, UInt8Col
+
 from models.models import MeasurementInstructionChannel, Sensor
 import logging
 
@@ -69,16 +73,17 @@ def get_sensor_for_channel(channel_instruction: MeasurementInstructionChannel) -
     sensor = Sensor(name="Raw", sensor_type=None, sensor_id="raw_default_01", unit="-", phys_min=-100, phys_max=100, volt_min=0, volt_max=3.3)
     match channel_instruction.channel_number:
         case 0:
-            logger.info(f"Disabled channel; return default sensor.")
+            logger.info(f"Disabled channel; return None")
+            return None
         case 1:
             sensor = sensors[0]
-        case 2, 3, 4:
+        case 2 | 3 | 4:
             sensor = sensors[1]
         case 5:
             sensor = sensors[2]
         case 6:
             sensor = sensors[3]
-        case 7,8,9:
+        case 7 | 8 | 9:
             sensor = sensors[4]
         case 10:
             sensor = sensors[5]
@@ -87,3 +92,49 @@ def get_sensor_for_channel(channel_instruction: MeasurementInstructionChannel) -
 
     logger.info(f"Default sensor for channel {channel_instruction.channel_number}: {sensor.name} | k2: {sensor.scaling_factor} | d2: {sensor.offset}")
     return sensor
+
+
+class SensorDescription(IsDescription):
+    """Description of HDF5 sensor table"""
+
+    name = StringCol(itemsize=100)  # Fixed-size string for the name
+    sensor_type = StringCol(itemsize=100)  # Fixed-size string for the sensor type
+    sensor_id = StringCol(itemsize=100)  # Fixed-size string for the sensor ID
+    unit = StringCol(itemsize=10)  # Fixed-size string for the unit
+    phys_min = Float32Col()  # Float for physical minimum
+    phys_max = Float32Col()  # Float for physical maximum
+    volt_min = Float32Col()  # Float for voltage minimum
+    volt_max = Float32Col()  # Float for voltage maximum
+    scaling_factor = Float32Col()  # Float for scaling factor
+    offset = Float32Col()  # Float for offset
+
+def add_sensor_data_to_storage(storage: StorageData, sensors: List[Sensor]) -> None:
+    if not storage.hdf:
+        logger.error(f"Could not add sensors to storage; no storage found.")
+        return
+
+    table = storage.hdf.create_table(
+        storage.hdf.root,
+        name="sensors",
+        description=SensorDescription,
+        title="Sensor Data"
+    )
+    count = 0
+    for sensor in sensors:
+        if sensor is None:
+            continue
+        row = table.row
+        row['name'] = sensor.name
+        row['sensor_type'] = sensor.sensor_type if sensor.sensor_type else ''
+        row['sensor_id'] = sensor.sensor_id
+        row['unit'] = sensor.unit
+        row['phys_min'] = sensor.phys_min
+        row['phys_max'] = sensor.phys_max
+        row['volt_min'] = sensor.volt_min
+        row['volt_max'] = sensor.volt_max
+        row['scaling_factor'] = sensor.scaling_factor
+        row['offset'] = sensor.offset
+        row.append()
+        count += 1
+
+    logger.info(f"Added {count} sensors to the HDF5 file.")

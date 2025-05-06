@@ -5,16 +5,18 @@ import time
 from functools import partial
 from pathlib import Path
 import logging
+from typing import List
+
 from mytoolit.can import Network, UnsupportedFeatureException
 from mytoolit.can.adc import ADCConfiguration
-from mytoolit.can.streaming import StreamingConfiguration, StreamingTimeoutError
+from mytoolit.can.streaming import StreamingConfiguration, StreamingData, StreamingTimeoutError
 from mytoolit.measurement.sensor import SensorConfiguration
 from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 from mytoolit.measurement import Storage, convert_raw_to_g
 from icolyzer import iftlibrary
 
 from models.autogen.metadata import METADATA_VERSION
-from scripts.data_handling import get_voltage_from_raw, get_sensor_for_channel, get_sensors
+from scripts.data_handling import add_sensor_data_to_storage, get_voltage_from_raw, get_sensor_for_channel, get_sensors
 from scripts.file_handling import get_measurement_dir
 from models.globals import MeasurementState
 from models.models import DataValueModel, MeasurementInstructions
@@ -186,6 +188,8 @@ async def run_measurement(
                     "conversion", "true"
                 )
 
+                storage.add_acceleration_meta("adc_reference_voltage", f"{instructions.adc.reference_voltage}")
+
                 if instructions.meta is not None:
                     meta_dump = json.dumps(instructions.meta.__dict__, default=lambda o: o.__dict__)
                     storage.add_acceleration_meta(
@@ -208,13 +212,25 @@ async def run_measurement(
                 second_channel_sensor = get_sensor_for_channel(instructions.second)
                 third_channel_sensor = get_sensor_for_channel(instructions.third)
 
-                async for data, _ in stream:
+                add_sensor_data_to_storage(storage, [first_channel_sensor, second_channel_sensor, third_channel_sensor])
 
+                if streaming_configuration.first:
+                    if not streaming_configuration.second and not streaming_configuration.third:
+                        logger.info(f"Running in single channel mode with sensor {sensor_configuration.first}.")
+
+                    elif streaming_configuration.second and not streaming_configuration.third:
+                        logger.info(f"Running in dual channel mode with channels 1 (Sensor {sensor_configuration.first}) and 2 (Sensor {sensor_configuration.second}).")
+
+                    elif not streaming_configuration.second and streaming_configuration.third:
+                        logger.info(f"Running in dual channel mode with channels 1 (Sensor {sensor_configuration.first}) and 3 (Sensor {sensor_configuration.third}).")
+
+                    else:
+                        logger.info(f"Running in triple channel mode with sensors {sensor_configuration.first}, {sensor_configuration.second} and {sensor_configuration.third}.")
+
+                async for data, _ in stream:
                     # Convert timestamp to seconds since measurement start -> taking a step out of the client's work
                     data.timestamp = (data.timestamp - start_time)
                     timestamps.append(data.timestamp)
-
-                    storage.add_streaming_data(data)
 
                     data_to_send = DataValueModel(
                         first=None,
@@ -227,28 +243,51 @@ async def run_measurement(
                     )
 
                     if streaming_configuration.first:
-                        first_channel_voltage = data.values[first_index] * voltage_scaling
-                        first_channel_data = first_channel_sensor.convert_to_phys(first_channel_voltage)
-                        data_to_send.first = first_channel_data
+                        if not streaming_configuration.second and not streaming_configuration.third:
 
-                        if instructions.ift_requested and instructions.ift_channel == "first":
-                            ift_relevant_channel.append(first_channel_data)
+                            def convert_single(val: float) -> float:
+                                volts = val * voltage_scaling
+                                return first_channel_sensor.convert_to_phys(volts)
 
-                    if streaming_configuration.second:
-                        second_channel_voltage = data.values[second_index] * voltage_scaling
-                        second_channel_data = second_channel_sensor.convert_to_phys(second_channel_voltage)
-                        data_to_send.second = second_channel_data
+                            data.apply(convert_single)
+                            data_to_send.first = data.values[0]
 
-                        if instructions.ift_requested and instructions.ift_channel == "second":
-                            ift_relevant_channel.append(second_channel_data)
+                        elif streaming_configuration.second and not streaming_configuration.third:
+                            data.values = [
+                                first_channel_sensor.convert_to_phys(data.values[0] * voltage_scaling),
+                                second_channel_sensor.convert_to_phys(data.values[1] * voltage_scaling),
+                            ]
+                            data_to_send.first = data.values[0]
+                            data_to_send.second = data.values[1]
 
-                    if streaming_configuration.third:
-                        third_channel_voltage = data.values[third_index] * voltage_scaling
-                        third_channel_data = third_channel_sensor.convert_to_phys(third_channel_voltage)
-                        data_to_send.third = third_channel_data
+                        elif not streaming_configuration.second and streaming_configuration.third:
+                            data.values = [
+                                first_channel_sensor.convert_to_phys(data.values[0] * voltage_scaling),
+                                third_channel_sensor.convert_to_phys(data.values[1] * voltage_scaling),
+                            ]
+                            data_to_send.first = data.values[0]
+                            data_to_send.third = data.values[1]
 
-                        if instructions.ift_requested and instructions.ift_channel == "third":
-                            ift_relevant_channel.append(third_channel_data)
+                        else:
+                            data.values = [
+                                first_channel_sensor.convert_to_phys(data.values[0] * voltage_scaling),
+                                second_channel_sensor.convert_to_phys(data.values[1] * voltage_scaling),
+                                third_channel_sensor.convert_to_phys(data.values[2] * voltage_scaling),
+                            ]
+                            data_to_send.first = data.values[0]
+                            data_to_send.second = data.values[1]
+                            data_to_send.third = data.values[2]
+
+                    if instructions.ift_requested:
+                        match instructions.ift_channel:
+                            case "first":
+                                ift_relevant_channel.append(data.values[first_index])
+                            case "second":
+                                ift_relevant_channel.append(data.values[second_index])
+                            case "third":
+                                ift_relevant_channel.append(data.values[third_index])
+
+                    storage.add_streaming_data(data)
 
 
                     if counter >= (sample_rate // int(os.getenv("WEBSOCKET_UPDATE_RATE", 60))):
