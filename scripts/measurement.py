@@ -175,7 +175,7 @@ async def run_measurement(
     timestamps: list[float] = []
     ift_relevant_channel: list[float] = []
     ift_sent: bool = False
-    start_time: float
+    start_time: float = 0
 
     try:
         async with network.open_data_stream(streaming_configuration) as stream:
@@ -203,7 +203,6 @@ async def run_measurement(
 
                 counter: int = 0
                 data_collected_for_send: list = []
-                start_time = time.time()
 
                 voltage_scaling = get_voltage_from_raw(instructions.adc.reference_voltage)
                 logger.info(f"ADC reference voltage of {instructions.adc.reference_voltage} results in factor voltage_scaling: {voltage_scaling}")
@@ -228,6 +227,9 @@ async def run_measurement(
                         logger.info(f"Running in triple channel mode with sensors {sensor_configuration.first}, {sensor_configuration.second} and {sensor_configuration.third}.")
 
                 async for data, _ in stream:
+                    if start_time == 0:
+                        start_time = data.timestamp
+                        logger.debug(f"Set measurement start time to {start_time}")
                     # Convert timestamp to seconds since measurement start -> taking a step out of the client's work
                     data.timestamp = (data.timestamp - start_time)
                     timestamps.append(data.timestamp)
@@ -303,13 +305,14 @@ async def run_measurement(
                         counter += 1
 
                     # Exit condition
-                    if not timestamps[0]:
+                    if timestamps[0] is None:
+                        logger.warning(f"Exit condition in first loop hit")
                         continue
 
                     # Exit condition
                     if instructions.time is not None:
                         if data.timestamp - timestamps[0] >= instructions.time:
-                            logger.debug(f"Timeout reached at {data.timestamp - timestamps[0]}s")
+                            logger.info(f"Timeout reached at with current being <{data.timestamp}> and first entry being {timestamps[0]}s")
                             break
 
                 # Send dataloss

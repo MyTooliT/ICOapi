@@ -36,6 +36,7 @@ async def start_measurement(
             logger.error(f"Tool not found!")
         measurement_state.instructions = instructions
         measurement_state.task = asyncio.create_task(run_measurement(network, instructions, measurement_state))
+        logger.info(f"Created measurement task with tool <{measurement_state.tool_name}> and timeout of {instructions.time}")
 
         message = "Measurement started successfully."
 
