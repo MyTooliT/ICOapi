@@ -3,6 +3,8 @@ import json
 import requests
 import logging
 
+from scripts.file_handling import tries_to_traverse_directory
+
 logger = logging.getLogger(__name__)
 
 
@@ -161,9 +163,21 @@ class StorageClient(BaseClient):
             logger.error(response.text)
             return []
 
-    def upload_file(self, file_path: str, filename: str, bucket: str | None = None):
+    def upload_file(self, file_path: str, filename: str, bucket: str | None = None, folder: str | None = "default"):
+        bucket = bucket if bucket else self.default_bucket
+        complete_filename_with_folder = filename
+        if folder is None:
+            logger.info(f"Trying file <{filename}> to bucket <{bucket}> with no folder specified.")
+        elif folder == "":
+            logger.warning(f"Trying file <{filename}> to bucket <{bucket}> with folder incorrectly specified as empty string; assuming no folder.")
+        elif tries_to_traverse_directory(folder):
+            logger.error(f"Trying file <{filename}> to bucket <{bucket}> with folder <{folder}> trying to traverse directories!")
+        else:
+            complete_filename_with_folder = f"{folder}/{filename}"
+            logger.info(f"Trying file <{filename}> to bucket <{bucket}> under folder <{folder}>.")
+
         with open(file_path, "rb") as f:
-            return self._client.request("POST", "/s3/upload", files={"file": f}, data={"bucket": bucket if bucket else self.default_bucket, "key": filename})
+            return self._client.request("POST", "/s3/upload", files={"file": f}, data={"bucket": bucket, "key": complete_filename_with_folder})
 
     def authenticate(self, *args, **kwargs):
         self._client.authenticate()

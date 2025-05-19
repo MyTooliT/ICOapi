@@ -119,6 +119,7 @@ TRIDENT_API_USERNAME=...
 TRIDENT_API_PASSWORD=...
 TRIDENT_API_BUCKET="ctd-data-storage"
 TRIDENT_API_BASE_URL="https://iot.ift.tuwien.ac.at/trident"
+TRIDENT_API_BUCKET_FOLDER="default"
 ```
 
 ### Logging Settings

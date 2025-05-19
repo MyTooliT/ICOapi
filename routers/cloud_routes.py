@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import HTTPException, APIRouter
 from fastapi.params import Depends, Annotated, Body
 import os
@@ -12,13 +14,15 @@ router = APIRouter(
     tags=["Cloud Connection"]
 )
 
+logger = logging.getLogger(__name__)
+
 @router.post("/upload")
 async def upload_file(filename: Annotated[str, Body(embed=True)], client: StorageClient = Depends(get_trident_client), measurement_dir: str = Depends(get_measurement_dir)):
     try:
         client.upload_file(os.path.join(measurement_dir, filename), filename)
-        print(f"Successfully uploaded file <{filename}>")
+        logger.info(f"Successfully uploaded file <{filename}>")
     except HTTPException as e:
-        print(e)
+        logger.error(e)
 
 
 @router.post("/authenticate")
@@ -26,7 +30,7 @@ async def authenticate(storage: StorageClient = Depends(get_trident_client)):
     try:
         storage.authenticate()
     except HTTPException as e:
-        print(e)
+        logger.error(e)
 
 
 @router.get("")
@@ -35,5 +39,5 @@ async def get_cloud_files(storage: StorageClient = Depends(get_trident_client)) 
         objects = storage.get_bucket_objects()
         return [TridentBucketObject(**obj) for obj in objects]
     except HTTPException as e:
-        print(e)
+        logger.error(e)
         return []
