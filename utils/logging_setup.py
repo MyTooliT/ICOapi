@@ -70,10 +70,18 @@ def setup_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(LOG_LEVEL)
 
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
+    )
+    console_formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
+    )
+
     if LOG_USE_JSON:
         formatter = JSONFormatter()
+        console_formatter = JSONFormatter()
     elif LOG_USE_COLOR:
-        formatter = ColoredFormatter(
+        console_formatter = ColoredFormatter(
             "%(log_color)s%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
             log_colors={
                 "DEBUG": "cyan",
@@ -82,10 +90,6 @@ def setup_logging() -> None:
                 "ERROR": "red",
                 "CRITICAL": "bold_red",
             },
-        )
-    else:
-        formatter = logging.Formatter(
-            "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
         )
 
     file_handler = RotatingFileHandler(
@@ -96,7 +100,7 @@ def setup_logging() -> None:
     file_handler.setFormatter(formatter)
 
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
+    console_handler.setFormatter(console_formatter)
 
     ws_handler = WebSocketLogHandler()
     ws_handler.setFormatter(formatter)
