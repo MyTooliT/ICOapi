@@ -1,7 +1,10 @@
+import io
 import os
+import re
+import zipfile
 
 from fastapi import APIRouter, HTTPException,  Query, WebSocket, WebSocketDisconnect
-from starlette.responses import Response
+from starlette.responses import Response, StreamingResponse
 import logging
 from models.models import LogFileMeta, LogListResponse, LogResponse
 from utils.logging_setup import log_watchers, LOG_PATH, parse_timestamps, LOG_NAME, LOG_BACKUP_COUNT, LOG_MAX_BYTES
@@ -71,10 +74,12 @@ def view_log_file(file: str = Query(...), limit: int = Query(0)):
     return LogResponse(filename=file, content=content)
 
 
-@router.get("/download")
-def download_log_file(file: str = Query(...)):
+@router.get("/download/{file}")
+def download_log_file(file: str):
     base_dir = os.path.dirname(LOG_PATH)
     safe_base = os.path.abspath(base_dir)
+
+    logger.info(f"Downloading log file: {file}")
 
     requested_path = os.path.abspath(os.path.join(base_dir, file))
 
@@ -95,6 +100,36 @@ def download_log_file(file: str = Query(...)):
         media_type="text/plain",
         headers={"Content-Disposition": f"attachment; filename={file}"}
     )
+
+
+@router.get("/all", response_class=StreamingResponse)
+async def download_logs_zip():
+    base_dir = os.path.dirname(LOG_PATH)
+    LOG_FILE_PATTERN = re.compile(r".*\.log(\.\d+)?$")
+    log_files = [
+        f for f in os.listdir(base_dir)
+        if LOG_FILE_PATTERN.fullmatch(f)
+    ]
+    print(log_files)
+    if not log_files:
+        raise HTTPException(status_code=404, detail="No log files found.")
+
+    # In-memory ZIP creation
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for file_name in log_files:
+            print(file_name)
+            file_path = os.path.join(base_dir, file_name)
+            zip_file.write(file_path, arcname=file_name)
+
+    zip_buffer.seek(0)  # Reset pointer to start of the file
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=logs.zip"}
+    )
+
 
 @router.websocket("/stream")
 async def websocket_logs(websocket: WebSocket):
