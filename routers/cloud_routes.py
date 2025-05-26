@@ -4,6 +4,8 @@ from fastapi import HTTPException, APIRouter
 from fastapi.params import Depends, Annotated, Body
 import os
 
+from starlette.status import HTTP_502_BAD_GATEWAY
+
 from models.globals import get_trident_client
 from models.models import TridentBucketObject
 from models.trident import StorageClient
@@ -38,6 +40,6 @@ async def get_cloud_files(storage: StorageClient = Depends(get_trident_client)) 
     try:
         objects = storage.get_bucket_objects()
         return [TridentBucketObject(**obj) for obj in objects]
-    except HTTPException as e:
-        logger.error(e)
-        return []
+    except Exception as e:
+        logger.error(f"Error getting cloud files.")
+        raise HTTPException(status_code=HTTP_502_BAD_GATEWAY) from e

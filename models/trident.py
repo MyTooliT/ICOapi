@@ -1,5 +1,7 @@
 # https://git.ift.tuwien.ac.at/lab/ift/infrastructure/trident-client/-/blob/main/main.py?ref_type=heads
 import json
+from http.client import HTTPException
+
 import requests
 import logging
 
@@ -34,14 +36,14 @@ class TridentClient:
             return access_token
         except requests.exceptions.RequestException as e:
             logger.error(f"Error retrieving access and refresh token: {e}")
-            raise Exception(f"Failed to retrieve access and refresh token.") from e
+            # raise Exception(f"Failed to retrieve access and refresh token.") from e
 
     def _refresh_with_refresh_token(self):
         """Refresh the access token using the refresh token."""
         refresh_token = self.session.cookies.get("refresh_token", domain="iot.ift.tuwien.ac.at")
         if not refresh_token:
             logger.error("Refresh token not found when trying to refresh authentication.")
-            raise Exception("Refresh token not found when trying to refresh authentication.")
+            # raise Exception("Refresh token not found when trying to refresh authentication.")
 
         try:
             response = self.session.post(f"{self.service}/auth/refresh", json={"refresh_token": refresh_token})
@@ -92,11 +94,13 @@ class TridentClient:
                 self._refresh_with_refresh_token()
                 return self.session.request(method, url, **kwargs)  # Retry with new token
 
+            if response.status_code >= 500:
+                logger.error(f"Trident API could not be reached, raised code {response.status_code}")
             response.raise_for_status()
             return response
         except requests.exceptions.RequestException as e:
             logger.error(f"Request error: {e}")
-            raise Exception(f"Failed request. Response: {response.text}") from e
+            raise HTTPException(f"Failed request. Response: {response.text}") from e
 
     def post(self, path, data):
         return self.request("POST", path, json=data)
@@ -156,7 +160,12 @@ class StorageClient(BaseClient):
         return self._client.get("/s3/buckets").json()
 
     def get_bucket_objects(self, bucket: str|None = None):
-        response = self._client.get(f"/s3/list?bucket={bucket if bucket else self.default_bucket}")
+        try:
+            response = self._client.get(f"/s3/list?bucket={bucket if bucket else self.default_bucket}")
+        except Exception as e:
+            logger.error(f"Error getting bucket objects.")
+            raise HTTPException
+
         try:
             return response.json()
         except json.decoder.JSONDecodeError:

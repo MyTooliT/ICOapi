@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, HTTPException, UploadFile
 from fastapi.params import Body, Depends
 from fastapi.responses import FileResponse, StreamingResponse
@@ -22,6 +24,7 @@ router = APIRouter(
     tags=["File Handling"]
 )
 
+logger = logging.getLogger(__name__)
 
 @router.get("")
 async def list_files_and_capacity(
@@ -35,8 +38,10 @@ async def list_files_and_capacity(
         try:
             objects = storage.get_bucket_objects()
             cloud_files = [TridentBucketObject(**obj) for obj in objects]
+        except HTTPException as e:
+            logger.error(f"Error listing cloud files")
         except Exception as e:
-            print(e)
+            logger.error(f"General exception when comparing files to cloud: {e}")
         # Iterate over files in the directory
         for filename in os.listdir(measurement_dir):
             file_path = os.path.join(measurement_dir, filename)
