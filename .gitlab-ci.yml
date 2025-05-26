@@ -17,14 +17,14 @@ deploy-revpi-tt:
     - chmod +x install.sh
     - ./install.sh --force
 
-deploy-revpi-mb:
-  only:
-    - main
-  stage: deploy
-  tags:
-    - revpi120532
-    - shell
-  script:
-    - echo "$ENV_CONFIG" > .env
-    - chmod +x install.sh
-    - ./install.sh --force
+#deploy-revpi-mb:
+#  only:
+#    - main
+#  stage: deploy
+#  tags:
+#    - revpi120532
+#    - shell
+#  script:
+#    - echo "$ENV_CONFIG" > .env
+#    - chmod +x install.sh
+#    - ./install.sh --force
