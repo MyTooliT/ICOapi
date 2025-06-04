@@ -14,6 +14,7 @@ from mytoolit.measurement.sensor import SensorConfiguration
 from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
 from mytoolit.measurement import Storage, convert_raw_to_g
 from icolyzer import iftlibrary
+from starlette.websockets import WebSocketDisconnect
 
 from models.autogen.metadata import METADATA_VERSION
 from scripts.data_handling import add_sensor_data_to_storage, get_voltage_from_raw, get_sensor_for_channel, get_sensors
@@ -345,8 +346,10 @@ async def run_measurement(
         if instructions.ift_requested and not ift_sent:
             await send_ift_values(timestamps, ift_relevant_channel, instructions, measurement_state)
         raise asyncio.CancelledError from e
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
     except Exception as e:
-        logger.error("Unhandled measurement error")
+        logger.error("Unhandled measurement error - stacktrace below")
         logger.error(e)
     finally:
         clients = len(measurement_state.clients)
