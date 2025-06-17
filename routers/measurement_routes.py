@@ -6,8 +6,7 @@ import pathvalidate
 from fastapi import APIRouter, Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from models.autogen.metadata import UnifiedMetadata
-from models.models import MeasurementStatus, ControlResponse, MeasurementInstructions
+from models.models import MeasurementSocketMessage, MeasurementStatus, ControlResponse, MeasurementInstructions
 from models.globals import get_network, get_measurement_state, MeasurementState, Network
 from scripts.measurement import run_measurement
 
@@ -32,6 +31,8 @@ async def start_measurement(
         if instructions.name:
             sanitized = pathvalidate.sanitize_filename(instructions.name)
             filename = sanitized + "__" + filename
+        if instructions.meta:
+            measurement_state.pre_meta = instructions.meta
         measurement_state.running = True
         measurement_state.name = filename
         measurement_state.start_time = start.isoformat()
@@ -51,20 +52,20 @@ async def start_measurement(
 
 
 @router.post("/stop", response_model=ControlResponse)
-async def stop_measurement(measurement_state: MeasurementState = Depends(get_measurement_state)):
-    message = "Measurement stopped successfully."
+async def stop_measurement(message: MeasurementSocketMessage, measurement_state: MeasurementState = Depends(get_measurement_state)):
+    msg = "Measurement stopped successfully."
     data = measurement_state.get_status()
 
     if not measurement_state.running:
         logger.warning("Tried to stop without an active measurement")
-        message="No active measurement to stop."
+        msg="No active measurement to stop."
 
     if measurement_state.task:
         measurement_state.task.cancel()
 
     await measurement_state.reset()
 
-    return ControlResponse(message=message, data=data)
+    return ControlResponse(message=msg, data=data)
 
 
 @router.get("", response_model=MeasurementStatus)
@@ -83,9 +84,10 @@ async def websocket_endpoint(
 
     try:
         while True:
-            msg = await websocket.receive_text()
-            logger.info(f"Received message from client: {msg}")
-            if msg == "stop":
+            msg: MeasurementSocketMessage = await websocket.receive_json()
+            logger.info(f"Received message from client: {msg.message}")
+            if msg.message == "stop":
+                measurement_state.post_metadata = msg.data
                 measurement_state.stop_flag = True
     except WebSocketDisconnect:
         try:
@@ -93,11 +95,3 @@ async def websocket_endpoint(
             logger.info(f"Client disconnected from measurement stream - now {len(measurement_state.clients)} clients")
         except ValueError:
             logger.debug(f"Client was already disconnected - still {len(measurement_state.clients)} clients")
-
-@router.post("/metadata")
-async def submit_metadata(data: UnifiedMetadata):
-    """
-    This should never be accessed. The metadata should be sent on measurement start and not updated.
-    This solely exists to make openAPI parse the UnifiedMetadata class.
-    """
-    raise NotImplementedError()

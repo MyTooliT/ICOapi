@@ -18,7 +18,7 @@ from models.autogen.metadata import METADATA_VERSION
 from scripts.data_handling import add_sensor_data_to_storage, MeasurementSensorInfo
 from scripts.file_handling import get_measurement_dir
 from models.globals import MeasurementState
-from models.models import DataValueModel, MeasurementInstructions
+from models.models import DataValueModel, MeasurementInstructions, Metadata
 
 logger = logging.getLogger(__name__)
 
@@ -149,17 +149,34 @@ async def send_ift_values(
 
 
 def write_pre_metadata(instructions: MeasurementInstructions, storage: StorageData) -> None:
-    storage.add_acceleration_meta("conversion", "true")
-    storage.add_acceleration_meta("adc_reference_voltage", f"{instructions.adc.reference_voltage}")
-    if instructions.meta is not None:
-        meta_dump = json.dumps(instructions.meta.__dict__, default=lambda o: o.__dict__)
-        storage.add_acceleration_meta(
-            "metadata", meta_dump
-        )
-        storage.add_acceleration_meta(
-            "metadata_version", METADATA_VERSION
-        )
-        logger.debug("Added measurement metadata")
+    if instructions.meta is None:
+        logger.info("No pre-measurement metadata provided")
+        return
+
+    storage.add_acceleration_meta(
+        "metadata_version", instructions.meta.version
+    )
+    storage.add_acceleration_meta(
+        "metadata_profile", instructions.meta.profile
+    )
+    meta_dump = json.dumps(instructions.meta.__dict__, default=lambda o: o.__dict__)
+    storage.add_acceleration_meta(
+        "pre_metadata", meta_dump
+    )
+    logger.info("Added pre-measurement metadata")
+
+
+def write_post_metadata(meta: Metadata, storage: StorageData) -> None:
+    if meta is None:
+        logger.info("No post-measurement metadata provided")
+        return
+
+    meta_dump = json.dumps(meta.__dict__, default=lambda o: o.__dict__)
+    storage.add_acceleration_meta(
+        "post_metadata", meta_dump
+    )
+    logger.info("Added post-measurement metadata")
+
 
 
 def get_sendable_data_and_apply_conversion(streaming_configuration: StreamingConfiguration, sensor_info: MeasurementSensorInfo, data: StreamingData) -> DataValueModel:
@@ -246,6 +263,8 @@ async def run_measurement(
 
             logger.info(f"Opened measurement file: <{measurement_file_path}> for writing")
 
+            storage.add_acceleration_meta("conversion", "true")
+            storage.add_acceleration_meta("adc_reference_voltage", f"{instructions.adc.reference_voltage}")
             write_pre_metadata(instructions, storage)
 
             async with network.open_data_stream(streaming_configuration) as stream:
@@ -340,6 +359,9 @@ async def run_measurement(
                 if instructions.ift_requested:
                     await send_ift_values(timestamps, ift_relevant_channel, instructions, measurement_state)
                     ift_sent = True
+
+                if measurement_state.post_meta:
+                    write_post_metadata(measurement_state.post_meta, storage)
 
     except StreamingTimeoutError as e:
         logger.debug("Stream timeout error")

@@ -5,7 +5,7 @@ from typing import List
 from mytoolit.can.network import Network
 from starlette.websockets import WebSocket
 
-from models.models import MeasurementInstructions, MeasurementStatus, SystemStateModel
+from models.models import MeasurementInstructions, MeasurementStatus, Metadata, SystemStateModel
 from models.trident import BaseClient, NoopClient, StorageClient
 from scripts.file_handling import get_disk_space_in_gb
 
@@ -75,6 +75,8 @@ class MeasurementState:
         self.tool_name: str | None = None
         self.instructions: MeasurementInstructions | None = None
         self.stop_flag = False
+        self.pre_meta: Metadata | None = None
+        self.post_meta: Metadata | None = None
 
     def __setattr__(self, name: str, value):
         super().__setattr__(name, value)
@@ -90,6 +92,8 @@ class MeasurementState:
         self.tool_name = None
         self.instructions = None
         self.stop_flag = False
+        self.pre_meta = None
+        self.post_meta = None
         await get_messenger().push_messenger_update()
 
     def get_status(self):

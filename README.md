@@ -158,28 +158,16 @@ To support the usage of arbitrary metadata when creating measurements, a configu
 system starts as en Excel file in which all metadata fields are defined. This file is then parsed into a YAML file, from
 which it can be used further.
 
-In the case of this API, we want to generate the Python classes for type annotation from this configuration file. This
-is especially important as the openAPI specification parses the type annotation and the client requires it to generate 
-its own typing.
+The complete metadata logic can be found in the ICOweb repository.
 
-> This means that the typing on the client side is dependent on the generated types in this repository. While that may 
-> not be perfect, the alternative would be to create both applications' types separately and risk inconsistencies.
+The metadata is split into two parts:
+- the metadata to be entered __before__ a measurement starts (pre_meta)
+- the metadata to be entered __after__ the measurement has been ended (post_meta)
 
-To run the YAML file parsing, run the following script from the base directory of the repository:
+This ensures that common metadata like machine tool, process or cutting parameters are set beforehand while keeping the 
+option to require data after the fact, such as pictures or tool breakage reports.
 
-```shell
-cd utils
-python3 generate_metadata.py
-```
-
-This will look for the ``.yaml`` file in `../icoweb/public/config` folder, which for development, one usually also 
-has cloned to their local machine in the same directory as this repository. It will put the generated types under 
-`models/autogen/metadata.py`. For customization, run:
-
-```shell
-cd utils
-python3 generate_metadata.py --input <input_path> --output <output_path>
-```
+The pre-meta is sent with the measurement instructions while the post-meta is communicated via the open measurement WebSocket.
 
 ## Measurement Value Conversion / Storage
 

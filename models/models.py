@@ -1,10 +1,8 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from json import JSONEncoder
 from pydantic import BaseModel, model_validator
 from dataclasses import dataclass
 from mytoolit.can.network import STHDeviceInfo
-
-from models.autogen.metadata import UnifiedMetadata
 
 
 class STHDeviceResponseModel(BaseModel):
@@ -66,6 +64,20 @@ class MeasurementInstructionChannel:
     channel_number: int
     sensor_id: Optional[str]
 
+
+@dataclass
+class Quantity:
+    value: float|int
+    unit: str
+
+
+@dataclass
+class Metadata:
+    version: str
+    profile: str
+    parameters: Dict[str, Quantity|Any]
+
+
 @dataclass
 class MeasurementInstructions:
     """
@@ -82,6 +94,7 @@ class MeasurementInstructions:
         ift_channel: which channel should be used for IFT value
         ift_window_width (int): IFT window width
         adc (ADCValues): ADC settings
+        meta (Metadata): Pre-measurement metadata
     """
 
     name: str | None
@@ -94,7 +107,14 @@ class MeasurementInstructions:
     ift_channel: str
     ift_window_width: int
     adc: ADCValues | None
-    meta: UnifiedMetadata | None
+    meta: Metadata | None
+
+
+@dataclass
+class MeasurementSocketMessage:
+    """Data model for measurement socket message"""
+    message: str
+    data: Metadata | None
 
 
 class DataValueModel(BaseModel, JSONEncoder):
