@@ -1,14 +1,36 @@
 # This file is auto-generated from metadata.yaml
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Optional, Dict
 
 METADATA_VERSION = '0.0.1'
 
-@dataclass
-class Quantity:
-    value: float
-    unit: str
+class RequirementEnum(str, Enum):
+    REQUIRED = 'Required'
+    OPTIONAL = 'Optional'
+    HIDDEN = 'Hidden'
+
+class CoolantEnum(str, Enum):
+    DRY = 'Dry'
+    AIR = 'Air'
+    MMQ = 'MMQ'
+    FLOOD = 'Flood'
+    OIL = 'Oil'
+
+class InstitutionEnum(str, Enum):
+    TU_WIEN = 'TU Wien'
+    TU_DARMSTADT = 'TU Darmstadt'
+
+class WorkpieceMaterialEnum(str, Enum):
+    C45 = 'C45'
+    STEEL = 'Steel'
+
+class ToolMaterialEnum(str, Enum):
+    CARBIDE__P40_ = 'Carbide (P40)'
+    CARBIDE = 'Carbide'
+    MCD = 'MCD'
+    CERAMIC = 'Ceramic'
+    PCD = 'PCD'
 
 class ProcessEnum(str, Enum):
     MILLING = 'milling'
@@ -21,51 +43,39 @@ class ProcessEnum(str, Enum):
     THREAD_MILLING = 'thread_milling'
     THREAD_FORMING = 'thread_forming'
 
-class InstitutionEnum(str, Enum):
-    TU_WIEN = 'TU Wien'
-    TU_DARMSTADT = 'TU Darmstadt'
+@dataclass
+class TwmProfile:
+    id: str = 'tool_wear_monitoring'
+    name: str = 'Tool Wear Monitoring'
+    pre: Dict[str, Dict[str, Dict]] = field(default_factory=lambda: {})
+    post: Dict[str, Dict[str, Dict]] = field(default_factory=lambda: {})
 
-class ActivityEnum(str, Enum):
-    TOOL_WEAR_MONITORING = 'Tool Wear Monitoring'
-
-class WorkpieceMaterialEnum(str, Enum):
-    C45 = 'C45'
-    STEEL__GENERIC_ = 'Steel (generic)'
-
-class ToolMaterialEnum(str, Enum):
-    CARBIDE__P40_ = 'Carbide (P40)'
-    CARBIDE = 'Carbide'
-    MCD = 'MCD'
-    CERAMIC = 'Ceramic'
-    PCD = 'PCD'
-
-class CoolantEnum(str, Enum):
-    DRY = 'Dry'
-    AIR = 'Air'
-    MMQ = 'MMQ'
-    FLOOD = 'Flood'
-    OIL = 'Oil'
 
 @dataclass
 class UnifiedMetadata:
     person: str
-    institution: InstitutionEnum
+    institution: InstitutionEnum|str
     machine: str
     experiment: str
-    process: ProcessEnum
-    activity: ActivityEnum
+    process: ProcessEnum|str
     workpiece_material: WorkpieceMaterialEnum|str
-    cutting_speed: Quantity
+    cutting_speed: float
+    feed_per_tooth: float
+    doc_axial: float
+    doc_radial: float
+    tool_diameter: float
+    tool_tooth_count: int
     tool_material: ToolMaterialEnum|str
-    coolant: CoolantEnum
+    tool_offset: float
+    coolant: CoolantEnum|str
     sth_mac: str
     stu_mac: str
-    feed_per_tooth: Optional[Quantity] = None
-    feed_per_rev: Optional[Quantity] = None
-    doc_axial: Optional[Quantity] = None
-    doc_radial: Optional[Quantity] = None
-    doc: Optional[Quantity] = None
-    workpiece_diameter: Optional[Quantity] = None
-    tool_diameter: Optional[Quantity] = None
-    tool_tooth_count: Optional[int] = None
-    tool_offset: Optional[Quantity] = None
+    tool_failure: bool
+    wear_mark_width: float
+    twm_layer: int
+
+    feed_per_rev: Optional[float] = None
+    doc: Optional[float] = None
+    workpiece_diameter: Optional[float] = None
+    pictures: Optional[str] = None
+    comment: Optional[str] = None
