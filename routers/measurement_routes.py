@@ -1,13 +1,12 @@
 import asyncio
 import datetime
-import json
 import logging
 
 import pathvalidate
 from fastapi import APIRouter, Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from models.models import MeasurementSocketMessage, MeasurementStatus, ControlResponse, MeasurementInstructions
+from models.models import MeasurementStatus, ControlResponse, MeasurementInstructions, Metadata
 from models.globals import get_network, get_measurement_state, MeasurementState, Network
 from scripts.measurement import run_measurement
 
@@ -36,6 +35,7 @@ async def start_measurement(
             measurement_state.pre_meta = instructions.meta
         measurement_state.running = True
         measurement_state.name = filename
+        measurement_state.wait_for_post_meta = instructions.wait_for_post_meta
         measurement_state.start_time = start.isoformat()
         try:
             measurement_state.tool_name = await network.get_name(node="STH 1")
@@ -52,21 +52,16 @@ async def start_measurement(
     return ControlResponse(message=message, data=measurement_state.get_status())
 
 
-@router.post("/stop", response_model=ControlResponse)
-async def stop_measurement(message: MeasurementSocketMessage, measurement_state: MeasurementState = Depends(get_measurement_state)):
-    msg = "Measurement stopped successfully."
-    data = measurement_state.get_status()
+@router.post("/stop")
+async def stop_measurement(measurement_state: MeasurementState = Depends(get_measurement_state)):
+    logger.info("Received stop request.")
+    measurement_state.stop_flag = True
 
-    if not measurement_state.running:
-        logger.warning("Tried to stop without an active measurement")
-        msg="No active measurement to stop."
 
-    if measurement_state.task:
-        measurement_state.task.cancel()
-
-    await measurement_state.reset()
-
-    return ControlResponse(message=msg, data=data)
+@router.post("/post_meta")
+async def post_meta(meta: Metadata, measurement_state: MeasurementState = Depends(get_measurement_state)):
+    measurement_state.post_meta = meta
+    logger.info(f"Received and set post metadata")
 
 
 @router.get("", response_model=MeasurementStatus)
@@ -85,12 +80,8 @@ async def websocket_endpoint(
 
     try:
         while True:
-            raw = await websocket.receive_text()
-            msg = MeasurementSocketMessage(**json.loads(raw))
-            logger.info(f"Received message from client: {msg.message}")
-            if msg.message == "stop":
-                measurement_state.post_metadata = msg.data
-                measurement_state.stop_flag = True
+            await websocket.receive_text()
+
     except WebSocketDisconnect:
         try:
             measurement_state.clients.remove(websocket)

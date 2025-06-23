@@ -176,6 +176,13 @@ def write_post_metadata(meta: Metadata, storage: StorageData) -> None:
         logger.info("No post-measurement metadata provided")
         return
 
+    if meta.parameters and "pictures" in meta.parameters:
+        for key, value in meta.parameters["pictures"].items():
+            stripped_key = "pic_" + key.split(".")[0] if "." in key else key
+            logger.info(f"Adding picture {stripped_key} to storage")
+            storage.hdf.create_array(storage.hdf.root, stripped_key, value.encode('utf-8'))
+        del meta.parameters["pictures"]
+
     meta_dump = json.dumps(meta.__dict__, default=lambda o: o.__dict__)
     storage.add_acceleration_meta(
         "post_metadata", meta_dump
@@ -365,8 +372,13 @@ async def run_measurement(
                     await send_ift_values(timestamps, ift_relevant_channel, instructions, measurement_state)
                     ift_sent = True
 
-                if measurement_state.post_meta:
+                if measurement_state.wait_for_post_meta:
+                    logger.info("Waiting for post-measurement metadata")
+                    while measurement_state.post_meta is None:
+                        await asyncio.sleep(1)
+                    logger.info("Received post-measurement metadata")
                     write_post_metadata(measurement_state.post_meta, storage)
+
 
     except StreamingTimeoutError as e:
         logger.debug("Stream timeout error")

@@ -108,6 +108,7 @@ class MeasurementInstructions:
     ift_window_width: int
     adc: ADCValues | None
     meta: Metadata | None
+    wait_for_post_meta: bool = False
 
 
 @dataclass

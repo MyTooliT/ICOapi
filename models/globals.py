@@ -75,6 +75,7 @@ class MeasurementState:
         self.tool_name: str | None = None
         self.instructions: MeasurementInstructions | None = None
         self.stop_flag = False
+        self.wait_for_post_meta = False
         self.pre_meta: Metadata | None = None
         self.post_meta: Metadata | None = None
 
@@ -92,6 +93,7 @@ class MeasurementState:
         self.tool_name = None
         self.instructions = None
         self.stop_flag = False
+        self.wait_for_post_meta = False
         self.pre_meta = None
         self.post_meta = None
         await get_messenger().push_messenger_update()
