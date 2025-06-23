@@ -202,5 +202,17 @@ class GeneralMessenger:
             logger.info(f"Updated general messenger list with {len(cls._clients)} clients.")
 
 
+    @classmethod
+    async def send_post_meta_request(cls):
+        for client in cls._clients:
+            await client.send_text("post_meta_request")
+
+
+    @classmethod
+    async def send_post_meta_completed(cls):
+        for client in cls._clients:
+            await client.send_text("post_meta_completed")
+
+
 def get_messenger():
     return GeneralMessenger()

@@ -18,7 +18,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from scripts.data_handling import add_sensor_data_to_storage, MeasurementSensorInfo
 from scripts.file_handling import get_measurement_dir
-from models.globals import MeasurementState
+from models.globals import GeneralMessenger, MeasurementState
 from models.models import DataValueModel, MeasurementInstructions, Metadata
 
 logger = logging.getLogger(__name__)
@@ -245,7 +245,8 @@ def get_sendable_data_and_apply_conversion(streaming_configuration: StreamingCon
 async def run_measurement(
         network: Network,
         instructions: MeasurementInstructions,
-        measurement_state: MeasurementState
+        measurement_state: MeasurementState,
+        general_messenger: GeneralMessenger
 ) -> None:
     # Write ADC configuration to the holder
     sample_rate = await setup_adc(network, instructions)
@@ -348,7 +349,8 @@ async def run_measurement(
                         if data.timestamp - timestamps[0] >= instructions.time:
                             logger.info(f"Timeout reached at with current being <{data.timestamp}> and first entry being {timestamps[0]}s")
                             break
-                    elif measurement_state.stop_flag:
+
+                    if measurement_state.stop_flag:
                         logger.info(f"Stop flag set - stopping measurement")
                         break
 
@@ -374,9 +376,11 @@ async def run_measurement(
 
                 if measurement_state.wait_for_post_meta:
                     logger.info("Waiting for post-measurement metadata")
+                    await general_messenger.send_post_meta_request()
                     while measurement_state.post_meta is None:
                         await asyncio.sleep(1)
                     logger.info("Received post-measurement metadata")
+                    await general_messenger.send_post_meta_completed()
                     write_post_metadata(measurement_state.post_meta, storage)
 
 

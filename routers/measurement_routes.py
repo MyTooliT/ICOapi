@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from models.models import MeasurementStatus, ControlResponse, MeasurementInstructions, Metadata
-from models.globals import get_network, get_measurement_state, MeasurementState, Network
+from models.globals import get_messenger, get_network, get_measurement_state, MeasurementState, Network
 from scripts.measurement import run_measurement
 
 router = APIRouter(
@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 async def start_measurement(
         instructions: MeasurementInstructions,
         network: Network = Depends(get_network),
-        measurement_state: MeasurementState = Depends(get_measurement_state)
+        measurement_state: MeasurementState = Depends(get_measurement_state),
+        general_messenger=Depends(get_messenger)
 ):
     message: str = "Measurement is already running."
 
@@ -44,7 +45,7 @@ async def start_measurement(
             measurement_state.tool_name = "noname"
             logger.error(f"Tool not found!")
         measurement_state.instructions = instructions
-        measurement_state.task = asyncio.create_task(run_measurement(network, instructions, measurement_state))
+        measurement_state.task = asyncio.create_task(run_measurement(network, instructions, measurement_state, general_messenger))
         logger.info(f"Created measurement task with tool <{measurement_state.tool_name}> and timeout of {instructions.time}")
 
         message = "Measurement started successfully."
