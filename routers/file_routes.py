@@ -39,7 +39,7 @@ async def list_files_and_capacity(
             objects = storage.get_bucket_objects()
             cloud_files = [TridentBucketObject(**obj) for obj in objects]
         except HTTPException as e:
-            logger.error(f"E    rror listing cloud files")
+            logger.error(f"Error listing cloud files")
         except Exception as e:
             logger.error(f"General exception when comparing files to cloud: {e}")
         # Iterate over files in the directory
