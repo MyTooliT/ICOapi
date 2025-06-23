@@ -4,8 +4,7 @@ A REST and WebSocket API using the Python FastAPI library. You can find the offi
 
 We currently support Windows 10+ and Debian/Linux.
 
-Additionally, when the API is running, it hosts an OpenAPI compliant documentation under ``/docs``, e.g. under `localhost:8000/docs`.
-
+Additionally, when the API is running, it hosts an OpenAPI compliant documentation under `/docs`, e.g. under [`localhost:33215/docs`](http://localhost:33215/docs).
 # Installation
 
 This repository can be setup manually for Windows and Linux or using the installation script for Linux.
