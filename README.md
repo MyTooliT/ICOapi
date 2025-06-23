@@ -243,3 +243,41 @@ The application is set up to log _everything_. This is how the logging is set up
 | Critical Failure / unrecoverable  | `CRITICAL`           | For very serious errors. Indicates a critical condition — program may abort.                          |
 | Unexpected exception (with trace) | `logger.exception()` | Serious errors, but the exception was caught.                                                         |
 
+# Example Requests
+
+Get list of available sensor devices:
+
+```sh
+http 'http://localhost:33215/api/v1/sth'
+```
+
+Example output:
+
+```json
+[
+    {
+        "device_number": 0,
+        "mac_address": "08-6B-D7-01-DE-81",
+        "name": "Test-STH",
+        "rssi": -44
+    }
+]
+```
+
+Connect to available sensor device:
+
+```sh
+http PUT 'http://localhost:33215/api/v1/sth/connect' mac='08-6B-D7-01-DE-81'
+```
+
+Check if the STU is connected to the sensor device:
+
+```sh
+http POST 'http://localhost:33215/api/v1/stu/connected' name='STU 1'
+```
+
+Disconnect from sensor device:
+
+```sh
+http PUT http://localhost:33215/api/v1/sth/disconnect
+```
