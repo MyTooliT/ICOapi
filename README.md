@@ -165,7 +165,7 @@ LOG_NAME_WITHOUT_EXTENSION=icodaq
 ## Metadata Type/Class Generation
 
 To support the usage of arbitrary metadata when creating measurements, a configuration system has been set up. This 
-system starts as en Excel file in which all metadata fields are defined. This file is then parsed into a YAML file, from
+system starts as an Excel file in which all metadata fields are defined. This file is then parsed into a YAML file, from
 which it can be used further.
 
 The complete metadata logic can be found in the ICOweb repository.
