@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional
 from json import JSONEncoder
+
+import pandas
 from pydantic import BaseModel, model_validator
 from dataclasses import dataclass
 from mytoolit.can.network import STHDeviceInfo
@@ -267,3 +269,22 @@ class Sensor(BaseModel):
 
     def convert_to_phys(self, volt_value: float) -> float:
         return volt_value * self.scaling_factor + self.offset
+
+
+class HDF5NodeInfo(BaseModel, JSONEncoder):
+    name: str
+    type: str
+    path: str
+    attributes: dict[str, Any]
+
+@dataclass
+class ParsedHDF5FileContent(JSONEncoder):
+    acceleration_df: pandas.DataFrame
+    sensor_df: pandas.DataFrame
+    acceleration_meta: HDF5NodeInfo
+    pictures: dict[str, str]
+
+
+class ParsedMetadata(BaseModel, JSONEncoder):
+    acceleration: HDF5NodeInfo
+    pictures: dict[str, str]
