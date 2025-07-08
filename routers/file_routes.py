@@ -17,7 +17,7 @@ from models.globals import get_trident_client
 from models.models import Dataset, DiskCapacity, FileCloudDetails, FileListResponseModel, HDF5NodeInfo, \
     MeasurementFileDetails, \
     ParsedHDF5FileContent, ParsedMeasurement, \
-    ParsedMetadata, TridentBucketObject
+    ParsedMetadata, Sensor, TridentBucketObject
 from models.trident import StorageClient
 from scripts.file_handling import get_disk_space_in_gb, get_drive_or_root_path, get_measurement_dir, \
     get_suffixed_filename, is_dangerous_filename
@@ -130,9 +130,11 @@ async def get_analyzed_file(name: str, measurement_dir: str = Depends(get_measur
     # takes forever
     async def data_generator() -> AsyncGenerator[str, None]:
         # First: yield metadata
+        sensors: list[Sensor] = [Sensor(**sensor) for sensor in parsed_file_content.sensor_df.to_dict(orient="records")]
         yield ParsedMetadata(
             acceleration=parsed_file_content.acceleration_meta,
             pictures=parsed_file_content.pictures,
+            sensors=sensors
         ).model_dump_json() + "\n"
 
         # Then: yield measurement data
@@ -189,6 +191,7 @@ async def get_file_meta(name: str, measurement_dir: str = Depends(get_measuremen
     return ParsedMetadata(
         acceleration=data.acceleration_meta,
         pictures=data.pictures,
+        sensors=[Sensor(**sensor) for sensor in data.sensor_df.to_dict(orient="records")]
     )
 
 

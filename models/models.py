@@ -288,3 +288,4 @@ class ParsedHDF5FileContent(JSONEncoder):
 class ParsedMetadata(BaseModel, JSONEncoder):
     acceleration: HDF5NodeInfo
     pictures: dict[str, str]
+    sensors: list[Sensor]
