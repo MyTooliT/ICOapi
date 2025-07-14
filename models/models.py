@@ -282,10 +282,10 @@ class ParsedHDF5FileContent(JSONEncoder):
     acceleration_df: pandas.DataFrame
     sensor_df: pandas.DataFrame
     acceleration_meta: HDF5NodeInfo
-    pictures: dict[str, str]
+    pictures: dict[str, list[str]]
 
 
 class ParsedMetadata(BaseModel, JSONEncoder):
     acceleration: HDF5NodeInfo
-    pictures: dict[str, str]
+    pictures: dict[str, list[str]]
     sensors: list[Sensor]

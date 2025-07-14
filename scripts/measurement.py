@@ -4,6 +4,7 @@ import os
 from functools import partial
 from pathlib import Path
 import logging
+import numpy as np
 
 import mytoolit.can.network
 from mytoolit.can import Network, UnsupportedFeatureException
@@ -171,17 +172,30 @@ def write_pre_metadata(instructions: MeasurementInstructions, storage: StorageDa
     logger.info("Added pre-measurement metadata")
 
 
+def find_picture_parameters(meta: Metadata) -> list[str]:
+    picture_parameters = []
+    if meta.parameters:
+        for key, value in meta.parameters.items():
+            if "picture" in key:
+                picture_parameters.append(key)
+    return picture_parameters
+
 def write_post_metadata(meta: Metadata, storage: StorageData) -> None:
     if meta is None:
         logger.info("No post-measurement metadata provided")
         return
 
-    if meta.parameters and "pictures" in meta.parameters:
-        for key, value in meta.parameters["pictures"].items():
-            stripped_key = "pic_" + key.split(".")[0] if "." in key else key
-            logger.info(f"Adding picture {stripped_key} to storage")
-            storage.hdf.create_array(storage.hdf.root, stripped_key, value.encode('utf-8'))
-        del meta.parameters["pictures"]
+    picture_parameters = find_picture_parameters(meta)
+    if picture_parameters and len(picture_parameters) > 0:
+        for param in picture_parameters:
+            encoded_images: list[str] = []
+            for encoded_image in meta.parameters[param].values():
+                encoded_images.append(encoded_image.encode("utf-8"))
+            max_string_length = max(len(s) for s in encoded_images)
+            nd_array = np.array(encoded_images, dtype=f"S{max_string_length}")
+            storage.hdf.create_array(storage.hdf.root, param, nd_array)
+            logger.info(f"Added {len(nd_array)} picture(s) for parameter {param} to storage")
+            del meta.parameters[param]
 
     meta_dump = json.dumps(meta.__dict__, default=lambda o: o.__dict__)
     storage.add_acceleration_meta(

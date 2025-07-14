@@ -202,7 +202,7 @@ def get_node_names(hdf5_file_handle: tables.File) -> list[str]:
 
 def get_picture_node_names(hdf5_file_handle: tables.File) -> list[str]:
     names = get_node_names(hdf5_file_handle)
-    return [name for name in names if name.startswith("/pic_")]
+    return [name for name in names if "pictures" in name]
 
 def parse_json_if_possible(val):
     """
@@ -274,11 +274,12 @@ def get_file_data(file_path: str,) -> ParsedHDF5FileContent:
             pass
 
         picture_node_names = get_picture_node_names(file_handle)
-        pictures: dict[str, str] = {}
+        pictures: dict[str, list[str]] = {}
         for node_name in picture_node_names:
             node = file_handle.get_node(node_name)
             assert isinstance(node, tables.Array)
-            pictures[node_name.removeprefix('/pic_')] = str(node.read())
+            pictures[node_name.removeprefix('/')] = [img.decode('utf-8') for img in node.read().tolist()]
+
 
     return ParsedHDF5FileContent(
         acceleration_df=acceleration_df,
