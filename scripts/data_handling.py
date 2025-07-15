@@ -22,10 +22,14 @@ def get_sensor_yaml_path():
 def get_sensor_defaults() -> list[Sensor]:
     return [
         Sensor(name="Acceleration 100g", sensor_type="ADXL1001", sensor_id="acc100g_01", unit="g", phys_min=-100, phys_max=100, volt_min=0.33, volt_max=2.97),
-        Sensor(name="Acceleration 40g", sensor_type="ADXL358C", sensor_id="acc40g_01", unit="g", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
+        Sensor(name="Acceleration 40g Y", sensor_type="ADXL358C", sensor_id="acc40g_y", unit="g", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
+        Sensor(name="Acceleration 40g Z", sensor_type="ADXL358C", sensor_id="acc40g_z", unit="g", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
+        Sensor(name="Acceleration 40g X", sensor_type="ADXL358C", sensor_id="acc40g_x", unit="g", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
         Sensor(name="Temperature", sensor_type="ADXL358C", sensor_id="temp_01", unit="°C", phys_min=-40, phys_max=125, volt_min=0.772, volt_max=1.267),
         Sensor(name="Photodiode", sensor_type=None, sensor_id="photo_01", unit="-", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
-        Sensor(name="Backpack", sensor_type=None, sensor_id="backpack_01", unit="-", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
+        Sensor(name="Backpack 1", sensor_type=None, sensor_id="backpack_01", unit="/", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
+        Sensor(name="Backpack 2", sensor_type=None, sensor_id="backpack_02", unit="/", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
+        Sensor(name="Backpack 3", sensor_type=None, sensor_id="backpack_03", unit="/", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
         Sensor(name="Battery Voltage", sensor_type=None, sensor_id="vbat_01", unit="V", phys_min=2.9, phys_max=4.2, volt_min=0.509, volt_max=0.737)
     ]
 
@@ -81,31 +85,24 @@ def get_sensor_for_channel(channel_instruction: MeasurementInstructionChannel) -
 
     if channel_instruction.sensor_id:
         logger.debug(f"Got sensor id {channel_instruction.sensor_id} for channel number {channel_instruction.channel_number}")
-        return find_sensor_by_id(sensors, channel_instruction.sensor_id)
+        sensor = find_sensor_by_id(sensors, channel_instruction.sensor_id)
+        if sensor:
+            return sensor
+        else:
+            logger.error(f"Could not find sensor with ID {channel_instruction.sensor_id}.")
 
-    logger.info(f"No sensor ID requested for channel {channel_instruction.channel_number}. Taking defaults.")
-    sensor = Sensor(name="Raw", sensor_type=None, sensor_id="raw_default_01", unit="-", phys_min=-100, phys_max=100, volt_min=0, volt_max=3.3)
-    match channel_instruction.channel_number:
-        case 0:
-            logger.info(f"Disabled channel; return None")
-            return None
-        case 1:
-            sensor = sensors[0]
-        case 2 | 3 | 4:
-            sensor = sensors[1]
-        case 5:
-            sensor = sensors[2]
-        case 6:
-            sensor = sensors[3]
-        case 7 | 8 | 9:
-            sensor = sensors[4]
-        case 10:
-            sensor = sensors[5]
-        case _:
-            logger.error(f"Could not get sensor for channel {channel_instruction.channel_number}. Interpreting as percentage.")
+    logger.info(f"No sensor ID requested or not found for channel {channel_instruction.channel_number}. Taking defaults.")
+    if channel_instruction.channel_number in range(1, 11):
+        sensor = sensors[channel_instruction.channel_number - 1]
+        logger.info(f"Default sensor for channel {channel_instruction.channel_number}: {sensor.name} | k2: {sensor.scaling_factor} | d2: {sensor.offset}")
+        return sensor
 
-    logger.info(f"Default sensor for channel {channel_instruction.channel_number}: {sensor.name} | k2: {sensor.scaling_factor} | d2: {sensor.offset}")
-    return sensor
+    if channel_instruction.channel_number == 0:
+        logger.info(f"Disabled channel; return None")
+        return None
+
+    logger.error(f"Could not get sensor for channel {channel_instruction.channel_number}. Interpreting as percentage.")
+    return Sensor(name="Raw", sensor_type=None, sensor_id="raw_default_01", unit="-", phys_min=-100, phys_max=100, volt_min=0, volt_max=3.3)
 
 
 class SensorDescription(IsDescription):
