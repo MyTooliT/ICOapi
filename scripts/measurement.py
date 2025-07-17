@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-from functools import partial
 from pathlib import Path
 import logging
 import numpy as np
@@ -11,8 +10,6 @@ from mytoolit.can import Network, UnsupportedFeatureException
 from mytoolit.can.adc import ADCConfiguration
 from mytoolit.can.streaming import StreamingConfiguration, StreamingData, StreamingTimeoutError
 from mytoolit.measurement.sensor import SensorConfiguration
-from mytoolit.scripts.icon import read_acceleration_sensor_range_in_g
-from mytoolit.measurement import convert_raw_to_g
 from mytoolit.measurement.storage import StorageData, Storage
 from icolyzer import iftlibrary
 from starlette.websockets import WebSocketDisconnect
@@ -71,16 +68,6 @@ async def write_sensor_config_if_required(
             ) from exception
 
 
-async def get_conversion_function(network: Network) -> partial:
-    """
-    Get raw to actual value conversion function from network
-    :param network: CAN Network instance from API
-    :return: conversion function as <partial>
-    """
-    sensor_range = await read_acceleration_sensor_range_in_g(network)
-    return partial(convert_raw_to_g, max_value=sensor_range)
-
-
 def get_measurement_indices(streaming_configuration: StreamingConfiguration) -> list[int]:
     """
     Obtain ordered indices from streaming configuration
@@ -94,20 +81,19 @@ def get_measurement_indices(streaming_configuration: StreamingConfiguration) -> 
     return [first_index, second_index, third_index]
 
 
-def create_objects(timestamps, ift_vals) -> list[dict[str, float]]:
+def create_objects(timestamps: list[float], ift_vals: list[float]) -> list[dict[str, float]]:
+    """
+    Assembles the ift values and timestamps into a list of objects.
+    :param timestamps: List of timestamps
+    :param ift_vals: List of ift values
+    :return: List of objects containing the timestamps and ift values.
+    :raises: ValueError if the lists are not of the same length.
+    """
     if len(timestamps) != len(ift_vals):
         raise ValueError("Both arrays must have the same length")
 
     result = [{'x': t, 'y': i} for t, i in zip(timestamps, ift_vals)]
     return result
-
-
-def delta_from_timestamps(timestamps: list[float], first_timestamp: float) -> list[float]:
-    ret: list[float] = []
-    for i in range(len(timestamps) - 1):
-        ret.append(timestamps[i] - first_timestamp)
-
-    return ret
 
 
 def maybe_get_ift_value(samples: list[float], sample_frequency=9524/3, window_length=0.15) -> list[float] | None:
@@ -136,7 +122,18 @@ async def send_ift_values(
 ) -> None:
     logger.debug(f"IFT value computation requested for channel: <{instructions.ift_channel}>")
 
-    ift_values = maybe_get_ift_value(values, window_length=instructions.ift_window_width / 1000)
+    freq = ADCConfiguration(
+        prescaler=instructions.adc.prescaler if instructions.adc.prescaler else 2,
+        acquisition_time=instructions.adc.acquisition_time if instructions.adc.acquisition_time else 8,
+        oversampling_rate=instructions.adc.oversampling_rate if instructions.adc.oversampling_rate else 64,
+        reference_voltage=instructions.adc.reference_voltage if instructions.adc.reference_voltage else 3.3,
+    ).sample_rate()
+    
+    ift_values = maybe_get_ift_value(values, sample_frequency=freq, window_length=instructions.ift_window_width / 1000)
+
+    if ift_values is None:
+        logger.info(f"No IFT value could be calculated with window length {instructions.ift_window_width}ms, {len(timestamps)} timestamps and {len(values)} values.")
+        return
 
     ift_wrapped: DataValueModel = DataValueModel(
         first=None,
