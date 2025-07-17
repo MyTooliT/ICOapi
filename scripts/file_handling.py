@@ -7,6 +7,7 @@ import shutil
 import re
 
 from dotenv import load_dotenv
+from platformdirs import user_data_dir
 
 from models.models import DiskCapacity
 
@@ -36,9 +37,15 @@ def get_measurement_dir() -> str:
     if os.name == "nt":
         data_dir = os.getenv("LOCALAPPDATA")
         logger.info(f"Detected Windows; used local appdata directory: {data_dir}")
+    elif platform.system() == "Darwin":
+        # Use user data directory since user has no access to system data
+        # directory (`site_data_dir`: `/Library/Application Support`)
+        # by default
+        data_dir = user_data_dir(measurement_dir)
+        logger.info(f"Detected macOS; directory: {data_dir}")
     elif os.name == "posix":
         data_dir = linux_get_preferred_data_dir(measurement_dir)
-        logger.info(f"Detected Windows; directory: {data_dir}")
+        logger.info(f"Detected POSIX; directory: {data_dir}")
     else:
         raise EnvironmentError("Unsupported operating system")
 

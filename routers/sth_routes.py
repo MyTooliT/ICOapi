@@ -26,6 +26,7 @@ router = APIRouter(
         }
 },)
 async def sth(network: Network = Depends(get_network)) -> list[STHDeviceResponseModel]:
+    """Get a list of available sensor devices"""
     devices = await get_sth_devices_from_network(network)
     return [STHDeviceResponseModel.from_network(device) for device in devices]
 
