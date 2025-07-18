@@ -18,7 +18,7 @@ log_queue: asyncio.Queue[str] = asyncio.Queue()
 
 load_dotenv(".env")
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_LEVEL = os.getenv("LOG_LEVEL").upper()
 LOG_USE_JSON = os.getenv("LOG_USE_JSON", "0") == "1"
 LOG_USE_COLOR = os.getenv("LOG_USE_COLOR", "0") == "1"
 LOG_MAX_BYTES = int(os.getenv("LOG_MAX_BYTES", 5 * 1024 * 1024))
