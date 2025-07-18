@@ -17,17 +17,7 @@ router = APIRouter(
 @router.get(
     '',
     status_code=status.HTTP_200_OK,
-    response_model=list[STUDeviceResponseModel],
-    responses={
-        200: {
-            "content": "application/json",
-            "description": "Return the STU Devices connected to the system"
-        },
-        204: {
-            "content": "application/json",
-            "description": "Indicates no STU Devices connected to the system"
-        }
-    },
+    response_model=list[STUDeviceResponseModel]
 )
 async def stu(network: Network = Depends(get_network)) -> list[STUDeviceResponseModel]:
     return await get_stu_devices(network)
@@ -36,17 +26,7 @@ async def stu(network: Network = Depends(get_network)) -> list[STUDeviceResponse
 @router.put(
     '/reset',
     response_model=None | CANResponseError,
-    status_code=status.HTTP_502_BAD_GATEWAY,
-    responses={
-        204: {
-            "description": "Device was successfully reset."
-        },
-        502: {
-            "content": "application/json",
-            "description": "The CAN Network did not respond. This can either be because the Node is not connected, "
-                           "or the Network is unresponsive."
-        }
-    },
+    status_code=status.HTTP_502_BAD_GATEWAY
 )
 async def stu_reset(
     name: Annotated[str, Body(embed=True)],
