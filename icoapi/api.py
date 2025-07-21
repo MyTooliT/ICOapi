@@ -60,8 +60,7 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-
-if __name__ == "__main__":
+def main():
     import uvicorn
 
     load_env_file()
@@ -78,3 +77,6 @@ if __name__ == "__main__":
         port=PORT,
         log_config=None
     )
+
+if __name__ == "__main__":
+    main()

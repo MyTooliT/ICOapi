@@ -34,3 +34,6 @@ name = "icoapi"
 readme = "README.md"
 requires-python = ">=3.10,<4"
 version = "0.1"
+
+[project.scripts]
+icoapi = "icoapi.api:main"
