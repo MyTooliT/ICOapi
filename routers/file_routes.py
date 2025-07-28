@@ -143,7 +143,7 @@ async def get_analyzed_file(name: str, measurement_dir: str = Depends(get_measur
 
         for start in range(0, total_rows, batch_size):
             end = min(start + batch_size, total_rows)
-            batch = parsed_file_content.acceleration_df.iloc[start:end]
+            batch = parsed_file_content.acceleration_df.iloc[start:end:10]
             batch_counter = batch["counter"].tolist()
             batch_timestamp = batch["timestamp"].tolist()
             datasets = batch.drop(columns=["counter", "timestamp"])
@@ -159,7 +159,7 @@ async def get_analyzed_file(name: str, measurement_dir: str = Depends(get_measur
             yield batch_dict.model_dump_json() + "\n"
 
             # Update progress
-            parsed_rows += len(batch)
+            parsed_rows += len(batch) * 10
             progress = parsed_rows / total_rows
             yield json.dumps({"progress": progress}) + "\n"
 
