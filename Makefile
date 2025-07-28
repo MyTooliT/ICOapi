@@ -6,4 +6,5 @@ TEST_DIRECTORY = test
 
 .PHONY: check
 check:
+	poetry run mypy .
 	poetry run flake8 $(TEST_DIRECTORY)

@@ -38,6 +38,7 @@ version = "0.1"
 [project.optional-dependencies]
 dev = [
     "Flake8-pyproject>=1.2.3",
+    "mypy",
 ]
 test = [
   "httpx>=0.28.1",
@@ -46,3 +47,7 @@ test = [
 
 [project.scripts]
 icoapi = "icoapi.api:main"
+
+[tool.mypy]
+ignore_missing_imports = true
+exclude = [ "icoapi" ]
