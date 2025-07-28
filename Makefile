@@ -1,5 +1,6 @@
 # -- Variables -----------------------------------------------------------------
 
+MODULE = icoapi
 TEST_DIRECTORY = test
 
 # -- Rules ---------------------------------------------------------------------
@@ -14,3 +15,7 @@ check:
 .PHONY: test
 test:
 	poetry run pytest
+
+.PHONY: run
+run: check
+	poetry run python3 $(MODULE)/api.py
