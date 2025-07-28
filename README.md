@@ -2,7 +2,7 @@
 
 A REST and WebSocket API using the Python FastAPI library. You can find the official documentation [here](https://fastapi.tiangolo.com/).
 
-We currently support 
+We currently support
 
 - Windows 10+,
 - Debian/Linux, and
@@ -26,7 +26,7 @@ poetry lock && poetry install
 
 ## Service Installation (Linux)
 
-For Linux, there is an installation script which sets the directory for the actual installation, the directory for the 
+For Linux, there is an installation script which sets the directory for the actual installation, the directory for the
 systemd service and the used systemd service name. The (sensible) defaults are:
 
 ```
@@ -44,13 +44,13 @@ cp example.env .env
 After you created the configuration file, run the script to install normally:
 
 ```sh
-./install
+./install.sh
 ```
 
 Or, if you want to delete existing installations and do a clean reinstall, add the `--force` flag:
 
 ```sh
-./install --force
+./install.sh --force
 ```
 
 # Configuration / Environment Variables
@@ -59,7 +59,7 @@ This application has two main forms of configuration: environment variables and 
 
 ## Environment Variables
 
-The application expects a `.env` file in the root directory, meaning on the same level as the main entrypoint file. It 
+The application expects a `.env` file in the root directory, meaning on the same level as the main entrypoint file. It
 handles the main configuration of the backend application.
 
 > All variables prefixed with `VITE_` indicate that there is a counterpart in the client side environment variables. This
@@ -67,7 +67,7 @@ is to show that changes here most likely need to be propagated to the client (an
 
 ### Client/API Connection Settings
 
-These settings determine all forms of client/API communication details. 
+These settings determine all forms of client/API communication details.
 
 The main REST API is versioned, does _NOT_ use SSL at the moment and has certain origins set as secure for CORS.
 
@@ -79,7 +79,7 @@ VITE_API_VERSION=v1
 VITE_API_ORIGINS="http://localhost,http://localhost:5173,http://localhost:33215,http://127.0.0.1:5173"
 ```
 
-The WebSocket is for streaming data. It only requires a `VITE_API_WS_PROTOCOL` variable akin to `VITE_API_PROTOCOL` 
+The WebSocket is for streaming data. It only requires a `VITE_API_WS_PROTOCOL` variable akin to `VITE_API_PROTOCOL`
 which decided between SSL or not, and how many times per second the WebSocket should send data.
 
 ```
@@ -89,7 +89,7 @@ WEBSOCKET_UPDATE_RATE=60
 
 ### File Storage Settings
 
-These settings determine where the measurement files are stored locally. There are two options, which you should 
+These settings determine where the measurement files are stored locally. There are two options, which you should
 **not use together** to remove ambiguity:
 
 ```
@@ -105,8 +105,8 @@ VITE_BACKEND_FULL_MEASUREMENT_PATH=C:\Users\breurather\AppData\Local\icodaq
   - `"/usr/local/share:/usr/share"`
 - On macOS it is the directory `Library/Application Support` in the user’s home folder
 
-`VITE_BACKEND_FULL_MEASUREMENT_PATH` lets you override the default pathing and tries to create the folder at your 
-supplied location. 
+`VITE_BACKEND_FULL_MEASUREMENT_PATH` lets you override the default pathing and tries to create the folder at your
+supplied location.
 - Use this at your own discretion as not having a writable directory for measurements will crash the program.
 - This is unfortunately not OS-agnostic for now.
 
@@ -164,7 +164,7 @@ LOG_NAME_WITHOUT_EXTENSION=icodaq
 
 ## Metadata Type/Class Generation
 
-To support the usage of arbitrary metadata when creating measurements, a configuration system has been set up. This 
+To support the usage of arbitrary metadata when creating measurements, a configuration system has been set up. This
 system starts as an Excel file in which all metadata fields are defined. This file is then parsed into a YAML file, from
 which it can be used further.
 
@@ -174,20 +174,20 @@ The metadata is split into two parts:
 - the metadata to be entered __before__ a measurement starts (pre_meta)
 - the metadata to be entered __after__ the measurement has been ended (post_meta)
 
-This ensures that common metadata like machine tool, process or cutting parameters are set beforehand while keeping the 
+This ensures that common metadata like machine tool, process or cutting parameters are set beforehand while keeping the
 option to require data after the fact, such as pictures or tool breakage reports.
 
 The pre-meta is sent with the measurement instructions while the post-meta is communicated via the open measurement WebSocket.
 
 ## Measurement Value Conversion / Storage
 
-The used `ICOc` library streams the data as unsigned 16-bit integer values. To get the actual measured physical values, 
+The used `ICOc` library streams the data as unsigned 16-bit integer values. To get the actual measured physical values,
 we go through two conversion steps:
 
 ### Step 1: 16-bit ADC value to Voltage
 
-The streamed ``uint16`` is a direct linear map from `0 - 2^16` to `0 - V_ref` of the used ADC. This means we can reverse the conversion 
-by inverting the linear map. 
+The streamed ``uint16`` is a direct linear map from `0 - 2^16` to `0 - V_ref` of the used ADC. This means we can reverse the conversion
+by inverting the linear map.
 
 > We will define the coefficients ``k1`` and `d1` as the factor and offset of going from bit-value to voltage respectively.
 
@@ -211,7 +211,7 @@ IFT channel-sensor-layout as defaults.
 
 # Run
 
-On Linux, if the installation script was used, the service runs automatically - but as-is, without any updates on 
+On Linux, if the installation script was used, the service runs automatically - but as-is, without any updates on
 changes to the repository as the service simply installs the current version.
 
 For any other usage or for local development, run:
@@ -234,7 +234,7 @@ The application is set up to log _everything_. This is how the logging is set up
 - Don't log intent, like "Creating user..." or "Initializing widget..." unless it's for debugging.
 - Do log outcomes, like "User created successfully." — but only after the operation completes without error.
 - Avoid logging in constructors unless they cannot fail
-  - Prefer logging in methods that complete the actual operation, 
+  - Prefer logging in methods that complete the actual operation,
   - or use a factory method to wrap creation and success logging.
 
 ### Levels
