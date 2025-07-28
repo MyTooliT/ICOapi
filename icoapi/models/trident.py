@@ -6,7 +6,7 @@ from http.client import HTTPException
 import requests
 import logging
 
-from scripts.file_handling import tries_to_traverse_directory
+from icoapi.scripts.file_handling import tries_to_traverse_directory
 
 logger = logging.getLogger(__name__)
 
