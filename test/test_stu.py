@@ -27,6 +27,15 @@ async def test_root(client) -> None:
 
 
 @mark.anyio
+async def test_reset(client) -> None:
+    """Test endpoint ``/reset``"""
+
+    response = await client.put(f"{stu_prefix}/reset", json={"name": "STU 1"})
+
+    assert response.status_code == 204
+
+
+@mark.anyio
 async def test_ota(client) -> None:
     """Test endpoint ``/ota/enable``"""
 
