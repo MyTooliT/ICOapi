@@ -45,3 +45,12 @@ async def test_ota_enable(client) -> None:
     assert response.status_code == 200
     assert response.json() is None
 
+
+@mark.anyio
+async def test_ota_disable(client) -> None:
+    """Test endpoint ``/ota/disable``"""
+
+    response = await client.put(f"{stu_prefix}/ota/disable")
+
+    assert response.status_code == 200
+    assert response.json() is None
