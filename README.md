@@ -225,6 +225,8 @@ poetry run python3 icoapi/api.py
 
 # Test
 
+**Note:** Running the tests (successfully) requires that you connected a STU to your test system.
+
 ```sh
 poetry run pytest
 ```
