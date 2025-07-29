@@ -7,7 +7,7 @@ from mytoolit.can import Network
 from mytoolit.can.adc import ADCConfiguration
 
 from icoapi.models.models import STHRenameResponseModel, ADCValues
-from icoapi.scripts.stu_scripts import get_stu_devices
+from icoapi.scripts.stu_scripts import STU_1_NAME
 from icoapi.scripts.errors import CANResponseError
 
 logger = logging.getLogger(__name__)
@@ -41,15 +41,13 @@ async def get_sth_devices_from_network(network: Network) -> List[STHDeviceInfo] 
 async def connect_sth_device_by_mac(network: Network, mac: str) -> None:
     """Connect a STH device by a given MAC address"""
     await network.connect_sensor_device(mac)
-    logger.info(f"STU 1 has connection: {await network.is_connected('STU 1')}")
+    logger.info(f"STU 1 has connection: {await network.is_connected(STU_1_NAME)}")
 
 
 async def disconnect_sth_devices(network: Network) -> None:
     """Disconnect a STH device by disabling STU bluetooth"""
-    devices = await get_stu_devices(network)
-
-    for device in devices:
-        await network.deactivate_bluetooth(f"STU {device.device_number}")
+    await network.deactivate_bluetooth(STU_1_NAME)
+    logger.info("Disabled STU 1 bluetooth.")
 
 
 async def rename_sth_device(network: Network, mac_address: str, new_name: str) -> STHRenameResponseModel:
@@ -57,7 +55,7 @@ async def rename_sth_device(network: Network, mac_address: str, new_name: str) -
     node = "STH 1"
     disconnect_after_end = False
 
-    if not await network.is_connected("STU 1"):
+    if not await network.is_connected(STU_1_NAME):
         disconnect_after_end = True
         await network.connect_sensor_device(mac_address)
 

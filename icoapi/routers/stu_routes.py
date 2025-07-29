@@ -4,66 +4,119 @@ from fastapi.responses import Response
 from mytoolit.can.network import Network
 from icoapi.models.models import STUDeviceResponseModel
 from icoapi.models.globals import MeasurementState, get_measurement_state, get_network
-from icoapi.scripts.stu_scripts import get_stu_devices, reset_stu, enable_ota, disable_ota
+from icoapi.scripts.stu_scripts import reset_stu, enable_ota, disable_ota, get_stu
 from icoapi.scripts.errors import CANResponseError
 import mytoolit.can
 
 router = APIRouter(
     prefix="/stu",
-    tags=["Stationary Transceiver Unit (STH)"],
+    tags=["Stationary Transceiver Unit (STU)"],
 )
 
 
-@router.get(
-    '',
-    status_code=status.HTTP_200_OK,
-    response_model=list[STUDeviceResponseModel]
-)
+@router.get('')
 async def stu(network: Network = Depends(get_network)) -> list[STUDeviceResponseModel]:
-    return await get_stu_devices(network)
+    return await get_stu(network)
 
 
 @router.put(
     '/reset',
-    response_model=None | CANResponseError,
-    status_code=status.HTTP_502_BAD_GATEWAY
+    responses={
+        200: {
+            "description": "Indicates the STU has been reset.",
+        },
+        502: {
+            "description": "The STU could not be reset.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Error response from CAN network.",
+                        "status_code": 502,
+                    },
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "detail": {"type": "string"},
+                            "status_code": {"type": "integer"},
+                        },
+                        "required": ["detail", "status_code"]
+                    },
+                }
+            }
+        }
+    }
 )
 async def stu_reset(
-    name: Annotated[str, Body(embed=True)],
-    response: Response,
     network: Network = Depends(get_network),
-    measurement_state: MeasurementState = Depends(get_measurement_state)
-) -> None | CANResponseError:
-    if await reset_stu(network, name):
-        response.status_code = status.HTTP_204_NO_CONTENT
+    measurement_state: MeasurementState = Depends(get_measurement_state),
+) -> None:
+    if await reset_stu(network):
         await measurement_state.reset()
         return None
     else:
-        response.status_code = status.HTTP_502_BAD_GATEWAY
-        return CANResponseError()
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Error response from CAN network.")
 
 
-@router.put('/ota/enable')
-async def stu_enable_ota(
-    name: Annotated[str, Body(embed=True)],
-    response: Response,
-    network: Network = Depends(get_network)
-) -> None | CANResponseError:
-    if await enable_ota(network, name):
-        response.status_code = status.HTTP_204_NO_CONTENT
+@router.put('/ota/enable', responses={
+    200: {
+        "description": "Indicates the OTA has been enabled.",
+    },
+    502: {
+        "description": "The OTA could not be enabled.",
+        "content": {
+            "application/json": {
+                "example": {
+                    "detail": "Error response from CAN network.",
+                    "status_code": 502,
+                },
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "detail": {"type": "string"},
+                        "status_code": {"type": "integer"},
+                    },
+                    "required": ["detail", "status_code"]
+                },
+            }
+        }
+    }
+})
+async def stu_enable_ota(network: Network = Depends(get_network)) -> None:
+    if await enable_ota(network):
         return None
     else:
-        response.status_code = status.HTTP_502_BAD_GATEWAY
-        return CANResponseError()
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Error response from CAN network.")
 
 
-@router.put('/ota/disable')
+@router.put('/ota/disable', responses={
+    200: {
+        "description": "Indicates the OTA has been disabled.",
+    },
+    502: {
+        "description": "The OTA could not be disabled.",
+        "content": {
+            "application/json": {
+                "example": {
+                    "detail": "Error response from CAN network.",
+                    "status_code": 502,
+                },
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "detail": {"type": "string"},
+                        "status_code": {"type": "integer"},
+                    },
+                    "required": ["detail", "status_code"]
+                },
+            }
+        }
+    }
+})
 async def stu_disable_ota(
-    name: Annotated[str, Body(embed=True)],
     response: Response,
     network: Network = Depends(get_network)
 ) -> None | CANResponseError:
-    if await disable_ota(network, name):
+    if await disable_ota(network):
         response.status_code = status.HTTP_204_NO_CONTENT
         return None
     else:
@@ -71,10 +124,43 @@ async def stu_disable_ota(
         return CANResponseError()
 
 
-@router.post('/connected')
-async def stu_connected(name: Annotated[str, Body(embed=True)], network: Network = Depends(get_network)):
+@router.get(
+    '/connected',
+    response_model=bool,
+    responses={
+        200: {
+            "description": "Returns true if the STU is connected, false otherwise.",
+            "content": {
+                "application/json": {
+                    "schema": {"type": "boolean"},
+                    "example": True
+                }
+            }
+        },
+        502: {
+            "description": "The STU could not be reached.",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "detail": {"type": "string"},
+                            "status_code": {"type": "integer"},
+                        },
+                        "required": ["detail", "status_code"]
+                    },
+                    "example": {
+                        "detail": "Error response from CAN network.",
+                        "status_code": 502,
+                    },
+                }
+            }
+        }
+    }
+)
+async def stu_connected(network: Network = Depends(get_network)):
     try:
-        return await network.is_connected(name)
+        return await network.is_connected()
     except mytoolit.can.network.NoResponseError:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="No response from CAN network.")
     except mytoolit.can.network.ErrorResponseError:
