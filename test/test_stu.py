@@ -33,12 +33,15 @@ async def test_reset(client) -> None:
     response = await client.put(f"{stu_prefix}/reset")
 
     assert response.status_code == 200
+    assert response.json() is None
 
 
 @mark.anyio
-async def test_ota(client) -> None:
+async def test_ota_enable(client) -> None:
     """Test endpoint ``/ota/enable``"""
 
     response = await client.put(f"{stu_prefix}/ota/enable")
 
     assert response.status_code == 200
+    assert response.json() is None
+
