@@ -54,3 +54,13 @@ async def test_ota_disable(client) -> None:
 
     assert response.status_code == 200
     assert response.json() is None
+
+
+@mark.anyio
+async def test_connected(client) -> None:
+    """Test endpoint ``/connected``"""
+
+    response = await client.get(f"{stu_prefix}/connected")
+    assert response.status_code == 200
+    # STU is not connected to sensor device yet
+    assert response.json() is False
