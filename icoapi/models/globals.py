@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from os import getenv
-from typing import List
+from typing import Any, List
 from mytoolit.can.network import Network
 from starlette.websockets import WebSocket
 
@@ -178,8 +178,8 @@ class GeneralMessenger:
 
     @classmethod
     def add_messenger(cls, messenger: WebSocket):
-        logger.info("Added WebSocket instance to general messenger list")
         cls._clients.append(messenger)
+        logger.info("Added WebSocket instance to general messenger list")
 
     @classmethod
     def remove_messenger(cls, messenger: WebSocket):
@@ -204,7 +204,7 @@ class GeneralMessenger:
             )).model_dump())
 
         if(len(cls._clients)) > 0:
-            logger.info(f"Updated general messenger list with {len(cls._clients)} clients.")
+            logger.info(f"Pushed SystemState to {len(cls._clients)} clients.")
 
 
     @classmethod

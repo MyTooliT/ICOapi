@@ -9,7 +9,6 @@ from icoapi.models.globals import GeneralMessenger, MeasurementState, NetworkSin
     get_messenger, get_trident_client
 from icoapi.models.models import SocketMessage, SystemStateModel
 from icoapi.models.trident import StorageClient
-from icoapi.scripts.data_handling import get_storage_path
 from icoapi.scripts.file_handling import get_disk_space_in_gb
 
 router = APIRouter(
@@ -38,49 +37,17 @@ async def reset_can():
 async def state_websocket(
         websocket: WebSocket,
         messenger: GeneralMessenger = Depends(get_messenger),
-        measurement_state: MeasurementState = Depends(get_measurement_state),
-        storage: StorageClient = Depends(get_trident_client)
 ):
     await websocket.accept()
     messenger.add_messenger(websocket)
-    logger.info(f"Client accepted for state websocket.")
 
     try:
-        # Initial send of data on connect
-        # try:
-        #     with open(get_storage_path(), 'r') as file_object:
-        #         await websocket.send_json(SocketMessage(
-        #             message="local_storage_state",
-        #             data=file_object.read()
-        #         ).model_dump())
-        # except FileNotFoundError:
-        #     logger.info("No local storage state found.")
-
-        await websocket.send_json(SocketMessage(
-            message="state",
-            data=SystemStateModel(
-                can_ready=bool(NetworkSingleton.has_instance()),
-                disk_capacity=get_disk_space_in_gb(),
-                measurement_status=measurement_state.get_status(),
-                cloud_status=bool(storage.is_authenticated())
-        )).model_dump())
+        await messenger.push_messenger_update()
 
         while True:
             text = await websocket.receive_text()
             msg = SocketMessage(**json.loads(text))
             if msg.message == "get_state":
-                await websocket.send_json(SocketMessage(
-                    message="state",
-                    data=SystemStateModel(
-                        can_ready=bool(NetworkSingleton.has_instance()),
-                        disk_capacity=get_disk_space_in_gb(),
-                        measurement_status=measurement_state.get_status(),
-                        cloud_status=bool(storage.is_authenticated())
-                    )).model_dump())
-                logger.info("Sent state information data to client upon request.")
+                await messenger.push_messenger_update()
     except WebSocketDisconnect:
-        try:
-            messenger.remove_messenger(websocket)
-            logger.info(f"Client disconnected from measurement stream - now {len(measurement_state.clients)} clients")
-        except ValueError:
-            logger.debug(f"Client was already disconnected - still {len(measurement_state.clients)} clients")
+        messenger.remove_messenger(websocket)
