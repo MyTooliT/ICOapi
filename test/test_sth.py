@@ -124,10 +124,12 @@ async def test_read_adc(client) -> None:
     response = await client.get(f"{sth_prefix}/read-adc")
     assert response.status_code == 200
     adc_configuration = response.json()
-    assert "prescaler" in adc_configuration
-    assert "acquisition_time" in adc_configuration
-    assert "oversampling_rate" in adc_configuration
+    adc_attributes_int = {"prescaler", "acquisition_time", "oversampling_rate"}
+    for attribute in adc_attributes_int:
+        assert attribute in adc_configuration
+        assert isinstance(adc_configuration[attribute], int)
     assert "reference_voltage" in adc_configuration
+    assert isinstance(adc_configuration["reference_voltage"], float)
 
     await client.put(f"{sth_prefix}/disconnect")
 
