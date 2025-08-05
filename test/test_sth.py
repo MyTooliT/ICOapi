@@ -113,3 +113,20 @@ async def test_rename(client) -> None:
     assert response.json()["name"] == old_name
 
     await client.put(f"{sth_prefix}/disconnect")
+
+
+@mark.anyio
+async def test_read_adc(client) -> None:
+    """Test endpoint ``/read-adc``"""
+
+    await get_and_connect_test_sensor_node(client)
+
+    response = await client.get(f"{sth_prefix}/read-adc")
+    assert response.status_code == 200
+    adc_configuration = response.json()
+    assert "prescaler" in adc_configuration
+    assert "acquisition_time" in adc_configuration
+    assert "oversampling_rate" in adc_configuration
+    assert "reference_voltage" in adc_configuration
+
+    await client.put(f"{sth_prefix}/disconnect")
