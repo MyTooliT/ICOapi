@@ -12,7 +12,7 @@ sth_prefix = "/api/v1/sth"
 # -- Functions ----------------------------------------------------------------
 
 
-async def get_test_sensor_node(client) -> dict[str, Any]:
+async def get_and_connect_test_sensor_node(client) -> dict[str, Any]:
     response = await client.get(sth_prefix)
 
     assert response.status_code == 200
@@ -29,6 +29,13 @@ async def get_test_sensor_node(client) -> dict[str, Any]:
     mac_address = node["mac_address"]
     assert mac_address is not None
     assert EUI(mac_address)  # Check for valid MAC address
+
+    mac_address = sensor_node["mac_address"]
+    response = await client.put(
+        f"{sth_prefix}/connect", json={"mac": mac_address}
+    )
+    assert response.status_code == 200
+    assert response.json() is None
 
     return node
 
@@ -65,13 +72,7 @@ async def test_connect_disconnect(client) -> None:
     # = Test Normal Response =
     # ========================
 
-    sensor_node = await get_test_sensor_node(client)
-    mac_address = sensor_node["mac_address"]
-    response = await client.put(
-        f"{sth_prefix}/connect", json={"mac": mac_address}
-    )
-    assert response.status_code == 200
-    assert response.json() is None
+    await get_and_connect_test_sensor_node(client)
 
     await client.put(f"{sth_prefix}/disconnect")
 
@@ -90,12 +91,8 @@ async def test_connect_disconnect(client) -> None:
 async def test_rename(client) -> None:
     """Test endpoint ``/rename``"""
 
-    sensor_node = await get_test_sensor_node(client)
+    sensor_node = await get_and_connect_test_sensor_node(client)
     mac_address = sensor_node["mac_address"]
-    response = await client.put(
-        f"{sth_prefix}/connect", json={"mac": mac_address}
-    )
-    assert response.status_code == 200
 
     response = await client.put(
         f"{sth_prefix}/rename",
