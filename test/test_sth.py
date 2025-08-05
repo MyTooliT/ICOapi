@@ -1,11 +1,37 @@
 # -- Imports ------------------------------------------------------------------
 
+from typing import Any
+
 from netaddr import EUI
 from pytest import mark
 
 # -- Globals ------------------------------------------------------------------
 
 sth_prefix = "/api/v1/sth"
+
+# -- Functions ----------------------------------------------------------------
+
+
+async def get_test_sensor_node(client) -> dict[str, Any]:
+    response = await client.get(sth_prefix)
+
+    assert response.status_code == 200
+    sensor_nodes = response.json()
+
+    # We assume that a sensor device with the name `Test-STH` is available and
+    # ready for connection
+    node = None
+    for sensor_node in sensor_nodes:
+        if sensor_node["name"] == "Test-STH":
+            node = sensor_node
+            break
+    assert node is not None
+    mac_address = node["mac_address"]
+    assert mac_address is not None
+    assert EUI(mac_address)  # Check for valid MAC address
+
+    return node
+
 
 # -- Tests --------------------------------------------------------------------
 
@@ -32,27 +58,15 @@ async def test_root(client) -> None:
 
 
 @mark.anyio
-async def test_connect(client) -> None:
-    """Test endpoint ``/connect``"""
+async def test_connect_disconnect(client) -> None:
+    """Test endpoint ``/connect`` and ``disconnect``"""
 
     # ========================
     # = Test Normal Response =
     # ========================
 
-    response = await client.get(sth_prefix)
-
-    assert response.status_code == 200
-    sensor_devices = response.json()
-
-    # We assume that a sensor device with the name `Test-STH` is available and
-    # ready for connection
-    mac_address = None
-    for sensor_device in sensor_devices:
-        if sensor_device["name"] == "Test-STH":
-            mac_address = sensor_device["mac_address"]
-            break
-    assert mac_address is not None
-    assert EUI(mac_address)  # Check for valid MAC address
+    sensor_node = await get_test_sensor_node(client)
+    mac_address = sensor_node["mac_address"]
     response = await client.put(
         f"{sth_prefix}/connect", json={"mac": mac_address}
     )
@@ -70,3 +84,35 @@ async def test_connect(client) -> None:
     )
 
     assert response.status_code == 404
+
+
+@mark.anyio
+async def test_rename(client) -> None:
+    """Test endpoint ``/rename``"""
+
+    sensor_node = await get_test_sensor_node(client)
+    mac_address = sensor_node["mac_address"]
+    response = await client.put(
+        f"{sth_prefix}/connect", json={"mac": mac_address}
+    )
+    assert response.status_code == 200
+
+    response = await client.put(
+        f"{sth_prefix}/rename",
+        json={"mac_address": mac_address, "new_name": "Hello"},
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json(), dict)
+    old_name = response.json()["old_name"]
+    name = response.json()["name"]
+    assert name == "Hello"
+
+    response = await client.put(
+        f"{sth_prefix}/rename",
+        json={"mac_address": mac_address, "new_name": old_name},
+    )
+    assert isinstance(response.json(), dict)
+    assert response.json()["old_name"] == name
+    assert response.json()["name"] == old_name
+
+    await client.put(f"{sth_prefix}/disconnect")
