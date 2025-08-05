@@ -60,7 +60,7 @@ class TridentClient:
 
     def _refresh_with_refresh_token(self):
         """Refresh the access token using the refresh token."""
-        refresh_token = self.session.cookies.get("refresh_token", domain="iot.ift.tuwien.ac.at")
+        refresh_token = self.session.cookies.get("refresh_token", domain=self.domain)
         if not refresh_token:
             logger.error("Refresh token not found when trying to refresh authentication.")
             # raise Exception("Refresh token not found when trying to refresh authentication.")
@@ -73,7 +73,7 @@ class TridentClient:
             new_access_token = token_data.get("access_token")
             new_refresh_token = token_data.get("refresh_token")
 
-            self.session.cookies.set("refresh_token", new_refresh_token, domain="iot.ift.tuwien.ac.at")
+            self.session.cookies.set("refresh_token", new_refresh_token, domain=self.domain)
             self.session.headers.update({"Authorization": f"Bearer {new_access_token}"})
             logger.info("Access and refresh token refreshed successfully.")
             return new_access_token
@@ -188,8 +188,11 @@ class StorageClient(BaseClient):
 
         try:
             return response.json()
-        except json.decoder.JSONDecodeError:
-            logger.error(response.text)
+        except json.decoder.JSONDecodeError as e:
+            if response.status_code == 200:
+                logger.info(f"No objects found in bucket <{bucket if bucket else self.default_bucket}>.")
+                return []
+            logger.error(f"Error with decoding JSON response: {e}")
             return []
 
     def upload_file(self, file_path: str, filename: str, bucket: str | None = None, folder: str | None = "default"):
