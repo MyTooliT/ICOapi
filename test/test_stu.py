@@ -3,15 +3,11 @@
 from netaddr import EUI
 from pytest import mark
 
-# -- Globals ------------------------------------------------------------------
-
-stu_prefix = "/api/v1/stu"
-
 # -- Tests --------------------------------------------------------------------
 
 
 @mark.anyio
-async def test_root(client) -> None:
+async def test_root(client, stu_prefix) -> None:
     """Test endpoint ``/``"""
 
     response = await client.get(stu_prefix)
@@ -27,7 +23,7 @@ async def test_root(client) -> None:
 
 
 @mark.anyio
-async def test_reset(client) -> None:
+async def test_reset(client, stu_prefix) -> None:
     """Test endpoint ``/reset``"""
 
     response = await client.put(f"{stu_prefix}/reset")
@@ -37,7 +33,7 @@ async def test_reset(client) -> None:
 
 
 @mark.anyio
-async def test_ota_enable(client) -> None:
+async def test_ota_enable(client, stu_prefix) -> None:
     """Test endpoint ``/ota/enable``"""
 
     response = await client.put(f"{stu_prefix}/ota/enable")
@@ -47,7 +43,7 @@ async def test_ota_enable(client) -> None:
 
 
 @mark.anyio
-async def test_ota_disable(client) -> None:
+async def test_ota_disable(client, stu_prefix) -> None:
     """Test endpoint ``/ota/disable``"""
 
     response = await client.put(f"{stu_prefix}/ota/disable")
@@ -57,7 +53,7 @@ async def test_ota_disable(client) -> None:
 
 
 @mark.anyio
-async def test_connected(client) -> None:
+async def test_connected(client, stu_prefix) -> None:
     """Test endpoint ``/connected``"""
 
     response = await client.get(f"{stu_prefix}/connected")
