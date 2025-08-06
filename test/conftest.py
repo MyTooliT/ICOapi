@@ -1,5 +1,7 @@
 # -- Imports ------------------------------------------------------------------
 
+from posixpath import join
+
 from httpx import ASGITransport, AsyncClient
 from pytest import fixture
 
@@ -15,7 +17,7 @@ def prefix():
 
 @fixture
 def stu_prefix(prefix):
-    return f"{prefix}/stu"
+    return join(prefix, "stu")
 
 
 @fixture(scope="session")
