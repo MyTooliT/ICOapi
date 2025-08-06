@@ -1,5 +1,7 @@
 # -- Imports ------------------------------------------------------------------
 
+from posixpath import join
+
 from netaddr import EUI
 from pytest import mark
 
@@ -8,11 +10,12 @@ from pytest import mark
 
 @mark.usefixtures("anyio_backend")
 class TestSTU:
+    prefix = "/api/v1/stu"
 
-    async def test_root(self, client, stu_prefix) -> None:
+    async def test_root(self, client) -> None:
         """Test endpoint ``/``"""
 
-        response = await client.get(stu_prefix)
+        response = await client.get(self.prefix)
 
         assert response.status_code == 200
         sth_response = response.json()[0]
@@ -23,34 +26,34 @@ class TestSTU:
         assert EUI(mac_address) == mac_address
         assert sth_response["name"] == "STU 1"
 
-    async def test_reset(self, client, stu_prefix) -> None:
+    async def test_reset(self, client) -> None:
         """Test endpoint ``/reset``"""
 
-        response = await client.put(f"{stu_prefix}/reset")
+        response = await client.put(join(self.prefix, "reset"))
 
         assert response.status_code == 200
         assert response.json() is None
 
-    async def test_ota_enable(self, client, stu_prefix) -> None:
+    async def test_ota_enable(self, client) -> None:
         """Test endpoint ``/ota/enable``"""
 
-        response = await client.put(f"{stu_prefix}/ota/enable")
+        response = await client.put(join(self.prefix, "ota/enable"))
 
         assert response.status_code == 200
         assert response.json() is None
 
-    async def test_ota_disable(self, client, stu_prefix) -> None:
+    async def test_ota_disable(self, client) -> None:
         """Test endpoint ``/ota/disable``"""
 
-        response = await client.put(f"{stu_prefix}/ota/disable")
+        response = await client.put(join(self.prefix, "ota/disable"))
 
         assert response.status_code == 200
         assert response.json() is None
 
-    async def test_connected(self, client, stu_prefix) -> None:
+    async def test_connected(self, client) -> None:
         """Test endpoint ``/connected``"""
 
-        response = await client.get(f"{stu_prefix}/connected")
+        response = await client.get(join(self.prefix, "connected"))
         assert response.status_code == 200
         # STU is not connected to sensor device yet
         assert response.json() is False

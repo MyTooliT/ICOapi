@@ -1,23 +1,11 @@
 # -- Imports ------------------------------------------------------------------
 
-from posixpath import join
-
 from httpx import ASGITransport, AsyncClient
 from pytest import fixture
 
 from icoapi.api import app
 
 # -- Fixtures -----------------------------------------------------------------
-
-
-@fixture
-def prefix():
-    return "/api/v1"
-
-
-@fixture
-def stu_prefix(prefix):
-    return join(prefix, "stu")
 
 
 @fixture(scope="session")
