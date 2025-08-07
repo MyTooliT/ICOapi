@@ -2,7 +2,7 @@
 
 from httpx import ASGITransport, AsyncClient
 from netaddr import EUI
-from posixpath import join
+from pathlib import Path
 from pytest import fixture
 
 from icoapi.api import app
@@ -15,18 +15,27 @@ def anyio_backend():
     return "asyncio"
 
 
+@fixture
+async def sth_prefix():
+    return Path("sth")
+
+
+@fixture
+async def stu_prefix():
+    return Path("stu")
+
+
 @fixture(scope="session")
 async def client():
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test/api/v1"
+        transport=ASGITransport(app=app), base_url="http://test/api/v1/"
     ) as client:
         yield client
 
 
 @fixture
-async def get_test_sensor_node(client):
-    sth_prefix = "sth"
-    response = await client.get(sth_prefix)
+async def get_test_sensor_node(sth_prefix, client):
+    response = await client.get(str(sth_prefix))
 
     assert response.status_code == 200
     sensor_nodes = response.json()
@@ -47,18 +56,16 @@ async def get_test_sensor_node(client):
 
 
 @fixture
-async def connect(get_test_sensor_node, client):
-    sth_prefix = "sth"
-
+async def connect(sth_prefix, get_test_sensor_node, client):
     node = get_test_sensor_node
 
     mac_address = node["mac_address"]
     response = await client.put(
-        join(sth_prefix, "connect"), json={"mac": mac_address}
+        str(sth_prefix / "connect"), json={"mac": mac_address}
     )
     assert response.status_code == 200
     assert response.json() is None
 
     yield node
 
-    await client.put(join(sth_prefix, "disconnect"))
+    await client.put(str(sth_prefix / "disconnect"))

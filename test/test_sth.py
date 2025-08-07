@@ -1,7 +1,5 @@
 # -- Imports ------------------------------------------------------------------
 
-from posixpath import join
-
 from netaddr import EUI
 from pytest import mark
 
@@ -11,12 +9,10 @@ from pytest import mark
 @mark.usefixtures("anyio_backend")
 class TestSTH:
 
-    prefix = "sth"
-
-    async def test_root(self, client) -> None:
+    async def test_root(self, sth_prefix, client) -> None:
         """Test endpoint ``/``"""
 
-        response = await client.get(self.prefix)
+        response = await client.get(str(sth_prefix))
 
         assert response.status_code == 200
         sensor_devices = response.json()
@@ -33,7 +29,7 @@ class TestSTH:
         assert 0 >= sensor_device["rssi"] >= -80
 
     async def test_connect_disconnect(
-        self, get_test_sensor_node, client
+        self, sth_prefix, get_test_sensor_node, client
     ) -> None:
         """Test endpoint ``/connect`` and ``/disconnect``"""
 
@@ -45,31 +41,31 @@ class TestSTH:
 
         mac_address = node["mac_address"]
         response = await client.put(
-            join(self.prefix, "connect"), json={"mac": mac_address}
+            str(sth_prefix / "connect"), json={"mac": mac_address}
         )
         assert response.status_code == 200
         assert response.json() is None
 
-        await client.put(join(self.prefix, "disconnect"))
+        await client.put(str(sth_prefix / "disconnect"))
 
         # =======================
         # = Test Error Response =
         # =======================
 
         response = await client.put(
-            join(self.prefix, "connect"), json={"mac": "01-02-03-04-05-06"}
+            str(sth_prefix / "connect"), json={"mac": "01-02-03-04-05-06"}
         )
 
         assert response.status_code == 404
 
-    async def test_rename(self, client, connect) -> None:
+    async def test_rename(self, sth_prefix, connect, client) -> None:
         """Test endpoint ``/rename``"""
 
         sensor_node = connect
         mac_address = sensor_node["mac_address"]
 
         response = await client.put(
-            join(self.prefix, "rename"),
+            str(sth_prefix / "rename"),
             json={"mac_address": mac_address, "new_name": "Hello"},
         )
         assert response.status_code == 200
@@ -79,17 +75,17 @@ class TestSTH:
         assert name == "Hello"
 
         response = await client.put(
-            join(self.prefix, "rename"),
+            str(sth_prefix / "rename"),
             json={"mac_address": mac_address, "new_name": old_name},
         )
         assert isinstance(response.json(), dict)
         assert response.json()["old_name"] == name
         assert response.json()["name"] == old_name
 
-    async def test_read_adc(self, client, connect) -> None:
+    async def test_read_adc(self, sth_prefix, client, connect) -> None:
         """Test endpoint ``/read-adc``"""
 
-        response = await client.get(join(self.prefix, "read-adc"))
+        response = await client.get(str(sth_prefix / "read-adc"))
         assert response.status_code == 200
         adc_configuration = response.json()
         adc_attributes_int = {
@@ -103,14 +99,14 @@ class TestSTH:
         assert "reference_voltage" in adc_configuration
         assert isinstance(adc_configuration["reference_voltage"], float)
 
-    async def test_write_adc(self, client, connect) -> None:
+    async def test_write_adc(self, sth_prefix, connect, client) -> None:
         """Test endpoint ``/write-adc``"""
 
-        response = await client.get(join(self.prefix, "read-adc"))
+        response = await client.get(str(sth_prefix / "read-adc"))
         assert response.status_code == 200
         adc_configuration = response.json()
 
         response = await client.put(
-            join(self.prefix, "write-adc"),
+            str(sth_prefix / "write-adc"),
             json=adc_configuration,
         )
