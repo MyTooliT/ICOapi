@@ -89,10 +89,10 @@ class TestSTH:
 
         assert response.status_code == 404
 
-    async def test_rename(self, client) -> None:
+    async def test_rename(self, client, connect) -> None:
         """Test endpoint ``/rename``"""
 
-        sensor_node = await get_and_connect_test_sensor_node(client)
+        sensor_node = connect
         mac_address = sensor_node["mac_address"]
 
         response = await client.put(
@@ -113,8 +113,6 @@ class TestSTH:
         assert response.json()["old_name"] == name
         assert response.json()["name"] == old_name
 
-        await client.put(join(self.prefix, "disconnect"))
-
     async def test_read_adc(self, client, connect) -> None:
         """Test endpoint ``/read-adc``"""
 
@@ -132,10 +130,8 @@ class TestSTH:
         assert "reference_voltage" in adc_configuration
         assert isinstance(adc_configuration["reference_voltage"], float)
 
-    async def test_write_adc(self, client) -> None:
+    async def test_write_adc(self, client, connect) -> None:
         """Test endpoint ``/write-adc``"""
-
-        await get_and_connect_test_sensor_node(client)
 
         response = await client.get(join(self.prefix, "read-adc"))
         assert response.status_code == 200
@@ -145,5 +141,3 @@ class TestSTH:
             join(sth_prefix, "write-adc"),
             json=adc_configuration,
         )
-
-        await client.put(join(self.prefix, "disconnect"))
