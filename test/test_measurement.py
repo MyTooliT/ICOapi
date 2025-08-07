@@ -73,6 +73,10 @@ class TestSTU:
         )
         assert response.status_code == 200
 
+        assert (
+            response.json()["message"] == "Measurement started successfully."
+        )
+
         # Wait for measurement to take place
         await sleep(10)
 
