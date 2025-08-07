@@ -37,12 +37,12 @@ disconnect:
 	
 .PHONY: start-measurement
 start-measurement:
-	http POST '$(URL)/measurement/start' \
+	http POST "$(URL)/measurement/start" \
 	  name="$(NAME)" \
 	  mac="$(MAC_ADDRESS)" \
-	  time=0 \
+	  time=10 \
 	  first[channel_number]:=1 \
-	  first[sensor_id]="Acceleration Sensor" \
+	  first[sensor_id]="Acceleration 100g" \
 	  second[channel_number]:=0 \
 	  second[sensor_id]="" \
 	  third[channel_number]:=0 \
