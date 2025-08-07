@@ -10,7 +10,7 @@ from pytest import mark
 
 @mark.usefixtures("anyio_backend")
 class TestSTU:
-    prefix = "/api/v1/stu"
+    prefix = "stu"
 
     async def test_root(self, client) -> None:
         """Test endpoint ``/``"""

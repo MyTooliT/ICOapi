@@ -2,6 +2,7 @@
 
 from httpx import ASGITransport, AsyncClient
 from netaddr import EUI
+from posixpath import join
 from pytest import fixture
 
 from icoapi.api import app
@@ -17,14 +18,16 @@ def anyio_backend():
 @fixture(scope="session")
 async def client():
     async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
+        transport=ASGITransport(app=app), base_url="http://test/api/v1"
     ) as client:
         yield client
 
 
 @fixture
 async def connect(client):
-    response = await client.get("/api/v1/sth")
+
+    sth_prefix = "sth"
+    response = await client.get(sth_prefix)
 
     assert response.status_code == 200
     sensor_nodes = response.json()
@@ -43,11 +46,11 @@ async def connect(client):
 
     mac_address = sensor_node["mac_address"]
     response = await client.put(
-        "/api/v1/sth/connect", json={"mac": mac_address}
+        join(sth_prefix, "connect"), json={"mac": mac_address}
     )
     assert response.status_code == 200
     assert response.json() is None
 
     yield node
 
-    await client.put("/api/v1/sth/disconnect")
+    await client.put(join(sth_prefix, "disconnect"))

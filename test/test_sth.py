@@ -8,7 +8,7 @@ from pytest import mark
 
 # -- Globals ------------------------------------------------------------------
 
-sth_prefix = "/api/v1/sth"
+sth_prefix = "sth"
 
 # -- Functions ----------------------------------------------------------------
 
@@ -47,7 +47,7 @@ async def get_and_connect_test_sensor_node(client) -> dict[str, Any]:
 @mark.usefixtures("anyio_backend")
 class TestSTH:
 
-    prefix = "/api/v1/sth"
+    prefix = "sth"
 
     async def test_root(self, client) -> None:
         """Test endpoint ``/``"""
@@ -142,7 +142,7 @@ class TestSTH:
         adc_configuration = response.json()
 
         response = await client.put(
-            f"{sth_prefix}/write-adc",
+            join(sth_prefix, "write-adc"),
             json=adc_configuration,
         )
 
