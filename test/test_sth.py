@@ -1,45 +1,9 @@
 # -- Imports ------------------------------------------------------------------
 
 from posixpath import join
-from typing import Any
 
 from netaddr import EUI
 from pytest import mark
-
-# -- Globals ------------------------------------------------------------------
-
-sth_prefix = "sth"
-
-# -- Functions ----------------------------------------------------------------
-
-
-async def get_and_connect_test_sensor_node(client) -> dict[str, Any]:
-    response = await client.get(sth_prefix)
-
-    assert response.status_code == 200
-    sensor_nodes = response.json()
-
-    # We assume that a sensor device with the name `Test-STH` is available and
-    # ready for connection
-    node = None
-    for sensor_node in sensor_nodes:
-        if sensor_node["name"] == "Test-STH":
-            node = sensor_node
-            break
-    assert node is not None
-    mac_address = node["mac_address"]
-    assert mac_address is not None
-    assert EUI(mac_address)  # Check for valid MAC address
-
-    mac_address = sensor_node["mac_address"]
-    response = await client.put(
-        f"{sth_prefix}/connect", json={"mac": mac_address}
-    )
-    assert response.status_code == 200
-    assert response.json() is None
-
-    return node
-
 
 # -- Tests --------------------------------------------------------------------
 
@@ -68,14 +32,23 @@ class TestSTH:
         assert len(sensor_device["name"]) <= 8
         assert 0 >= sensor_device["rssi"] >= -80
 
-    async def test_connect_disconnect(self, client) -> None:
+    async def test_connect_disconnect(
+        self, get_test_sensor_node, client
+    ) -> None:
         """Test endpoint ``/connect`` and ``/disconnect``"""
 
         # ========================
         # = Test Normal Response =
         # ========================
 
-        await get_and_connect_test_sensor_node(client)
+        node = get_test_sensor_node
+
+        mac_address = node["mac_address"]
+        response = await client.put(
+            join(self.prefix, "connect"), json={"mac": mac_address}
+        )
+        assert response.status_code == 200
+        assert response.json() is None
 
         await client.put(join(self.prefix, "disconnect"))
 
@@ -138,6 +111,6 @@ class TestSTH:
         adc_configuration = response.json()
 
         response = await client.put(
-            join(sth_prefix, "write-adc"),
+            join(self.prefix, "write-adc"),
             json=adc_configuration,
         )
