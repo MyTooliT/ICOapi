@@ -73,7 +73,7 @@ async def read_sth_adc(network: Network) -> ADCConfiguration | None:
 
 
 async def write_sth_adc(network: Network, config: ADCValues) -> None:
-    if not network.is_connected():
+    if not await network.is_connected():
         raise TimeoutError
     adc = ADCConfiguration(
         reference_voltage=config.reference_voltage,
