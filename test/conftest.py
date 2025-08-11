@@ -1,9 +1,10 @@
 # -- Imports ------------------------------------------------------------------
 
+from pathlib import Path
+
 from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 from netaddr import EUI
-from pathlib import Path
 from pytest import fixture
 
 from icoapi.api import app
