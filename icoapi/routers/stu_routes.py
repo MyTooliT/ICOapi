@@ -88,3 +88,5 @@ async def stu_connected(network: Network = Depends(get_network)):
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
     except mytoolit.can.network.ErrorResponseError:
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
+    except AttributeError:
+        raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
