@@ -23,6 +23,11 @@ async def measurement_prefix():
 
 
 @fixture
+async def reset_can_prefix():
+    return Path("reset-can")
+
+
+@fixture
 async def state_prefix():
     return Path("state")
 
