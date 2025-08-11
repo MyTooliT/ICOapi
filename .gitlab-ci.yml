@@ -40,6 +40,9 @@ variables:
 build_and_push:
   stage: build
   image: docker:24.0.5
+  tags:
+    - cijobs
+    - docker
   services:
     - name: docker:24.0.5-dind
       command: ["--mtu=1460"]   # optional; helps in some runners
