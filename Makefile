@@ -42,7 +42,7 @@ start-measurement:
 	  mac="$(MAC_ADDRESS)" \
 	  time=10 \
 	  first[channel_number]:=1 \
-	  first[sensor_id]="Acceleration 100g" \
+	  first[sensor_id]="acc100g_01" \
 	  second[channel_number]:=0 \
 	  second[sensor_id]="" \
 	  third[channel_number]:=0 \
