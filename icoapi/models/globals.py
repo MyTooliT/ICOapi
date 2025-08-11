@@ -133,7 +133,9 @@ class MeasurementSingleton:
         logger.info(f"Cleared {num_of_clients} clients from measurement WebSocket list")
 
 
-def get_measurement_state():
+async def get_measurement_state():
+    # We need a coroutine here, since `Measurement.__setattr__` 
+    # uses `asyncio.create_task`, which requires a running event loop.
     return MeasurementSingleton().get_instance()
 
 
