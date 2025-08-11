@@ -41,6 +41,7 @@ dev = [
     "mypy",
 ]
 test = [
+  "asgi-lifespan>=2.1.0",
   "httpx>=0.28.1",
   "pytest-asyncio>=1.0.0",
 ]

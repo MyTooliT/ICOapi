@@ -1,5 +1,6 @@
 # -- Imports ------------------------------------------------------------------
 
+from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 from netaddr import EUI
 from pathlib import Path
@@ -32,10 +33,12 @@ async def stu_prefix():
 
 @fixture(scope="session")
 async def client():
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test/api/v1/"
-    ) as client:
-        yield client
+    async with LifespanManager(app) as manager:
+        async with AsyncClient(
+            transport=ASGITransport(app=manager.app),
+            base_url="http://test/api/v1/",
+        ) as client:
+            yield client
 
 
 @fixture
