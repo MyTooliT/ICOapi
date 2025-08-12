@@ -1,7 +1,7 @@
 # -- Classes ------------------------------------------------------------------
 
 
-class TestSTU:
+class TestMeasurement:
 
     def test_root(self, measurement_prefix, client) -> None:
         """Test endpoint ``/``"""
