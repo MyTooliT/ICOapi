@@ -1,19 +1,14 @@
-# -- Imports ------------------------------------------------------------------
-
-from pytest import mark
-
 # -- Classes ------------------------------------------------------------------
 
 
-@mark.usefixtures("anyio_backend")
 class TestSTU:
 
-    async def test_root(self, measurement_prefix, client) -> None:
+    def test_root(self, measurement_prefix, client) -> None:
         """Test endpoint ``/``"""
 
         measurement_status = str(measurement_prefix)
 
-        response = await client.get(measurement_status)
+        response = client.get(measurement_status)
         assert response.status_code == 200
 
         body = response.json()
@@ -27,7 +22,7 @@ class TestSTU:
         ):
             assert key in body
 
-    async def test_start(self, connect, measurement_prefix, client) -> None:
+    def test_start(self, connect, measurement_prefix, client) -> None:
         """Test endpoint ``/start``"""
 
         node = connect
@@ -55,7 +50,7 @@ class TestSTU:
         # = Test Normal Response =
         # ========================
 
-        response = await client.post(
+        response = client.post(
             start,
             json={
                 "name": node["name"],
@@ -77,18 +72,18 @@ class TestSTU:
             response.json()["message"] == "Measurement started successfully."
         )
 
-        response = await client.get(measurement_status)
+        response = client.get(measurement_status)
         assert response.status_code == 200
         body = response.json()
         instructions = body["instructions"]
         assert instructions["adc"] == adc_config
         assert instructions["first"] == sensor
 
-        response = await client.post(stop)
+        response = client.post(stop)
 
         # =======================
         # = Test Error Response =
         # =======================
 
-        response = await client.post(start)
+        response = client.post(start)
         assert response.status_code == 422

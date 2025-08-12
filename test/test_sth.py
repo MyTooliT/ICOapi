@@ -1,18 +1,16 @@
 # -- Imports ------------------------------------------------------------------
 
 from netaddr import EUI
-from pytest import mark
 
 # -- Tests --------------------------------------------------------------------
 
 
-@mark.usefixtures("anyio_backend")
 class TestSTH:
 
-    async def test_root(self, sth_prefix, client) -> None:
+    def test_root(self, sth_prefix, client) -> None:
         """Test endpoint ``/``"""
 
-        response = await client.get(str(sth_prefix))
+        response = client.get(str(sth_prefix))
 
         assert response.status_code == 200
         sensor_devices = response.json()
@@ -28,7 +26,7 @@ class TestSTH:
         assert len(sensor_device["name"]) <= 8
         assert 0 >= sensor_device["rssi"] >= -80
 
-    async def test_connect_disconnect(
+    def test_connect_disconnect(
         self, sth_prefix, get_test_sensor_node, client
     ) -> None:
         """Test endpoint ``/connect`` and ``/disconnect``"""
@@ -40,31 +38,31 @@ class TestSTH:
         node = get_test_sensor_node
 
         mac_address = node["mac_address"]
-        response = await client.put(
+        response = client.put(
             str(sth_prefix / "connect"), json={"mac": mac_address}
         )
         assert response.status_code == 200
         assert response.json() is None
 
-        await client.put(str(sth_prefix / "disconnect"))
+        client.put(str(sth_prefix / "disconnect"))
 
         # =======================
         # = Test Error Response =
         # =======================
 
-        response = await client.put(
+        response = client.put(
             str(sth_prefix / "connect"), json={"mac": "01-02-03-04-05-06"}
         )
 
         assert response.status_code == 404
 
-    async def test_rename(self, sth_prefix, connect, client) -> None:
+    def test_rename(self, sth_prefix, connect, client) -> None:
         """Test endpoint ``/rename``"""
 
         sensor_node = connect
         mac_address = sensor_node["mac_address"]
 
-        response = await client.put(
+        response = client.put(
             str(sth_prefix / "rename"),
             json={"mac_address": mac_address, "new_name": "Hello"},
         )
@@ -74,7 +72,7 @@ class TestSTH:
         name = response.json()["name"]
         assert name == "Hello"
 
-        response = await client.put(
+        response = client.put(
             str(sth_prefix / "rename"),
             json={"mac_address": mac_address, "new_name": old_name},
         )
@@ -82,10 +80,10 @@ class TestSTH:
         assert response.json()["old_name"] == name
         assert response.json()["name"] == old_name
 
-    async def test_read_adc(self, sth_prefix, client, connect) -> None:
+    def test_read_adc(self, sth_prefix, client, connect) -> None:
         """Test endpoint ``/read-adc``"""
 
-        response = await client.get(str(sth_prefix / "read-adc"))
+        response = client.get(str(sth_prefix / "read-adc"))
         assert response.status_code == 200
         adc_configuration = response.json()
         adc_attributes_int = {
@@ -99,14 +97,14 @@ class TestSTH:
         assert "reference_voltage" in adc_configuration
         assert isinstance(adc_configuration["reference_voltage"], float)
 
-    async def test_write_adc(self, sth_prefix, connect, client) -> None:
+    def test_write_adc(self, sth_prefix, connect, client) -> None:
         """Test endpoint ``/write-adc``"""
 
-        response = await client.get(str(sth_prefix / "read-adc"))
+        response = client.get(str(sth_prefix / "read-adc"))
         assert response.status_code == 200
         adc_configuration = response.json()
 
-        response = await client.put(
+        response = client.put(
             str(sth_prefix / "write-adc"),
             json=adc_configuration,
         )

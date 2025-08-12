@@ -2,8 +2,7 @@
 
 from pathlib import Path
 
-from asgi_lifespan import LifespanManager
-from httpx import ASGITransport, AsyncClient
+from fastapi.testclient import TestClient
 from netaddr import EUI
 from pytest import fixture
 
@@ -18,43 +17,42 @@ def anyio_backend():
 
 
 @fixture
-async def measurement_prefix():
+def measurement_prefix():
     return Path("measurement")
 
 
 @fixture
-async def reset_can_prefix():
+def reset_can_prefix():
     return Path("reset-can")
 
 
 @fixture
-async def state_prefix():
+def state_prefix():
     return Path("state")
 
 
 @fixture
-async def sth_prefix():
+def sth_prefix():
     return Path("sth")
 
 
 @fixture
-async def stu_prefix():
+def stu_prefix():
     return Path("stu")
 
 
 @fixture(scope="session")
-async def client():
-    async with LifespanManager(app) as manager:
-        async with AsyncClient(
-            transport=ASGITransport(app=manager.app),
-            base_url="http://test/api/v1/",
-        ) as client:
-            yield client
+def client():
+    with TestClient(
+        app=app,
+        base_url="http://test/api/v1/",
+    ) as client:
+        yield client
 
 
 @fixture
-async def get_test_sensor_node(sth_prefix, client):
-    response = await client.get(str(sth_prefix))
+def get_test_sensor_node(sth_prefix, client):
+    response = client.get(str(sth_prefix))
 
     assert response.status_code == 200
     sensor_nodes = response.json()
@@ -75,11 +73,11 @@ async def get_test_sensor_node(sth_prefix, client):
 
 
 @fixture
-async def connect(sth_prefix, get_test_sensor_node, client):
+def connect(sth_prefix, get_test_sensor_node, client):
     node = get_test_sensor_node
 
     mac_address = node["mac_address"]
-    response = await client.put(
+    response = client.put(
         str(sth_prefix / "connect"), json={"mac": mac_address}
     )
     assert response.status_code == 200
@@ -87,4 +85,4 @@ async def connect(sth_prefix, get_test_sensor_node, client):
 
     yield node
 
-    await client.put(str(sth_prefix / "disconnect"))
+    client.put(str(sth_prefix / "disconnect"))

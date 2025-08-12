@@ -1,17 +1,12 @@
-# -- Imports ------------------------------------------------------------------
-
-from pytest import mark
-
 # -- Tests --------------------------------------------------------------------
 
 
-@mark.usefixtures("anyio_backend")
 class TestGeneral:
 
-    async def test_state(self, state_prefix, client) -> None:
+    def test_state(self, state_prefix, client) -> None:
         """Test endpoint ``/state``"""
 
-        response = await client.get(str(state_prefix))
+        response = client.get(str(state_prefix))
 
         assert response.status_code == 200
 
@@ -27,10 +22,10 @@ class TestGeneral:
             assert measurement_status[attribute] is None
         assert measurement_status["running"] is False
 
-    async def test_reset_can(self, reset_can_prefix, client) -> None:
+    def test_reset_can(self, reset_can_prefix, client) -> None:
         """Test endpoint ``reset-can``"""
 
-        response = await client.put("/reset-can")
+        response = client.put("/reset-can")
 
         assert response.status_code == 200
         assert response.json() is None
