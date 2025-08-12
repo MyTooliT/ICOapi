@@ -1,7 +1,6 @@
 # -- Imports ------------------------------------------------------------------
 
 from pathlib import Path
-from time import sleep
 
 from fastapi.testclient import TestClient
 from netaddr import EUI
@@ -133,9 +132,6 @@ def measurement(measurement_prefix, connect, client):
     )
 
     assert response.status_code == 200
-
-    # Wait for WebSocket to be ready
-    sleep(5)
 
     yield
 
