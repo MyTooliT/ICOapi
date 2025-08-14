@@ -57,7 +57,7 @@ def get_sensors() -> list[Sensor]:
 def write_sensor_defaults(sensors: list[Sensor]):
     file_path = get_sensor_yaml_path()
     with open(file_path, "w") as file:
-        default_data = {"sensors": [sensor.dict() for sensor in sensors]}
+        default_data = {"sensors": [sensor.model_dump() for sensor in sensors]}
         yaml.dump(default_data, file)
         logger.info(f"File not found. Created new sensor.yaml with {len(sensors)} default sensors.")
 
