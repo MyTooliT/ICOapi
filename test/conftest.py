@@ -49,6 +49,11 @@ def stu_prefix():
     return "stu"
 
 
+@fixture
+def sensor_name():
+    return "Acceleration 100g"
+
+
 @fixture(scope="session")
 def client():
     with TestClient(
@@ -95,7 +100,18 @@ def connect(sth_prefix, get_test_sensor_node, client):
 
 
 @fixture
-def measurement_configuration(connect):
+def sensor_id(sensor_name, client):
+    response = client.get("sensor")
+    assert response.status_code == 200
+    sensors = response.json()
+
+    for config in sensors:
+        if config["name"] == sensor_name:
+            return config["sensor_id"]
+
+
+@fixture
+def measurement_configuration(connect, sensor_id):
 
     node = connect
 
@@ -107,7 +123,7 @@ def measurement_configuration(connect):
     }
     sensor = {
         "channel_number": 1,
-        "sensor_id": "acc100g_01",
+        "sensor_id": sensor_id,
     }
     disabled = {
         "channel_number": 0,
