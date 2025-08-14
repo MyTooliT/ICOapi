@@ -22,50 +22,20 @@ class TestMeasurement:
         ):
             assert key in body
 
-    def test_start(self, connect, measurement_prefix, client) -> None:
+    def test_start(
+        self, measurement_prefix, measurement_configuration, client
+    ) -> None:
         """Test endpoint ``/start``"""
-
-        node = connect
 
         measurement_status = measurement_prefix
         start = f"{measurement_prefix}/start"
         stop = f"{measurement_prefix}/stop"
 
-        adc_config = {
-            "prescaler": 2,
-            "acquisition_time": 8,
-            "oversampling_rate": 64,
-            "reference_voltage": 3.3,
-        }
-        sensor = {
-            "channel_number": 1,
-            "sensor_id": "acc100g_01",
-        }
-        disabled = {
-            "channel_number": 0,
-            "sensor_id": "",
-        }
-
         # ========================
         # = Test Normal Response =
         # ========================
 
-        response = client.post(
-            start,
-            json={
-                "name": node["name"],
-                "mac": node["mac_address"],
-                "time": 10,
-                "first": sensor,
-                "second": disabled,
-                "third": disabled,
-                "ift_requested": False,
-                "ift_channel": "",
-                "ift_window_width": 0,
-                "adc": adc_config,
-                "meta": {"version": "", "profile": "", "parameters": {}},
-            },
-        )
+        response = client.post(start, json=measurement_configuration)
         assert response.status_code == 200
 
         assert (
@@ -76,8 +46,8 @@ class TestMeasurement:
         assert response.status_code == 200
         body = response.json()
         instructions = body["instructions"]
-        assert instructions["adc"] == adc_config
-        assert instructions["first"] == sensor
+        assert instructions["adc"] == measurement_configuration["adc"]
+        assert instructions["first"] == measurement_configuration["first"]
 
         response = client.post(stop)
 
