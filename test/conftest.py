@@ -30,6 +30,11 @@ def sensor_prefix():
 
 
 @fixture
+def sensorreset_prefix():
+    return "sensorreset"
+
+
+@fixture
 def state_prefix():
     return "state"
 

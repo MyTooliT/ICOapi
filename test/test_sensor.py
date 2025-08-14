@@ -28,3 +28,10 @@ class TestSensor:
                 "offset",
             ):
                 assert isinstance(config[key], float)
+
+    def test_sensorreset(self, sensorreset_prefix, client) -> None:
+        """Test endpoint ``/sensorreset``"""
+
+        response = client.post(sensorreset_prefix)
+
+        assert response.status_code == 200
