@@ -25,6 +25,11 @@ def reset_can_prefix():
 
 
 @fixture
+def sensor_prefix():
+    return "sensor"
+
+
+@fixture
 def state_prefix():
     return "state"
 
