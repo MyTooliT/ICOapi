@@ -37,34 +37,6 @@ async def stu_reset(
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
 
 
-@router.put('/ota/enable', responses={
-    200: {
-        "description": "Indicates the OTA has been enabled.",
-    },
-    502: HTTP_502_CAN_NO_RESPONSE_SPEC
-})
-async def stu_enable_ota(network: Network = Depends(get_network)) -> None:
-    if await enable_ota(network):
-        return None
-    else:
-        raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
-
-
-@router.put('/ota/disable', responses={
-    200: {
-        "description": "Indicates the OTA has been disabled.",
-    },
-    502: HTTP_502_CAN_NO_RESPONSE_SPEC
-})
-async def stu_disable_ota(
-    network: Network = Depends(get_network)
-) -> None:
-    if await disable_ota(network):
-        return None
-    else:
-        raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
-
-
 @router.get(
     '/connected',
     response_model=bool,
