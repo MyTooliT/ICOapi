@@ -19,6 +19,7 @@ WORKDIR /app
 
 # App code
 COPY . .
+COPY example.env .env
 
 # Install deps (only main/runtime deps)
 RUN poetry install --no-interaction --no-ansi --only main
