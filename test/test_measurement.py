@@ -50,6 +50,8 @@ class TestMeasurement:
         assert instructions["first"] == measurement_configuration["first"]
 
         response = client.post(stop)
+        assert response.status_code == 200
+        assert response.json() is None
 
         # =======================
         # = Test Error Response =
