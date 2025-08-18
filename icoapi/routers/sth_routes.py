@@ -75,11 +75,11 @@ async def sth(network: Network = Depends(get_network)) -> list[STHDeviceResponse
     }
 )
 async def sth_connect(
-        mac: Annotated[str, Body(embed=True)],
+        mac_address: Annotated[str, Body(embed=True)],
         network: Network = Depends(get_network)
 ) -> None:
     try:
-        await connect_sth_device_by_mac(network, mac)
+        await connect_sth_device_by_mac(network, mac_address)
         return None
     except TimeoutError:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION

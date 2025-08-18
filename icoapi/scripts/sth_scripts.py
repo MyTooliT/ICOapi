@@ -34,9 +34,9 @@ async def get_sth_devices_from_network(network: Network) -> List[STHDeviceInfo]:
     return sensor_devices
 
 
-async def connect_sth_device_by_mac(network: Network, mac: str) -> None:
+async def connect_sth_device_by_mac(network: Network, mac_address: str) -> None:
     """Connect a STH device by a given MAC address"""
-    await network.connect_sensor_device(mac)
+    await network.connect_sensor_device(mac_address)
     logger.info(f"STU 1 has connection: {await network.is_connected(STU_1_NAME)}")
 
 

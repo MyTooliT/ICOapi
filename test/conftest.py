@@ -90,7 +90,10 @@ def connect(sth_prefix, get_test_sensor_node, client):
     node = get_test_sensor_node
 
     mac_address = node["mac_address"]
-    response = client.put(f"{sth_prefix}/connect", json={"mac": mac_address})
+    response = client.put(
+        f"{sth_prefix}/connect",
+        json={"mac_address": mac_address}
+    )
     assert response.status_code == 200
     assert response.json() is None
 
@@ -132,7 +135,7 @@ def measurement_configuration(connect, sensor_id):
 
     configuration = {
         "name": node["name"],
-        "mac": node["mac_address"],
+        "mac_address": node["mac_address"],
         "time": 10,
         "first": sensor,
         "second": disabled,

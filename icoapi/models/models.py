@@ -87,7 +87,7 @@ class MeasurementInstructions:
 
     Attributes:
         name (str): Custom name
-        mac (str): MAC address
+        mac_address (str): MAC address
         time (int): Measurement time
         first (MeasurementInstructionChannel): First measurement channel number
         second (MeasurementInstructionChannel): Second measurement channel number
@@ -100,7 +100,7 @@ class MeasurementInstructions:
     """
 
     name: str | None
-    mac: str
+    mac_address: str
     time: int | None
     first: MeasurementInstructionChannel
     second: MeasurementInstructionChannel

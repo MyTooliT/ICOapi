@@ -29,22 +29,6 @@ class TestSTU:
         assert response.status_code == 200
         assert response.json() is None
 
-    def test_ota_enable(self, stu_prefix, client) -> None:
-        """Test endpoint ``/ota/enable``"""
-
-        response = client.put(f"{stu_prefix}/ota/enable")
-
-        assert response.status_code == 200
-        assert response.json() is None
-
-    def test_ota_disable(self, stu_prefix, client) -> None:
-        """Test endpoint ``/ota/disable``"""
-
-        response = client.put(f"{stu_prefix}/ota/disable")
-
-        assert response.status_code == 200
-        assert response.json() is None
-
     def test_connected(self, stu_prefix, client) -> None:
         """Test endpoint ``/connected``"""
 

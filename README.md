@@ -288,7 +288,7 @@ Example output:
 Connect to available sensor device:
 
 ```sh
-http PUT 'http://localhost:33215/api/v1/sth/connect' mac='08-6B-D7-01-DE-81'
+http PUT 'http://localhost:33215/api/v1/sth/connect' mac_address='08-6B-D7-01-DE-81'
 ```
 
 Check if the STU is connected to the sensor device:

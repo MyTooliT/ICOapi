@@ -39,7 +39,7 @@ class TestSTH:
 
         mac_address = node["mac_address"]
         response = client.put(
-            f"{sth_prefix}/connect", json={"mac": mac_address}
+            f"{sth_prefix}/connect", json={"mac_address": mac_address}
         )
         assert response.status_code == 200
         assert response.json() is None
@@ -51,7 +51,7 @@ class TestSTH:
         # =======================
 
         response = client.put(
-            f"{sth_prefix}/connect", json={"mac": "01-02-03-04-05-06"}
+            f"{sth_prefix}/connect", json={"mac_address": "01-02-03-04-05-06"}
         )
 
         assert response.status_code == 404
