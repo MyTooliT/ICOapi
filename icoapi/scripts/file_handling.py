@@ -34,46 +34,12 @@ def get_measurement_dir() -> str:
         logger.info(f"Used full / absolute path for measurements: {full_path}")
         return os.path.abspath(full_path)
     else:
+        # No full path, so combine measurement directory with default location
         measurement_dir = os.getenv("VITE_BACKEND_MEASUREMENT_DIR", "icodaq")
-
-    # No full path, so combine measurement directory with default location
-    if os.name == "nt":
-        data_dir = os.getenv("LOCALAPPDATA")
-        logger.info(f"Detected Windows; used local appdata directory: {data_dir}")
-    elif platform.system() == "Darwin":
-        # Use user data directory since user has no access to system data
-        # directory (`site_data_dir`: `/Library/Application Support`)
-        # by default
         data_dir = user_data_dir(measurement_dir)
-        logger.info(f"Detected macOS; directory: {data_dir}")
-    elif os.name == "posix":
-        data_dir = linux_get_preferred_data_dir(measurement_dir)
-        logger.info(f"Detected POSIX; directory: {data_dir}")
-    else:
-        raise EnvironmentError("Unsupported operating system")
 
-    final_dir = os.path.join(data_dir, measurement_dir)
-    logger.info(f"Measurement directory: {final_dir}")
-    return final_dir
-
-
-def linux_get_xdg_data_dirs() -> list[str]:
-    """Get data directories for LINUX systems"""
-    # Get XDG_DATA_DIRS or use the default value
-    xdg_data_dirs = os.getenv("XDG_DATA_DIRS", "/usr/local/share:/usr/share")
-    # Split the colon-separated paths into a list
-    return xdg_data_dirs.split(":")
-
-
-def linux_get_preferred_data_dir(app_name: str) -> str:
-    """Get usable data directory for LINUX systems"""
-    # Iterate through XDG_DATA_DIRS and pick the first writable directory
-    for data_dir in linux_get_xdg_data_dirs():
-        app_data_dir = os.path.join(data_dir, app_name)
-        if os.access(data_dir, os.W_OK):  # Check if the directory is writable
-            os.makedirs(app_data_dir, exist_ok=True)
-            return app_data_dir
-    raise PermissionError("No writable XDG_DATA_DIRS found")
+        logger.info(f"Measurement directory: {data_dir}")
+        return data_dir
 
 
 def tries_to_traverse_directory(received_filename: str | os.PathLike) -> bool:
