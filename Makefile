@@ -31,7 +31,7 @@ reset:
 
 .PHONY: connect
 connect:
-	http PUT $(HTTP_URL)/sth/connect mac=$(MAC_ADDRESS)
+	http PUT $(HTTP_URL)/sth/connect mac_address=$(MAC_ADDRESS)
 	
 .PHONY: disconnect
 disconnect:
