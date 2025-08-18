@@ -13,6 +13,7 @@ import orjson
 from colorlog import ColoredFormatter
 from logging.handlers import RotatingFileHandler
 from icoapi.scripts.file_handling import load_env_file
+from platformdirs import user_data_dir
 
 
 log_watchers: List[WebSocket] = []
@@ -30,13 +31,10 @@ LOG_NAME = f"{LOG_NAME_WITHOUT_EXTENSION}.log"
 LOG_LEVEL_UVICORN = os.getenv("LOG_LEVEL_UVICORN", "INFO")
 
 def get_default_log_path() -> str:
-    app_folder = "icodaq"
+    app_folder = os.getenv("VITE_BACKEND_MEASUREMENT_DIR", "icoapi")
     file_name = "icodaq.log"
-    if platform.system() == "Windows":
-        base = os.getenv("LOCALAPPDATA", str(Path.home()))
-    else:
-        base = os.path.join(Path.home(), ".local", "share")
-    log_dir = os.path.join(base, app_folder, "logs")
+    base = user_data_dir(app_folder)
+    log_dir = os.path.join(base, "logs")
     os.makedirs(log_dir, exist_ok=True)
     return os.path.join(log_dir, file_name)
 
