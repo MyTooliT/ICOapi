@@ -36,7 +36,7 @@ def get_measurement_dir() -> str:
     else:
         # No full path, so combine measurement directory with default location
         measurement_dir = os.getenv("VITE_BACKEND_MEASUREMENT_DIR", "icodaq")
-        data_dir = user_data_dir(measurement_dir)
+        data_dir = user_data_dir(measurement_dir, appauthor=False)
 
         logger.info(f"Measurement directory: {data_dir}")
         return data_dir

@@ -31,9 +31,9 @@ LOG_NAME = f"{LOG_NAME_WITHOUT_EXTENSION}.log"
 LOG_LEVEL_UVICORN = os.getenv("LOG_LEVEL_UVICORN", "INFO")
 
 def get_default_log_path() -> str:
-    app_folder = os.getenv("VITE_BACKEND_MEASUREMENT_DIR", "icoapi")
+    app_folder = os.getenv("VITE_BACKEND_MEASUREMENT_DIR", "icodaq")
     file_name = "icodaq.log"
-    base = user_data_dir(app_folder)
+    base = user_data_dir(app_folder, appauthor=False)
     log_dir = os.path.join(base, "logs")
     os.makedirs(log_dir, exist_ok=True)
     return os.path.join(log_dir, file_name)
