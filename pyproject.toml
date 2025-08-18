@@ -35,5 +35,25 @@ readme = "README.md"
 requires-python = ">=3.10,<4"
 version = "0.1"
 
+[project.optional-dependencies]
+dev = [
+  "Flake8-pyproject>=1.2.3",
+  "mypy",
+]
+test = [
+  "httpx>=0.28.1",
+  "pytest",
+]
+
 [project.scripts]
 icoapi = "icoapi.api:main"
+
+[tool.black]
+line-length = 79
+preview = true
+unstable = true
+enable-unstable-feature = ["string_processing"]
+
+[tool.mypy]
+ignore_missing_imports = true
+exclude = [ "icoapi" ]
