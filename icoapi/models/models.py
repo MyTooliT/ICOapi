@@ -245,6 +245,7 @@ class Sensor(BaseModel):
     sensor_type: str | None
     sensor_id: str
     unit: str
+    dimension: str
     phys_min: float
     phys_max: float
     volt_min: float
@@ -270,6 +271,19 @@ class Sensor(BaseModel):
 
     def convert_to_phys(self, volt_value: float) -> float:
         return volt_value * self.scaling_factor + self.offset
+
+
+@dataclass
+class PCBSensorConfiguration:
+    configuration_id: str
+    configuration_name: str
+    channels: dict[int, Sensor]
+
+
+@dataclass
+class AvailableSensorInformation:
+    sensors: list[Sensor]
+    configurations: list[PCBSensorConfiguration]
 
 
 class HDF5NodeInfo(BaseModel, JSONEncoder):

@@ -1,0 +1,155 @@
+sensors:
+- name: Acceleration 100g
+  offset: -125.0
+  phys_max: 100.0
+  phys_min: -100.0
+  scaling_factor: 75.75757575757575
+  sensor_id: acc100g_01
+  sensor_type: ADXL1001
+  unit: g
+  dimension: Acceleration
+  volt_max: 2.97
+  volt_min: 0.33
+- name: Acceleration 40g Y
+  offset: -45.000000000000014
+  phys_max: 40.0
+  phys_min: -40.0
+  scaling_factor: 50.00000000000001
+  sensor_id: acc40g_y
+  sensor_type: ADXL358C
+  unit: g
+  dimension: Acceleration
+  volt_max: 1.7
+  volt_min: 0.1
+- name: Acceleration 40g Z
+  offset: -45.000000000000014
+  phys_max: 40.0
+  phys_min: -40.0
+  scaling_factor: 50.00000000000001
+  sensor_id: acc40g_z
+  sensor_type: ADXL358C
+  unit: g
+  dimension: Acceleration
+  volt_max: 1.7
+  volt_min: 0.1
+- name: Acceleration 40g X
+  offset: -45.000000000000014
+  phys_max: 40.0
+  phys_min: -40.0
+  scaling_factor: 50.00000000000001
+  sensor_id: acc40g_x
+  sensor_type: ADXL358C
+  unit: g
+  dimension: Acceleration
+  volt_max: 1.7
+  volt_min: 0.1
+- name: Temperature
+  offset: -297.3333333333334
+  phys_max: 125.0
+  phys_min: -40.0
+  scaling_factor: 333.3333333333334
+  sensor_id: temp_01
+  sensor_type: ADXL358C
+  unit: "\xB0C"
+  dimension: Temperature
+  volt_max: 1.267
+  volt_min: 0.772
+- name: Photodiode
+  offset: 0.0
+  phys_max: 1.0
+  phys_min: 0.0
+  scaling_factor: 0.30303030303030304
+  sensor_id: photo_01
+  sensor_type: null
+  unit: '-'
+  dimension: Light
+  volt_max: 3.3
+  volt_min: 0.0
+- name: Backpack 1
+  offset: 0.0
+  phys_max: 1.0
+  phys_min: 0.0
+  scaling_factor: 0.30303030303030304
+  sensor_id: backpack_01
+  sensor_type: null
+  unit: /
+  dimension: Backpack
+  volt_max: 3.3
+  volt_min: 0.0
+- name: Backpack 2
+  offset: 0.0
+  phys_max: 1.0
+  phys_min: 0.0
+  scaling_factor: 0.30303030303030304
+  sensor_id: backpack_02
+  sensor_type: null
+  unit: /
+  dimension: Backpack
+  volt_max: 3.3
+  volt_min: 0.0
+- name: Backpack 3
+  offset: 0.0
+  phys_max: 1.0
+  phys_min: 0.0
+  scaling_factor: 0.30303030303030304
+  sensor_id: backpack_03
+  sensor_type: null
+  unit: /
+  dimension: Backpack
+  volt_max: 3.3
+  volt_min: 0.0
+- name: Battery Voltage
+  offset: -0.0021929824561413014
+  phys_max: 4.2
+  phys_min: 2.9
+  scaling_factor: 5.701754385964914
+  sensor_id: vbat_01
+  sensor_type: null
+  unit: V
+  dimension: Voltage
+  volt_max: 0.737
+  volt_min: 0.509
+- name: Gyro
+  offset: -98100.000
+  phys_max: 78480.0
+  phys_min: -78480.0
+  scaling_factor: 59454.54545
+  sensor_id: gyro_01
+  sensor_type: 2xADXL1001
+  unit: 1/s^2
+  dimension: Rotational Acceleration
+  volt_max: 2.97
+  volt_min: 0.33
+
+sensor_configurations:
+  - configuration_id: default-sth
+    configuration_name: Default IFT STH
+    channels:
+      1:  { sensor_id: acc100g_01 }
+      2:  { sensor_id: acc40g_x }
+      3:  { sensor_id: acc40g_y }
+      4:  { sensor_id: acc40g_z }
+      5:  { sensor_id: temp_01 }
+      6:  { sensor_id: photo_01 }
+      7:  { sensor_id: backpack_01 }
+      8:  { sensor_id: backpack_02 }
+      9:  { sensor_id: backpack_03 }
+      10: { sensor_id: vbat_01 }
+
+  - configuration_id: single-sth
+    configuration_name: Single Axis STH
+    channels:
+      1: { sensor_id: acc100g_01 }
+
+  - configuration_id: CIRP_STH
+    configuration_name: CIRP TWM
+    channels:
+      1: { sensor_id: acc100g_01 }
+
+  - configuration_id: GYRO
+    configuration_name: GYRO
+    channels:
+      1:  { sensor_id: acc100g_01 }
+      6:  { sensor_id: photo_01 }
+      8:  { sensor_id: gyro_01 }
+      10: { sensor_id: vbat_01 }

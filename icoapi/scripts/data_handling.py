@@ -1,36 +1,35 @@
-from os import path
+import sys
+from os import path, getcwd
 from typing import List, Optional
 import yaml
-from mytoolit.measurement import Storage
 from mytoolit.measurement.storage import StorageData
-from pydantic import BaseModel
-from tables import Float32Col, IsDescription, StringCol, UInt8Col
+from tables import Float32Col, IsDescription, StringCol
 
-from icoapi.models.models import MeasurementInstructionChannel, MeasurementInstructions, Sensor
+from icoapi.models.models import MeasurementInstructionChannel, MeasurementInstructions, Sensor, PCBSensorConfiguration
 import logging
-
-from icoapi.scripts.file_handling import ensure_folder_exists, get_measurement_dir
 
 logger = logging.getLogger(__name__)
 
-def get_storage_path():
-    return path.join(get_measurement_dir(), "config", "local_storage.json")
-
 def get_sensor_yaml_path():
-    return path.join(path.join(get_measurement_dir(), "config"), "sensors.yaml")
+    if getattr(sys, 'frozen', False):
+        # we are running in a bundle
+        bundle_dir = sys._MEIPASS
+        return path.join(bundle_dir, "sensors.yaml")
+    else:
+        return path.join(getcwd(), "sensors.yaml")
 
 def get_sensor_defaults() -> list[Sensor]:
     return [
-        Sensor(name="Acceleration 100g", sensor_type="ADXL1001", sensor_id="acc100g_01", unit="g", phys_min=-100, phys_max=100, volt_min=0.33, volt_max=2.97),
-        Sensor(name="Acceleration 40g Y", sensor_type="ADXL358C", sensor_id="acc40g_y", unit="g", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
-        Sensor(name="Acceleration 40g Z", sensor_type="ADXL358C", sensor_id="acc40g_z", unit="g", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
-        Sensor(name="Acceleration 40g X", sensor_type="ADXL358C", sensor_id="acc40g_x", unit="g", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
-        Sensor(name="Temperature", sensor_type="ADXL358C", sensor_id="temp_01", unit="°C", phys_min=-40, phys_max=125, volt_min=0.772, volt_max=1.267),
-        Sensor(name="Photodiode", sensor_type=None, sensor_id="photo_01", unit="-", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
-        Sensor(name="Backpack 1", sensor_type=None, sensor_id="backpack_01", unit="/", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
-        Sensor(name="Backpack 2", sensor_type=None, sensor_id="backpack_02", unit="/", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
-        Sensor(name="Backpack 3", sensor_type=None, sensor_id="backpack_03", unit="/", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
-        Sensor(name="Battery Voltage", sensor_type=None, sensor_id="vbat_01", unit="V", phys_min=2.9, phys_max=4.2, volt_min=0.509, volt_max=0.737)
+        Sensor(name="Acceleration 100g", sensor_type="ADXL1001", sensor_id="acc100g_01", unit="g", dimension="Acceleration", phys_min=-100, phys_max=100, volt_min=0.33, volt_max=2.97),
+        Sensor(name="Acceleration 40g Y", sensor_type="ADXL358C", sensor_id="acc40g_y", unit="g", dimension="Acceleration", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
+        Sensor(name="Acceleration 40g Z", sensor_type="ADXL358C", sensor_id="acc40g_z", unit="g", dimension="Acceleration", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
+        Sensor(name="Acceleration 40g X", sensor_type="ADXL358C", sensor_id="acc40g_x", unit="g", dimension="Acceleration", phys_min=-40, phys_max=40, volt_min=0.1, volt_max=1.7),
+        Sensor(name="Temperature", sensor_type="ADXL358C", sensor_id="temp_01", unit="°C", dimension="Temperature", phys_min=-40, phys_max=125, volt_min=0.772, volt_max=1.267),
+        Sensor(name="Photodiode", sensor_type=None, sensor_id="photo_01", unit="-", dimension="Light", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
+        Sensor(name="Backpack 1", sensor_type=None, sensor_id="backpack_01", unit="/", dimension="Backpack", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
+        Sensor(name="Backpack 2", sensor_type=None, sensor_id="backpack_02", unit="/", dimension="Backpack", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
+        Sensor(name="Backpack 3", sensor_type=None, sensor_id="backpack_03", unit="/", dimension="Backpack", phys_min=0, phys_max=1, volt_min=0, volt_max=3.3),
+        Sensor(name="Battery Voltage", sensor_type=None, sensor_id="vbat_01", unit="V", dimension="Voltage", phys_min=2.9, phys_max=4.2, volt_min=0.509, volt_max=0.737)
     ]
 
 def get_voltage_from_raw(v_ref: float) -> float:
@@ -38,10 +37,7 @@ def get_voltage_from_raw(v_ref: float) -> float:
     return v_ref / 2**16
 
 def get_sensors() -> list[Sensor]:
-    config_dir=path.join(get_measurement_dir(), "config")
-    file_path=get_sensor_yaml_path()
-    ensure_folder_exists(config_dir)
-
+    file_path = get_sensor_yaml_path()
     try:
         with open(file_path, "r") as file:
             data = yaml.safe_load(file)
@@ -52,6 +48,40 @@ def get_sensors() -> list[Sensor]:
         defaults = get_sensor_defaults()
         write_sensor_defaults(defaults)
         return defaults
+
+
+def get_sensor_data() -> tuple[list[Sensor], list[PCBSensorConfiguration]]:
+    file_path = get_sensor_yaml_path()
+    try:
+        with open(file_path, "r") as file:
+            data = yaml.safe_load(file)
+
+            sensors = [Sensor(**sensor) for sensor in data['sensors']]
+            sensor_map: dict[str, Sensor] = {s.sensor_id: s for s in sensors}
+            logger.info(f"Found {len(sensors)} sensors in {file_path}")
+
+            configs: list[PCBSensorConfiguration] = []
+            for cfg in data.get("sensor_configurations", []):
+                chan_map: dict[int, Sensor] = {}
+                for ch_num, ch_entry in cfg.get("channels", {}).items():
+                    sid = ch_entry.get("sensor_id")
+                    if sid not in sensor_map:
+                        raise ValueError(f"Channel {ch_num} references unknown sensor_id '{sid}'")
+                    chan_map[int(ch_num)] = sensor_map[sid]
+                configs.append(
+                    PCBSensorConfiguration(
+                        configuration_id=cfg["configuration_id"],
+                        configuration_name=cfg["configuration_name"],
+                        channels=chan_map,
+                    )
+                )
+
+            return sensors, configs
+
+    except FileNotFoundError:
+        defaults = get_sensor_defaults()
+        write_sensor_defaults(defaults)
+        return defaults, []
 
 
 def write_sensor_defaults(sensors: list[Sensor]):
