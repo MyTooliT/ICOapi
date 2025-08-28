@@ -130,7 +130,11 @@ async def get_analyzed_file(name: str, measurement_dir: str = Depends(get_measur
     # takes forever
     async def data_generator() -> AsyncGenerator[str, None]:
         # First: yield metadata
-        sensors: list[Sensor] = [Sensor(**sensor) for sensor in parsed_file_content.sensor_df.to_dict(orient="records")]
+        sensors_raw = parsed_file_content.sensor_df.to_dict(orient="records")
+        for sensor_raw in sensors_raw:
+            if not "dimension" in sensor_raw:
+                sensor_raw["dimension"] = ""
+        sensors: list[Sensor] = [Sensor(**sensor) for sensor in sensors_raw]
         yield ParsedMetadata(
             acceleration=parsed_file_content.acceleration_meta,
             pictures=parsed_file_content.pictures,
