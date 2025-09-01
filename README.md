@@ -271,6 +271,82 @@ Each used sensor has a datasheet and associated linear coefficients to get from 
 The API now accepts a ``sensor_id`` which can be used to choose a unique sensor for the conversion and has the current
 IFT channel-sensor-layout as defaults.
 
+# Sensors and Configurations
+
+The internal library starts the measurement based on selected channels. It is up to the user to know which channels are
+connected to which sensors currently.
+
+To help this selection and make using the system easier, a layer of abstraction is present in this API and thus in the 
+client and ICOdaq software packages.
+
+## Storing the Information
+
+All relevant data concerning sensors and configurations (also called "holders") is stored in a ``sensors.yaml`` file. 
+This file is located in:
+- the project root (for running in development and the LINUX service install mode)
+- the bundle directory when ``getattr(sys, 'frozen', False)`` returns `True`
+  - This is only present when the API has been packaged as an ``.exe`` for ICOdaq
+
+## Data Structure
+
+Withing the ``sensors.yaml`` file, two separate areas exist. One contains the sensor information and one the configurations 
+which reference the sensors. The file then looks like this:
+
+```yaml
+sensors:
+- ...
+- ...
+
+sensor_configurations:
+- ...
+- ...
+```
+
+### Sensor Data Structure
+
+The sensors (which are written to the ``*.hdf5`` file when used) are defined as:
+
+```yaml
+- name: Acceleration 100g
+  offset: -125.0
+  phys_max: 100.0
+  phys_min: -100.0
+  scaling_factor: 75.75757575757575
+  sensor_id: acc100g_01
+  sensor_type: ADXL1001
+  unit: g
+  dimension: Acceleration
+  volt_max: 2.97
+  volt_min: 0.33
+```
+
+This example defines the mainly used +-100g acceleration sensor in the X axis.
+
+Note that the field ``sensor_id`` is what the API uses to identify the sensor for usage.
+
+### Sensor Configuration Data Structure
+
+This is what actually affects the client. Configurations are what the user can choose from and what determines which 
+sensors and channels a user can select for measurement. 
+
+The data is structured as follows:
+
+```yaml
+- configuration_id: singleboard_GYRO
+  configuration_name: GYRO
+  channels:
+    1:  { sensor_id: acc100g_01 }
+    6:  { sensor_id: photo_01 }
+    8:  { sensor_id: gyro_01 }
+    10: { sensor_id: vbat_01 }
+```
+
+The ``configuration_id`` is what the client-side `.env` file can set to load as a default for tools.
+
+The ``configuration_name`` is displayed as the client.
+
+The mapping of sensors follows the schema of ``<channel>: { sensor_id: <sensor_id> }``.
+
 # Test
 
 **Note:** Running the tests (successfully) requires that 
