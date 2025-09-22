@@ -6,6 +6,7 @@ import logging
 import numpy as np
 
 import mytoolit.can.network
+import tables.exceptions
 from mytoolit.can import Network, UnsupportedFeatureException
 from mytoolit.can.adc import ADCConfiguration
 from mytoolit.can.streaming import StreamingConfiguration, StreamingData, StreamingTimeoutError
@@ -178,14 +179,32 @@ def write_and_remove_picture_metadata(prefix: MetadataPrefix, picture_parameters
         encoded_images: list[str] = []
         for encoded_image in meta.parameters[param].values():
             encoded_images.append(encoded_image.encode("utf-8"))
+
+        max_string_length = max(len(s) for s in encoded_images)
+        nd_array = np.array(encoded_images, dtype=f"S{max_string_length}")
+
         try:
-            max_string_length = max(len(s) for s in encoded_images)
-            nd_array = np.array(encoded_images, dtype=f"S{max_string_length}")
-            storage.hdf.create_array(storage.hdf.root, f"{prefix}__{param}", nd_array)
+            write_image_array(storage, f"{prefix}__{param}", nd_array, True)
             logger.info(f"Added {len(nd_array)} picture(s) for parameter {param} to storage")
             del meta.parameters[param]
         except ValueError:
             logger.warning(f"Could not add pictures for parameter {param} to storage")
+        except tables.exceptions.NodeError:
+            storage.hdf.remove_node("/", f"{prefix}__{param}", recursive=True)
+            logger.info(f"Removed {param} image array from storage root node as it is being overwritten.")
+            write_image_array(storage, f"{prefix}__{param}", nd_array, True)
+            logger.info(f"Added {len(nd_array)} picture(s) for parameter {param} to storage")
+            del meta.parameters[param]
+
+
+def write_image_array(storage: StorageData, name: str, array: np.array, overwrite: bool):
+    try:
+        storage.hdf.create_array(storage.hdf.root, name, array)
+    except tables.exceptions.NodeError:
+        if overwrite:
+            storage.hdf.remove_node("/acceleration", name, recursive=True)
+            storage.hdf.create_array(storage.hdf.root, name, array)
+
 
 def get_sendable_data_and_apply_conversion(streaming_configuration: StreamingConfiguration, sensor_info: MeasurementSensorInfo, data: StreamingData) -> DataValueModel:
     first_channel_sensor, second_channel_sensor, third_channel_sensor, voltage_scaling = sensor_info.get_values()

@@ -1,4 +1,4 @@
-from enum import unique, Enum
+from enum import unique, StrEnum
 from typing import Any, Dict, List, Optional
 from json import JSONEncoder
 
@@ -74,7 +74,7 @@ class Quantity:
     unit: str
 
 @unique
-class MetadataPrefix(Enum(str)):
+class MetadataPrefix(StrEnum):
     """Enum for metadata prefixes"""
     PRE = "pre"
     POST = "post"

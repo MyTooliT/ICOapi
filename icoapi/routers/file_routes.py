@@ -10,18 +10,23 @@ import json
 import asyncio
 from typing import Annotated, AsyncGenerator
 
+from mytoolit.measurement import Storage
 from starlette.responses import PlainTextResponse
-from tables import NoSuchNodeError
+from tables import NoSuchNodeError, Node, Table
 
 from icoapi.models.globals import get_trident_client
 from icoapi.models.models import Dataset, DiskCapacity, FileCloudDetails, FileListResponseModel, HDF5NodeInfo, \
     MeasurementFileDetails, \
-    ParsedHDF5FileContent, ParsedMeasurement, \
+    Metadata, MetadataPrefix, ParsedHDF5FileContent, ParsedMeasurement, \
     ParsedMetadata, Sensor, TridentBucketObject
 from icoapi.models.trident import StorageClient
+from icoapi.scripts.errors import HTTP_404_FILE_NOT_FOUND_EXCEPTION, HTTP_404_FILE_NOT_FOUND_SPEC
 from icoapi.scripts.file_handling import get_disk_space_in_gb, get_drive_or_root_path, get_measurement_dir, \
     get_suffixed_filename, is_dangerous_filename
 import pandas as pd
+
+from icoapi.scripts.measurement import write_metadata
+
 router = APIRouter(
     prefix="/files",
     tags=["File Handling"]
@@ -199,6 +204,44 @@ async def get_file_meta(name: str, measurement_dir: str = Depends(get_measuremen
     )
 
 
+@router.post("/post_meta/{name}", responses={
+    200: { "description": "Metadata successfully overwritten" },
+    404: HTTP_404_FILE_NOT_FOUND_SPEC
+})
+async def overwrite_post_meta(name: str, metadata: Metadata, measurement_dir: str = Depends(get_measurement_dir)):
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    # we have the file and the metadata object
+    with Storage(file_path) as storage:
+        try:
+            node: Node = storage.hdf.get_node("/acceleration")
+            del node.attrs["post_metadata"]
+        except NoSuchNodeError:
+            raise HTTPException(status_code=500, detail="Acceleration data not found in the file")
+        write_metadata(MetadataPrefix.POST, metadata, storage)
+
+
+@router.post("/pre_meta/{name}", responses={
+    200: { "description": "Metadata successfully overwritten" },
+    404: HTTP_404_FILE_NOT_FOUND_SPEC
+})
+async def overwrite_pre_meta(name: str, metadata: Metadata, measurement_dir: str = Depends(get_measurement_dir)):
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    # we have the file and the metadata object
+    with Storage(file_path) as storage:
+        try:
+            node: Node = storage.hdf.get_node("/acceleration")
+            del node.attrs["pre_metadata"]
+        except NoSuchNodeError:
+            raise HTTPException(status_code=500, detail="Acceleration data not found in the file")
+        write_metadata(MetadataPrefix.PRE, metadata, storage)
+
+
 def get_node_names(hdf5_file_handle: tables.File) -> list[str]:
     nodes = hdf5_file_handle.list_nodes('/')
     return [node._v_pathname for node in nodes]
@@ -268,19 +311,28 @@ def get_file_data(file_path: str,) -> ParsedHDF5FileContent:
             assert isinstance(acceleration_data, tables.Table)
             acceleration_df = pd.DataFrame.from_records(acceleration_data.read(), columns=acceleration_data.colnames)
             acceleration_meta = node_to_dict(acceleration_data)
-            for pics_key in pictures.keys():
-                if "pre" in pics_key:
-                    acceleration_meta.attributes["pre_metadata"]["parameters"][pics_key.strip("pre__")] = pictures[pics_key]
-                elif "post" in pics_key:
-                    acceleration_meta.attributes["post_metadata"]["parameters"][pics_key.strip("post__")] = pictures[pics_key]
-                else:
-                    logger.error(f"Unknown picture key: {pics_key}")
-
-
         except NoSuchNodeError:
             raise HTTPException(status_code=500, detail="Acceleration data not found in the file")
         except AssertionError:
             raise HTTPException(status_code=500, detail="Acceleration data is not a table")
+
+        try:
+            for pics_key in pictures.keys():
+                obj: dict[int, str] = {}
+                for index, pic in enumerate(pictures[pics_key]):
+                    obj[index] = pic
+                if MetadataPrefix.PRE in pics_key:
+                    stripped_key = pics_key.split(f"{MetadataPrefix.PRE}__")[1]
+                    acceleration_meta.attributes["pre_metadata"]["parameters"][stripped_key] = obj
+                elif MetadataPrefix.POST in pics_key:
+                    stripped_key = pics_key.split(f"{MetadataPrefix.POST}__")[1]
+                    acceleration_meta.attributes["post_metadata"]["parameters"][stripped_key] = obj
+                else:
+                    logger.error(f"Unknown picture key: {pics_key}")
+        except KeyError:
+            pass
+        except IndexError:
+            raise HTTPException(status_code=500, detail="Picture data is not prefixed.")
 
         sensor_df = pd.DataFrame()
         try:
