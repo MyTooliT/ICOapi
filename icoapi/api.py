@@ -1,3 +1,5 @@
+import os
+import sys
 from os import getenv
 
 from fastapi import FastAPI
@@ -7,7 +9,10 @@ from contextlib import asynccontextmanager
 
 from icoapi.routers import sensor_routes, stu_routes, sth_routes, common, file_routes, measurement_routes, cloud_routes, \
     log_routes
-from icoapi.scripts.file_handling import ensure_folder_exists, get_measurement_dir, load_env_file
+from icoapi.scripts.file_handling import copy_config_files_if_not_exists, ensure_folder_exists, get_application_dir, \
+    get_config_dir, \
+    get_measurement_dir, \
+    is_bundled, load_env_file
 from icoapi.models.globals import MeasurementSingleton, NetworkSingleton, get_trident_client
 from icoapi.utils.logging_setup import setup_logging
 import logging
@@ -62,14 +67,25 @@ app.add_middleware(
 
 def main():
     import uvicorn
-
     load_env_file()
     setup_logging()
 
+    ensure_folder_exists(get_application_dir())
+    ensure_folder_exists(get_measurement_dir())
+    ensure_folder_exists(get_config_dir())
+
+    if is_bundled():
+        config_src = os.path.join(sys._MEIPASS, "config")
+    else:
+        config_src = os.path.join(os.getcwd(), "config")
+
+    copy_config_files_if_not_exists(
+        config_src,
+        get_config_dir()
+    )
+
     PORT = int(getenv("VITE_API_PORT", 33215))
     HOST = getenv("VITE_API_HOSTNAME", "0.0.0.0")
-
-    ensure_folder_exists(get_measurement_dir())
 
     uvicorn.run(
         "icoapi.api:app",

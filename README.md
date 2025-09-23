@@ -151,23 +151,14 @@ WEBSOCKET_UPDATE_RATE=60
 
 ### File Storage Settings
 
-These settings determine where the measurement files are stored locally. There are two options, which you should
-**not use together** to remove ambiguity:
+These settings determine where the measurement and configuration files are stored locally.
 
 ```
-VITE_BACKEND_MEASUREMENT_DIR=icodaq
-# OR
-VITE_BACKEND_FULL_MEASUREMENT_PATH=C:\Users\breurather\AppData\Local\icodaq
+VITE_APPLICATION_FOLDER=ICOdaq
 ```
 
-`VITE_BACKEND_MEASUREMENT_DIR` expects a single folder name and locates that folder under a certain path. 
+`VITE_APPLICATION_FOLDER` expects a single folder name and locates that folder under a certain path. 
 We use the `user_data_dir()` from the package `platformdirs` to simplify this. The system always logs which folder is used for storage.
-
-`VITE_BACKEND_FULL_MEASUREMENT_PATH` lets you override the default pathing and tries to create the folder at your
-supplied location.
-- Use this at your own discretion as not having a writable directory for measurements will crash the program.
-- This is—by design—not OS-agnostic.
-- You may need admin / root privileges for your folder!
 
 ### Trident Data Storage Settings
 

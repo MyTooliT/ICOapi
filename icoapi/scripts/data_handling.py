@@ -1,5 +1,7 @@
+import os
 import sys
-from os import path, getcwd
+import textwrap
+from os import PathLike, path, getcwd
 from typing import List, Optional
 import yaml
 from mytoolit.measurement.storage import StorageData
@@ -8,15 +10,9 @@ from tables import Float32Col, IsDescription, StringCol
 from icoapi.models.models import MeasurementInstructionChannel, MeasurementInstructions, Sensor, PCBSensorConfiguration
 import logging
 
-logger = logging.getLogger(__name__)
+from icoapi.scripts.file_handling import ensure_folder_exists, get_sensors_file_path
 
-def get_sensor_yaml_path():
-    if getattr(sys, 'frozen', False):
-        # we are running in a bundle
-        bundle_dir = sys._MEIPASS
-        return path.join(bundle_dir, "sensors.yaml")
-    else:
-        return path.join(getcwd(), "sensors.yaml")
+logger = logging.getLogger(__name__)
 
 def get_sensor_defaults() -> list[Sensor]:
     return [
@@ -32,30 +28,63 @@ def get_sensor_defaults() -> list[Sensor]:
         Sensor(name="Battery Voltage", sensor_type=None, sensor_id="vbat_01", unit="V", dimension="Voltage", phys_min=2.9, phys_max=4.2, volt_min=0.509, volt_max=0.737)
     ]
 
+def get_sensor_configuration_defaults() -> list[dict]:
+    return [
+        {
+            "configuration_id": "default",
+            "configuration_name": "Default",
+            "channels": {
+              "1": { "sensor_id": "acc100g_01" },
+              "2": { "sensor_id": "acc40g_y" },
+              "3": { "sensor_id": "acc40g_z" },
+              "4": { "sensor_id": "acc40g_x" },
+              "5": { "sensor_id": "temp_01" },
+              "6": { "sensor_id": "photo_01" },
+              "7": { "sensor_id": "backpack_01" },
+              "8": { "sensor_id": "backpack_02" },
+              "9": { "sensor_id": "backpack_03" },
+              "10": { "sensor_id": "vbat_01" }
+            }
+        }
+    ]
+
+
+asdf = """
+        configuration_id: default
+        configuration_name: Default
+        channels:
+          1: { sensor_id: acc100g_01 }
+          2: { sensor_id: acc40g_y }
+          3: { sensor_id: acc40g_z }
+          4: { sensor_id: acc40g_x }
+          5: { sensor_id: temp_01 }
+          6: { sensor_id: photo_01 }
+          7: { sensor_id: backpack_01 }
+          8: { sensor_id: backpack_02 }
+          9: { sensor_id: backpack_03 }
+          10: { sensor_id: vbat_01 }
+        """
+
 def get_voltage_from_raw(v_ref: float) -> float:
     """Get the conversion factor from bit value to voltage"""
     return v_ref / 2**16
 
 def get_sensors() -> list[Sensor]:
-    file_path = get_sensor_yaml_path()
+    file_path = get_sensors_file_path()
     try:
-        with open(file_path, "r") as file:
-            data = yaml.safe_load(file)
-            sensors = [Sensor(**sensor) for sensor in data['sensors']]
-            logger.info(f"Found {len(sensors)} sensors in {file_path}")
-            return sensors
+        sensors, _ = read_and_parse_sensor_data(file_path)
+        return sensors
     except FileNotFoundError:
-        defaults = get_sensor_defaults()
-        write_sensor_defaults(defaults)
-        return defaults
+        sensor_defaults = get_sensor_defaults()
+        configuration_defaults = get_sensor_configuration_defaults()
+        write_sensor_defaults(sensor_defaults, configuration_defaults, file_path)
+        return sensor_defaults
 
 
-def get_sensor_data() -> tuple[list[Sensor], list[PCBSensorConfiguration]]:
-    file_path = get_sensor_yaml_path()
+def read_and_parse_sensor_data(file_path: str|PathLike) -> tuple[list[Sensor], list[PCBSensorConfiguration]]:
     try:
         with open(file_path, "r") as file:
             data = yaml.safe_load(file)
-
             sensors = [Sensor(**sensor) for sensor in data['sensors']]
             sensor_map: dict[str, Sensor] = {s.sensor_id: s for s in sensors}
             logger.info(f"Found {len(sensors)} sensors in {file_path}")
@@ -77,19 +106,29 @@ def get_sensor_data() -> tuple[list[Sensor], list[PCBSensorConfiguration]]:
                 )
 
             return sensors, configs
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Could not find sensor.yaml file at {file_path}")
+
+def get_sensor_config_data() -> tuple[list[Sensor], list[PCBSensorConfiguration]]:
+    file_path = get_sensors_file_path()
+    try:
+        data = read_and_parse_sensor_data(file_path)
+        return data
 
     except FileNotFoundError:
-        defaults = get_sensor_defaults()
-        write_sensor_defaults(defaults)
-        return defaults, []
+        sensor_default = get_sensor_defaults()
+        configuration_defaults = get_sensor_configuration_defaults()
+        write_sensor_defaults(sensor_default, configuration_defaults, file_path)
+        return read_and_parse_sensor_data(file_path)
 
 
-def write_sensor_defaults(sensors: list[Sensor]):
-    file_path = get_sensor_yaml_path()
-    with open(file_path, "w") as file:
+def write_sensor_defaults(sensors: list[Sensor], configuration: list[dict], file_path: str | PathLike):
+    ensure_folder_exists(os.path.dirname(file_path))
+    with open(file_path, "w+") as file:
         default_data = {"sensors": [sensor.model_dump() for sensor in sensors]}
-        yaml.dump(default_data, file)
-        logger.info(f"File not found. Created new sensor.yaml with {len(sensors)} default sensors.")
+        yaml.safe_dump(default_data, file, sort_keys=False)
+        yaml.safe_dump({"sensor_configurations": configuration}, file, sort_keys=False)
+        logger.info(f"File not found. Created new sensor.yaml with {len(sensors)} default sensors and {len(configuration)} default sensor configurations.")
 
 
 def find_sensor_by_id(sensors: List[Sensor], sensor_id: str) -> Optional[Sensor]:
@@ -132,7 +171,7 @@ def get_sensor_for_channel(channel_instruction: MeasurementInstructionChannel) -
         return None
 
     logger.error(f"Could not get sensor for channel {channel_instruction.channel_number}. Interpreting as percentage.")
-    return Sensor(name="Raw", sensor_type=None, sensor_id="raw_default_01", unit="-", phys_min=-100, phys_max=100, volt_min=0, volt_max=3.3)
+    return Sensor(name="Raw", sensor_type=None, sensor_id="raw_default_01", unit="-", phys_min=-100, phys_max=100, volt_min=0, volt_max=3.3, dimension="Raw")
 
 
 class SensorDescription(IsDescription):
