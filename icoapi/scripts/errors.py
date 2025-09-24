@@ -180,3 +180,28 @@ HTTP_500_CONFIG_WRITE_SPEC = {
         }
     }
 }
+
+HTTP_500_CONFIG_LIST_EXCEPTION = HTTPException(
+    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    detail="Failed to list configuration backups."
+)
+HTTP_500_CONFIG_LIST_SPEC = {
+    "description": "Failed to list configuration backups.",
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"}
+                },
+                "required": ["detail", "status_code"]
+            },
+            "example": {
+                "detail": "Failed to list configuration backups.",
+                "status_code": 500
+            },
+        }
+    }
+}
+

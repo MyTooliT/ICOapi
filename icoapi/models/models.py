@@ -311,3 +311,22 @@ class ParsedMetadata(BaseModel, JSONEncoder):
     acceleration: HDF5NodeInfo
     pictures: dict[str, list[str]]
     sensors: list[Sensor]
+
+
+@dataclass
+class ConfigFileBackup:
+    filename: str
+    timestamp: str
+
+
+@dataclass
+class ConfigFile:
+    name: str
+    filename: str
+    backup: list[ConfigFileBackup]
+
+
+@dataclass
+class ConfigResponse:
+    files: list[ConfigFile]
+

@@ -243,3 +243,36 @@ def split_base_and_suffix(filename: str) -> tuple[str, str]:
         base = filename
     return base, suffix
 
+def list_config_backups(config_dir: PathLike, filename: str) -> list[tuple[str, str]]:
+    config_path = Path(config_dir)
+    backup_dir = config_path / CONFIG_BACKUP_DIRNAME
+    if not backup_dir.is_dir():
+        return []
+
+    base_name, suffix = split_base_and_suffix(filename)
+    prefix = f"{base_name}__"
+    entries: list[tuple[str, str]] = []
+
+    for entry in backup_dir.iterdir():
+        if not entry.is_file():
+            continue
+
+        entry_base, entry_suffix = split_base_and_suffix(entry.name)
+        if entry_suffix != suffix or not entry_base.startswith(prefix):
+            continue
+
+        remainder = entry_base[len(prefix):]
+        timestamp_piece, _, _ = remainder.partition('_')
+        if not timestamp_piece:
+            continue
+        try:
+            dt = datetime.strptime(timestamp_piece, BACKUP_TIMESTAMP_FORMAT)
+        except ValueError:
+            continue
+
+        timestamp_iso = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        entries.append((entry.name, timestamp_iso))
+
+    entries.sort(key=lambda item: item[1], reverse=True)
+    return entries
+

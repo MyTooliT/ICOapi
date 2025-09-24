@@ -1,3 +1,4 @@
+from dataclasses import asdict
 import logging
 import os
 
@@ -5,12 +6,14 @@ import yaml
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from starlette.responses import FileResponse
 
+from icoapi.models.models import ConfigFile, ConfigFileBackup, ConfigResponse
 from icoapi.scripts.config_helper import (
     ALLOWED_ENV_CONTENT_TYPES,
     ALLOWED_YAML_CONTENT_TYPES,
     ENV_FILENAME,
     METADATA_FILENAME,
     SENSORS_FILENAME,
+    list_config_backups,
     store_config_file,
     validate_metadata_payload,
     validate_sensors_payload,
@@ -26,6 +29,8 @@ from icoapi.scripts.errors import (
     HTTP_422_METADATA_SCHEMA_SPEC,
     HTTP_422_SENSORS_SCHEMA_EXCEPTION,
     HTTP_422_SENSORS_SCHEMA_SPEC,
+    HTTP_500_CONFIG_LIST_EXCEPTION,
+    HTTP_500_CONFIG_LIST_SPEC,
     HTTP_500_CONFIG_WRITE_EXCEPTION,
     HTTP_500_CONFIG_WRITE_SPEC,
 )
@@ -37,6 +42,12 @@ router = APIRouter(
 )
 
 logger = logging.getLogger(__name__)
+
+CONFIG_FILE_DEFINITIONS = [
+    ("Metadata configuration", METADATA_FILENAME),
+    ("Sensors configuration", SENSORS_FILENAME),
+    ("Environment variables", ENV_FILENAME),
+]
 
 
 def file_response(config_dir: str, filename: str, media_type: str) -> FileResponse:
@@ -70,7 +81,7 @@ def store_config(content: bytes, config_dir: str, filename: str):
     200: {"description": "File was found and returned."},
     404: HTTP_404_FILE_NOT_FOUND_SPEC,
 })
-async def get_metadata_file(config_dir: str = Depends(get_config_dir)):
+async def get_metadata_file(config_dir: str = Depends(get_config_dir)) -> FileResponse:
     return file_response(config_dir, METADATA_FILENAME, "application/x-yaml")
 
 
@@ -123,7 +134,7 @@ async def upload_metadata_file(
     200: {"description": "File was found and returned."},
     404: HTTP_404_FILE_NOT_FOUND_SPEC,
 })
-async def get_sensors_file(config_dir: str = Depends(get_config_dir)):
+async def get_sensors_file(config_dir: str = Depends(get_config_dir)) -> FileResponse:
     return file_response(config_dir, SENSORS_FILENAME, "application/x-yaml")
 
 
@@ -176,7 +187,7 @@ async def upload_sensors_file(
     200: {"description": "File was found and returned."},
     404: HTTP_404_FILE_NOT_FOUND_SPEC,
 })
-async def get_env_file(config_dir: str = Depends(get_config_dir)):
+async def get_env_file(config_dir: str = Depends(get_config_dir)) -> FileResponse:
     return file_response(config_dir, ENV_FILENAME, "text/plain")
 
 
@@ -202,3 +213,31 @@ async def upload_env_file(
     store_config(raw_content, config_dir, ENV_FILENAME)
     return {"detail": "Environment file uploaded successfully."}
 
+
+@router.get(
+    "/backup",
+    responses={
+        200: {"description": "Configuration backups returned successfully."},
+        500: HTTP_500_CONFIG_LIST_SPEC,
+    },
+)
+async def get_config_backups(config_dir: str = Depends(get_config_dir)) -> ConfigResponse:
+    try:
+        files: list[ConfigFile] = []
+        for display_name, filename in CONFIG_FILE_DEFINITIONS:
+            backup_entries = [
+                ConfigFileBackup(filename=backup_name, timestamp=timestamp)
+                for backup_name, timestamp in list_config_backups(config_dir, filename)
+            ]
+            files.append(
+                ConfigFile(
+                    name=display_name,
+                    filename=filename,
+                    backup=backup_entries,
+                )
+            )
+    except OSError as exc:
+        logger.exception(f"Failed to list configuration backups in {config_dir}")
+        raise HTTP_500_CONFIG_LIST_EXCEPTION from exc
+
+    return ConfigResponse(files=files)
