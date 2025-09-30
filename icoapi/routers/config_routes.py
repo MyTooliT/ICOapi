@@ -103,13 +103,13 @@ async def get_metadata_file(config_dir: str = Depends(get_config_dir)) -> FileRe
     },
 )
 async def upload_metadata_file(
-    metadata_file: UploadFile = File(..., description="YAML metadata configuration file"),
+    file: UploadFile = File(..., description="YAML metadata configuration file"),
     config_dir: str = Depends(get_config_dir),
 ):
-    if metadata_file.content_type and metadata_file.content_type.lower() not in ALLOWED_YAML_CONTENT_TYPES:
+    if file.content_type and file.content_type.lower() not in ALLOWED_YAML_CONTENT_TYPES:
         raise HTTP_415_UNSUPPORTED_YAML_MEDIA_TYPE_EXCEPTION
 
-    raw_content = await metadata_file.read()
+    raw_content = await file.read()
     if not raw_content:
         logger.error("Received empty YAML payload for metadata upload")
         raise HTTP_400_INVALID_YAML_EXCEPTION
@@ -156,13 +156,13 @@ async def get_sensors_file(config_dir: str = Depends(get_config_dir)) -> FileRes
     },
 )
 async def upload_sensors_file(
-    sensors_file: UploadFile = File(..., description="YAML sensors configuration file"),
+    file: UploadFile = File(..., description="YAML sensors configuration file"),
     config_dir: str = Depends(get_config_dir),
 ):
-    if sensors_file.content_type and sensors_file.content_type.lower() not in ALLOWED_YAML_CONTENT_TYPES:
+    if file.content_type and file.content_type.lower() not in ALLOWED_YAML_CONTENT_TYPES:
         raise HTTP_415_UNSUPPORTED_YAML_MEDIA_TYPE_EXCEPTION
 
-    raw_content = await sensors_file.read()
+    raw_content = await file.read()
     if not raw_content:
         logger.error("Received empty YAML payload for sensors upload")
         raise HTTP_400_INVALID_YAML_EXCEPTION
@@ -207,13 +207,13 @@ async def get_env_file(config_dir: str = Depends(get_config_dir)) -> FileRespons
     },
 )
 async def upload_env_file(
-    env_file: UploadFile = File(..., description="Environment variables file"),
+    file: UploadFile = File(..., description="Environment variables file"),
     config_dir: str = Depends(get_config_dir),
 ):
-    if env_file.content_type and env_file.content_type.lower() not in ALLOWED_ENV_CONTENT_TYPES:
+    if file.content_type and file.content_type.lower() not in ALLOWED_ENV_CONTENT_TYPES:
         raise HTTP_415_UNSUPPORTED_YAML_MEDIA_TYPE_EXCEPTION
 
-    raw_content = await env_file.read()
+    raw_content = await file.read()
     if raw_content is None:
         raw_content = b""
 

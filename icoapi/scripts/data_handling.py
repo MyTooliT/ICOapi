@@ -72,7 +72,7 @@ def get_voltage_from_raw(v_ref: float) -> float:
 def get_sensors() -> list[Sensor]:
     file_path = get_sensors_file_path()
     try:
-        sensors, _ = read_and_parse_sensor_data(file_path)
+        sensors, _, _ = read_and_parse_sensor_data(file_path)
         return sensors
     except FileNotFoundError:
         sensor_defaults = get_sensor_defaults()
@@ -81,7 +81,7 @@ def get_sensors() -> list[Sensor]:
         return sensor_defaults
 
 
-def read_and_parse_sensor_data(file_path: str|PathLike) -> tuple[list[Sensor], list[PCBSensorConfiguration]]:
+def read_and_parse_sensor_data(file_path: str|PathLike) -> tuple[list[Sensor], list[PCBSensorConfiguration], str]:
     try:
         with open(file_path, "r") as file:
             data = yaml.safe_load(file)
@@ -105,15 +105,18 @@ def read_and_parse_sensor_data(file_path: str|PathLike) -> tuple[list[Sensor], l
                     )
                 )
 
-            return sensors, configs
+            default_configuration_id = data.get("default_configuration_id", "")
+            if default_configuration_id is None:
+                default_configuration_id = configs[0].configuration_id
+
+            return sensors, configs, default_configuration_id
     except FileNotFoundError:
         raise FileNotFoundError(f"Could not find sensor.yaml file at {file_path}")
 
-def get_sensor_config_data() -> tuple[list[Sensor], list[PCBSensorConfiguration]]:
+def get_sensor_config_data() -> tuple[list[Sensor], list[PCBSensorConfiguration], str]:
     file_path = get_sensors_file_path()
     try:
-        data = read_and_parse_sensor_data(file_path)
-        return data
+        return read_and_parse_sensor_data(file_path)
 
     except FileNotFoundError:
         sensor_default = get_sensor_defaults()

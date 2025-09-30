@@ -14,8 +14,9 @@ router = APIRouter(
     response_model=AvailableSensorInformation,
 )
 def query_sensors():
-    sensors, configs = get_sensor_config_data()
+    sensors, configs, default = get_sensor_config_data()
     return AvailableSensorInformation(
         sensors=sensors,
-        configurations=configs
+        configurations=configs,
+        default_configuration_id=default
     )

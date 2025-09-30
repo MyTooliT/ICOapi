@@ -291,6 +291,7 @@ class PCBSensorConfiguration:
 class AvailableSensorInformation:
     sensors: list[Sensor]
     configurations: list[PCBSensorConfiguration]
+    default_configuration_id: str
 
 
 class HDF5NodeInfo(BaseModel, JSONEncoder):
