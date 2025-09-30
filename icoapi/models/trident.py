@@ -16,7 +16,7 @@ class HostNotFoundError(HTTPException):
 class AuthorizationError(HTTPException):
     """Error for authorization error"""
 
-class TridentClient:
+class TridentConnection:
     def __init__(self, service: str, username: str, password: str, domain: str):
         self.service = service
         self.username = username
@@ -41,9 +41,7 @@ class TridentClient:
 
             logger.info("Successfully retrieved access and refresh token.")
             return access_token
-        #except requests.exceptions.RequestException as e:
-            #logger.error(f"Error retrieving access and refresh token: {e}")
-            # raise Exception(f"Failed to retrieve access and refresh token.") from e
+
         except requests.exceptions.ConnectionError as e:
             logger.error(f"Connection Error: {e}")
             raise HostNotFoundError("Could not find Trident API under specified address.")
@@ -63,7 +61,6 @@ class TridentClient:
         refresh_token = self.session.cookies.get("refresh_token", domain=self.domain)
         if not refresh_token:
             logger.error("Refresh token not found when trying to refresh authentication.")
-            # raise Exception("Refresh token not found when trying to refresh authentication.")
 
         try:
             response = self.session.post(f"{self.service}/auth/refresh", json={"refresh_token": refresh_token})
@@ -79,7 +76,6 @@ class TridentClient:
             return new_access_token
         except requests.exceptions.RequestException as e:
             logger.error(f"Error refreshing access and refresh token: {e}")
-            # raise Exception(f"Failed to refresh access token. Response: {response.text}") from e
             self.session.close()
             self.session = requests.Session()
             logger.warning("Refresh failed. Started new session.")
@@ -135,53 +131,20 @@ class TridentClient:
         return self.request("DELETE", path, params=params)
 
 
-class BaseClient:
-    def get_buckets(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def get_bucket_objects(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def upload_file(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def authenticate(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def refresh(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def request(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def post(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def put(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def get(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def delete(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def is_authenticated(self):
-        raise NotImplementedError
-
-
-
-class StorageClient(BaseClient):
+class StorageClient:
     def __init__(self, service: str, username: str, password: str, default_bucket: str, domain: str):
-        self._client = TridentClient(service, username, password, domain)
+        self.connection = TridentConnection(service, username, password, domain)
         self.default_bucket = default_bucket
 
+    def get_client(self):
+        return self.connection
+
     def get_buckets(self):
-        return self._client.get("/s3/buckets").json()
+        return self.connection.get("/s3/buckets").json()
 
     def get_bucket_objects(self, bucket: str|None = None):
         try:
-            response = self._client.get(f"/s3/list?bucket={bucket if bucket else self.default_bucket}")
+            response = self.connection.get(f"/s3/list?bucket={bucket if bucket else self.default_bucket}")
         except Exception as e:
             logger.error(f"Error getting bucket objects.")
             raise HTTPException
@@ -209,33 +172,17 @@ class StorageClient(BaseClient):
             logger.info(f"Trying file <{filename}> to bucket <{bucket}> under folder <{folder}>.")
 
         with open(file_path, "rb") as f:
-            return self._client.request("POST", "/s3/upload", files={"file": f}, data={"bucket": bucket, "key": complete_filename_with_folder})
+            return self.connection.request("POST", "/s3/upload", files={"file": f}, data={"bucket": bucket, "key": complete_filename_with_folder})
 
     def authenticate(self, *args, **kwargs):
-        self._client.authenticate()
+        self.connection.authenticate()
 
     def refresh(self, *args, **kwargs):
-        self._client.refresh()
+        self.connection.refresh()
 
     def is_authenticated(self):
-        return self._client.is_authenticated()
+        return self.connection.is_authenticated()
 
-
-class NoopClient(BaseClient):
-    def get_buckets(self, *args, **kwargs):
-        logger.debug("No cloud connection. Skipped <get_buckets>")
-
-    def get_bucket_objects(self, *args, **kwargs):
-        logger.debug("No cloud connection. Skipped <get_bucket_objects>")
-
-    def upload_file(self, *args, **kwargs):
-        logger.debug("No cloud connection. Skipped <upload_file>")
-
-    def authenticate(self, *args, **kwargs):
-        logger.debug("No cloud connection. Skipped <authenticate>")
-
-    def refresh(self, *args, **kwargs):
-        logger.debug("No cloud connection. Skipped <refresh>")
-
-    def is_authenticated(self, *args, **kwargs):
-        logger.debug("No cloud connection. Skipped <is_authenticated>")
+    def revoke_auth(self):
+        self.connection.session.close()
+        self.connection.session = requests.Session()

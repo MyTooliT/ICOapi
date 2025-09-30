@@ -1,0 +1,202 @@
+info:
+  version: 0.0.2
+  generated_at: '2025-09-15T08:30:42.079Z'
+  default_profile_id: milling
+profiles:
+  milling:
+    id: milling
+    name: Milling (Generic)
+    pre:
+      General:
+        person:
+          id: person
+          label: Person
+          datatype: text
+          type: default
+          required: optional
+          description: Person responsible for the measurement.
+        institution:
+          id: institution
+          label: Institution
+          datatype: dropdown
+          type: default
+          options:
+            - CNRC
+            - Georgia Institute of Technology
+            - Mondragon Unibertsitatea
+            - Université de Mons
+            - KIT Karlsruhe
+            - IFW - Universität Stuttgart
+            - AMRC - University of Sheffield
+            - Centrale Lyon ENISE
+            - CIIRC - CTU Prague
+            - University of Ljubljana
+            - University of Tokyo
+            - Keio University
+            - PTW - TU Darmstadt
+            - IFT - TU Wien
+            - ETH Zürich, Inspire
+            - ISF - TU Dortmund
+            - MTI - RWTH Aachen
+            - MAL - University of British Columbia
+            - SECO
+          required: optional
+          description: Institution at which the measurement is captured.
+        machine:
+          id: machine
+          label: Machine
+          datatype: text
+          type: default
+          required: optional
+          description: Machine tool used for the measurement.
+        experiment:
+          id: experiment
+          label: Experiment ID/Number
+          datatype: text
+          type: default
+          required: optional
+          description: Experiment number or ID to identify the measurement.
+        process:
+          id: process
+          label: Process
+          datatype: dropdown
+          type: default
+          options:
+            - Milling
+            - Drilling
+            - Grinding
+            - Turning
+            - Reaming
+            - Thread Cutting
+            - Thread Forming
+            - Thread Milling
+          required: optional
+          default: Milling
+          description: Measured process.
+      Process:
+        workpiece_material:
+          id: workpiece_material
+          label: Workpiece Material
+          datatype: text_suggestions
+          type: default
+          options:
+            - '1.2379'
+            - C45
+            - Steel
+          required: optional
+          description: Material of the workpiece.
+        cutting_speed:
+          id: cutting_speed
+          label: Cutting Speed
+          datatype: float_qty
+          unit: m/min
+          type: range
+          required: optional
+        feed_per_tooth:
+          id: feed_per_tooth
+          label: Feed per Tooth
+          datatype: float_qty
+          unit: mm/tooth
+          type: range
+          required: optional
+        doc_axial:
+          id: doc_axial
+          label: Depth of Cut (axial)
+          datatype: float_qty
+          unit: mm
+          type: range
+          required: optional
+        doc_radial:
+          id: doc_radial
+          label: Depth of Cut (radial)
+          datatype: float_qty
+          unit: mm
+          type: range
+          required: optional
+        tool_diameter:
+          id: tool_diameter
+          label: Tool Diameter
+          datatype: float_qty
+          unit: mm
+          type: default
+          required: optional
+        tool_tooth_count:
+          id: tool_tooth_count
+          label: Tool Tooth Count
+          datatype: int
+          type: default
+          required: optional
+        tool_material:
+          id: tool_material
+          label: Tool Material
+          datatype: text_suggestions
+          type: default
+          options:
+            - Carbide (P40)
+            - Carbide
+            - MCD
+            - Ceramic
+            - PCD
+          required: optional
+        tool_offset:
+          id: tool_offset
+          label: Tool Offset
+          datatype: float_qty
+          unit: mm
+          type: default
+          required: optional
+          description: Tool offset from the control.
+        coolant:
+          id: coolant
+          label: Coolant
+          datatype: dropdown
+          type: default
+          options:
+            - Dry
+            - Air
+            - MMQ
+            - Flood
+            - Oil
+            - TSC
+            - TSC+Flood
+          required: optional
+        direction:
+          id: direction
+          label: Milling Direction
+          datatype: dropdown
+          type: default
+          options:
+            - Climb
+            - Conventional
+          required: optional
+      Hardware:
+        sth_mac:
+          id: sth_mac
+          label: STH Mac Address
+          datatype: text
+          type: implementation
+          required: required
+          description: MAC Address of the STH. Will be automatically set.
+        stu_mac:
+          id: stu_mac
+          label: STU Mac Address
+          datatype: text
+          type: implementation
+          required: required
+          description: MAC Address of the STU. Will be automatically set.
+    post:
+      General:
+        pictures:
+          id: pictures
+          label: Pictures
+          datatype: image
+          type: default
+          required: optional
+          description: Pictures of the experiment; will be stored in the .hdf5 file.
+        comment:
+          id: comment
+          label: Comment
+          datatype: text_box
+          type: default
+          required: optional
+

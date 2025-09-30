@@ -115,19 +115,43 @@ docker run --network=host icoapi
 
 
 
-# Configuration / Environment Variables
+# Environment Variables
 
-This application has two main forms of configuration: environment variables and auto-generated metadata types/classes.
+The application expects a `.env` file in one of three locations, each one being
+the fallback for the location before. The respective function is written as:
 
-## Environment Variables
+```python
+def load_env_file():
+    # First try: local development
+    env_loaded = load_dotenv(os.path.join(os.getcwd(), "config", ".env"), verbose=True)
+    if not env_loaded:
+        # Second try: configs directory
+        logger.warning(f"Environment variables not found in local directory. Trying to load from app data: {get_config_dir()}")
+        env_loaded = load_dotenv(os.path.join(get_config_dir(), ".env"), verbose=True)
+    if not env_loaded and is_bundled():
+        # Third try: we should be in the bundled state
+        bundle_dir = sys._MEIPASS
+        logger.warning(f"Environment variables not found in local directory. Trying to load from app data: {bundle_dir}")
+        env_loaded = load_dotenv(os.path.join(bundle_dir, "config", ".env"), verbose=True)
+    if not env_loaded:
+        logger.critical(f"Environment variables not found")
+        raise EnvironmentError(".env not found")
+```
 
-The application expects a `.env` file in the root directory, meaning on the same level as the main entrypoint file. It
-handles the main configuration of the backend application.
+1) For local development: the `.env` file is under `/config/.env`
+2) For normal usage, the file is in the `user_data_dir`
+3) When no environment variable file was found, we check the bundle directory
+from the pyinstaller for the bundled file
+
+This means that the `.env` file is bundled at compile-time and if the user has
+not ever run the software or deleted the `user_data_dir` we can take it as a 
+fallback.
+
 
 > All variables prefixed with `VITE_` indicate that there is a counterpart in the client side environment variables. This
 is to show that changes here most likely need to be propagated to the client (and electron wrapper, for that matter).
 
-### Client/API Connection Settings
+## Client/API Connection Settings
 
 These settings determine all forms of client/API communication details.
 
@@ -149,49 +173,18 @@ VITE_API_WS_PROTOCOL=ws
 WEBSOCKET_UPDATE_RATE=60
 ```
 
-### File Storage Settings
+## File Storage Settings
 
-These settings determine where the measurement files are stored locally. There are two options, which you should
-**not use together** to remove ambiguity:
+These settings determine where the measurement and configuration files are stored locally.
 
 ```
-VITE_BACKEND_MEASUREMENT_DIR=icodaq
-# OR
-VITE_BACKEND_FULL_MEASUREMENT_PATH=C:\Users\breurather\AppData\Local\icodaq
+VITE_APPLICATION_FOLDER=ICOdaq
 ```
 
-`VITE_BACKEND_MEASUREMENT_DIR` expects a single folder name and locates that folder under a certain path. 
+`VITE_APPLICATION_FOLDER` expects a single folder name and locates that folder under a certain path. 
 We use the `user_data_dir()` from the package `platformdirs` to simplify this. The system always logs which folder is used for storage.
 
-`VITE_BACKEND_FULL_MEASUREMENT_PATH` lets you override the default pathing and tries to create the folder at your
-supplied location.
-- Use this at your own discretion as not having a writable directory for measurements will crash the program.
-- This is—by design—not OS-agnostic.
-- You may need admin / root privileges for your folder!
-
-### Trident Data Storage Settings
-
-These settings control the implementation of the Trident API to use as a connected data storage. It requires credentials
-and needs to be explicitly enabled by setting the `TRIDENT_API_ENABLED` to `True`
-
-The complete service will be composed as ``<TRIDENT_API_PROCOTOL>://<TRIDENT_API_DOMAIN>/<TRIDENT_API_BASE_PATH>``. This 
-separation of the URI parts enables automatic setting of domain-specific cookies for token storage.
-
-Please note that the base path is set _without_ the leading ``/`` for simplicity. If more complex paths are the default
-base, they need to be entered as ``trident/v1/api`` for example.
-
-```
-TRIDENT_API_ENABLED=True
-TRIDENT_API_USERNAME=...
-TRIDENT_API_PASSWORD=...
-TRIDENT_API_BUCKET="ctd-data-storage"
-TRIDENT_API_BUCKET_FOLDER="default"
-TRIDENT_API_PROTOCOL=https
-TRIDENT_API_DOMAIN=iot.ift.tuwien.ac.at
-TRIDENT_API_BASE_PATH=trident
-```
-
-### Logging Settings
+## Logging Settings
 
 ```
 LOG_LEVEL=DEBUG
@@ -224,73 +217,30 @@ LOG_LEVEL_UVICORN=INFO
 
 ``LOG_LEVEL_UVICORN`` controls the log level for the uvicorn webserver logging.
 
-## Metadata Type/Class Generation
+# Configuration Files
 
-To support the usage of arbitrary metadata when creating measurements, a configuration system has been set up. This
-system starts as an Excel file in which all metadata fields are defined. This file is then parsed into a YAML file, from
-which it can be used further.
+The API currently works with 3 configuration files in the `.yaml` format.
 
-The complete metadata logic can be found in the ICOweb repository.
+When the API is run, it checks for the availability of these files in the 
+`<user_data_dir> / config`. If the files are not there, the defaults from the
+compile time are used.
 
-The metadata is split into two parts:
-- the metadata to be entered __before__ a measurement starts (pre_meta)
-- the metadata to be entered __after__ the measurement has been ended (post_meta)
+You can find the default files for all three types under `/config`.
 
-This ensures that common metadata like machine tool, process or cutting parameters are set beforehand while keeping the
-option to require data after the fact, such as pictures or tool breakage reports.
+## Configuration File 1: Sensors
 
-The pre-meta is sent with the measurement instructions while the post-meta is communicated via the open measurement WebSocket.
+The internal library starts the measurement based on selected channels. It is 
+up to the user to know which channels are connected to which sensors currently.
 
-## Measurement Value Conversion / Storage
+To help this selection and make using the system easier, a layer of abstraction
+is present in this API and thus in the client and ICOdaq software packages.
 
-The used `ICOc` library streams the data as unsigned 16-bit integer values. To get the actual measured physical values,
-we go through two conversion steps:
+### Data Structure
 
-### Step 1: 16-bit ADC value to Voltage
-
-The streamed ``uint16`` is a direct linear map from `0 - 2^16` to `0 - V_ref` of the used ADC. This means we can reverse the conversion
-by inverting the linear map.
-
-> We will define the coefficients ``k1`` and `d1` as the factor and offset of going from bit-value to voltage respectively.
-
-As the linear map is direct and without an offset, we can set:
-
-```
-d1 = 0
-k1 = (V_ref)/(2^16) in Volt
-```
-
-> **The first conversion only depends on the used reference voltage.**
-
-### Step 2: Voltage to Physical Value
-
-Each used sensor has a datasheet and associated linear coefficients to get from voltage output to the measured physical values.
-
-> We will define ``k2`` and ``d2`` as the linear coefficients of going from voltage to physical measurement.
-
-The API now accepts a ``sensor_id`` which can be used to choose a unique sensor for the conversion and has the current
-IFT channel-sensor-layout as defaults.
-
-# Sensors and Configurations
-
-The internal library starts the measurement based on selected channels. It is up to the user to know which channels are
-connected to which sensors currently.
-
-To help this selection and make using the system easier, a layer of abstraction is present in this API and thus in the 
-client and ICOdaq software packages.
-
-## Storing the Information
-
-All relevant data concerning sensors and configurations (also called "holders") is stored in a ``sensors.yaml`` file. 
-This file is located in:
-- the project root (for running in development and the LINUX service install mode)
-- the bundle directory when ``getattr(sys, 'frozen', False)`` returns `True`
-  - This is only present when the API has been packaged as an ``.exe`` for ICOdaq
-
-## Data Structure
-
-Withing the ``sensors.yaml`` file, two separate areas exist. One contains the sensor information and one the configurations 
-which reference the sensors. The file then looks like this:
+Withing the ``sensors.yaml`` file, two separate areas exist. One contains the
+sensor information and one the configurations which reference the sensors.
+Additionally, a field for the default configuration exists. The file then looks
+like this:
 
 ```yaml
 sensors:
@@ -300,9 +250,11 @@ sensors:
 sensor_configurations:
 - ...
 - ...
+
+default_configuration_id: 
 ```
 
-### Sensor Data Structure
+#### Sensor Data Structure
 
 The sensors (which are written to the ``*.hdf5`` file when used) are defined as:
 
@@ -324,10 +276,10 @@ This example defines the mainly used +-100g acceleration sensor in the X axis.
 
 Note that the field ``sensor_id`` is what the API uses to identify the sensor for usage.
 
-### Sensor Configuration Data Structure
+#### Sensor Configuration Data Structure
 
-This is what actually affects the client. Configurations are what the user can choose from and what determines which 
-sensors and channels a user can select for measurement. 
+This is what actually affects the client. Configurations are what the user can choose from and what determines which
+sensors and channels a user can select for measurement.
 
 The data is structured as follows:
 
@@ -346,6 +298,82 @@ The ``configuration_id`` is what the client-side `.env` file can set to load as 
 The ``configuration_name`` is displayed as the client.
 
 The mapping of sensors follows the schema of ``<channel>: { sensor_id: <sensor_id> }``.
+
+The ``default_configuration_id`` has one of the `configuration_id` set.
+
+## Config File 2: Metadata
+
+To support the usage of arbitrary metadata when creating measurements, a 
+configuration system has been set up. This system starts as an Excel file in 
+which all metadata fields are defined. This file is then parsed into a YAML 
+file, from which it can be used further.
+
+The complete metadata logic can be found in the ICOweb repository.
+
+The metadata is split into two parts:
+- the metadata entered __before__ a measurement starts (pre_meta)
+- the metadata entered __after__ the measurement has been ended (post_meta)
+
+This ensures that common metadata like machine tool, process or cutting 
+parameters are set beforehand while keeping the option to require data after 
+the fact, such as pictures or tool breakage reports.
+
+The pre-meta is sent with the measurement instructions while the post-meta is 
+communicated via the open measurement WebSocket.
+
+## Configuration File 3: Dataspace
+
+This file sets the dataspace connection settings if required. It simply holds
+all the relevant information as:
+
+````yaml
+enabled: False
+username: myUser
+password: strongPw123!
+bucket: common
+bucket_folder: default
+protocol: https
+domain: trident.example.com
+base_path: api/v1
+````
+
+All relevant fields are strings without any `/` before or after the value. This
+means that for the given example a complete endpoint would be:
+
+`https://trident.example.com/api/v1/<endpoint>`
+
+And the relevant storage would be in the folder `default` of the bucket 
+`common`.
+
+# Measurement Value Conversion / Storage
+
+The used `ICOc` library streams the data as unsigned 16-bit integer values. To get the actual measured physical values,
+we go through two conversion steps:
+
+## Step 1: 16-bit ADC value to Voltage
+
+The streamed ``uint16`` is a direct linear map from `0 - 2^16` to `0 - V_ref` of the used ADC. This means we can reverse the conversion
+by inverting the linear map.
+
+> We will define the coefficients ``k1`` and `d1` as the factor and offset of going from bit-value to voltage respectively.
+
+As the linear map is direct and without an offset, we can set:
+
+```
+d1 = 0
+k1 = (V_ref)/(2^16) in Volt
+```
+
+> **The first conversion only depends on the used reference voltage.**
+
+## Step 2: Voltage to Physical Value
+
+Each used sensor has a datasheet and associated linear coefficients to get from voltage output to the measured physical values.
+
+> We will define ``k2`` and ``d2`` as the linear coefficients of going from voltage to physical measurement.
+
+The API now accepts a ``sensor_id`` which can be used to choose a unique sensor for the conversion and has the current
+IFT channel-sensor-layout as defaults.
 
 # Test
 

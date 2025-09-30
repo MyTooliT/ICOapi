@@ -27,7 +27,7 @@ sudo mkdir -p $INSTALL_DIR
 sudo chown $USER:$USER $INSTALL_DIR
 
 echo "Copying application files..."
-FILES_AND_DIRS=(".env" "sensors.yaml" "$MODULE_NAME" "pyproject.toml" "README.md")
+FILES_AND_DIRS=("config" "$MODULE_NAME" "pyproject.toml" "README.md")
 
 for ITEM in "${FILES_AND_DIRS[@]}"; do
   #cp -r "$ITEM" "$INSTALL_DIR"

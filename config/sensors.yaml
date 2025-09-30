@@ -147,16 +147,4 @@ sensor_configurations:
       9: { sensor_id: backpack_03 }
       10: { sensor_id: vbat_01 }
 
-  - configuration_id: botek_DRILL
-    configuration_name: botek DRILL
-    channels:
-      1:  { sensor_id: acc100g_01 }
-      6:  { sensor_id: photo_01 }
-      8:  { sensor_id: rotacc_01 }
-      10: { sensor_id: vbat_01 }
-
-  - configuration_id: botek_DRILL_3p
-    configuration_name: botek DRILL 3P
-    channels:
-      1: { sensor_id: acc100g_01 }
-      2: { sensor_id: rotacc_02 }
+default_configuration_id: default-sth

@@ -1,14 +1,18 @@
+import os
+import sys
 from os import getenv
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from mytoolit.can.network import CANInitError
 from contextlib import asynccontextmanager
 
-from icoapi.routers import sensor_routes, stu_routes, sth_routes, common, file_routes, measurement_routes, cloud_routes, \
-    log_routes
-from icoapi.scripts.file_handling import ensure_folder_exists, get_measurement_dir, load_env_file
-from icoapi.models.globals import MeasurementSingleton, NetworkSingleton, get_trident_client
+from icoapi.routers import config_routes, sensor_routes, stu_routes, sth_routes, common, file_routes, \
+    measurement_routes, cloud_routes, log_routes
+from icoapi.scripts.file_handling import copy_config_files_if_not_exists, ensure_folder_exists, get_application_dir, \
+    get_config_dir, \
+    get_measurement_dir, \
+    is_bundled, load_env_file
+from icoapi.models.globals import MeasurementSingleton, NetworkSingleton, setup_trident
 from icoapi.utils.logging_setup import setup_logging
 import logging
 
@@ -22,12 +26,9 @@ async def lifespan(app: FastAPI):
     """
     MeasurementSingleton.create_instance_if_none()
     try:
-        handler = await get_trident_client()
-        handler.authenticate()
-
+        await setup_trident()
     except Exception as e:
-        logger.error("Cannot establish Trident connection")
-
+        logger.error(f"Error when setting up Trident: {e}")
     try:
         await NetworkSingleton.create_instance_if_none()
     except Exception as e:
@@ -45,6 +46,7 @@ app.include_router(prefix='/api/v1', router=cloud_routes.router)
 app.include_router(prefix='/api/v1', router=measurement_routes.router)
 app.include_router(prefix='/api/v1', router=log_routes.router)
 app.include_router(prefix='/api/v1', router=sensor_routes.router)
+app.include_router(prefix='/api/v1', router=config_routes.router)
 
 
 logger = logging.getLogger(__name__)
@@ -62,14 +64,25 @@ app.add_middleware(
 
 def main():
     import uvicorn
-
     load_env_file()
     setup_logging()
 
+    ensure_folder_exists(get_application_dir())
+    ensure_folder_exists(get_measurement_dir())
+    ensure_folder_exists(get_config_dir())
+
+    if is_bundled():
+        config_src = os.path.join(sys._MEIPASS, "config")
+    else:
+        config_src = os.path.join(os.getcwd(), "config")
+
+    copy_config_files_if_not_exists(
+        config_src,
+        get_config_dir()
+    )
+
     PORT = int(getenv("VITE_API_PORT", 33215))
     HOST = getenv("VITE_API_HOSTNAME", "0.0.0.0")
-
-    ensure_folder_exists(get_measurement_dir())
 
     uvicorn.run(
         "icoapi.api:app",

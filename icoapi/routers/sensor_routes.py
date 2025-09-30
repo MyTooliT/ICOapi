@@ -1,7 +1,7 @@
 from fastapi import APIRouter, status
 
 from icoapi.models.models import AvailableSensorInformation
-from icoapi.scripts.data_handling import get_sensor_data
+from icoapi.scripts.data_handling import get_sensor_config_data
 
 router = APIRouter(
     prefix="/sensor",
@@ -14,8 +14,9 @@ router = APIRouter(
     response_model=AvailableSensorInformation,
 )
 def query_sensors():
-    sensors, configs = get_sensor_data()
+    sensors, configs, default = get_sensor_config_data()
     return AvailableSensorInformation(
         sensors=sensors,
-        configurations=configs
+        configurations=configs,
+        default_configuration_id=default
     )

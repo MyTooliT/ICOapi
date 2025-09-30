@@ -10,37 +10,59 @@ from dotenv import load_dotenv
 from platformdirs import user_data_dir
 
 from icoapi.models.models import DiskCapacity
+from icoapi.scripts.config_helper import CONFIG_FILE_DEFINITIONS
 
 logger = logging.getLogger(__name__)
 
 def load_env_file():
-    env_loaded = load_dotenv(".env")
-    if getattr(sys, 'frozen', False):
-        # we are running in a bundle
+    # First try: local development
+    env_loaded = load_dotenv(os.path.join(os.getcwd(), "config", ".env"), verbose=True)
+    if not env_loaded:
+        # Second try: configs directory
+        logger.warning(f"Environment variables not found in local directory. Trying to load from app data: {get_config_dir()}")
+        env_loaded = load_dotenv(os.path.join(get_config_dir(), ".env"), verbose=True)
+    if not env_loaded and is_bundled():
+        # Third try: we should be in the bundled state
         bundle_dir = sys._MEIPASS
-        logger.info(f"Detected installed application state - bundle directory: {bundle_dir}")
-        env_loaded = env_loaded | load_dotenv(os.path.join(bundle_dir, ".env"))
+        logger.warning(f"Environment variables not found in local directory. Trying to load from app data: {bundle_dir}")
+        env_loaded = load_dotenv(os.path.join(bundle_dir, "config", ".env"), verbose=True)
     if not env_loaded:
         logger.critical(f"Environment variables not found")
         raise EnvironmentError(".env not found")
 
+def is_bundled():
+    return getattr(sys, 'frozen', False)
+
+def get_application_dir() -> str:
+    name = os.getenv("VITE_APPLICATION_FOLDER", "ICOdaq")
+    return user_data_dir(name, appauthor=False)
+
 def get_measurement_dir() -> str:
-    """To be used for dependency injection."""
-    load_env_file()
+    measurement_dir = os.path.join(get_application_dir(), "measurements")
+    logger.info(f"Measurement directory: {measurement_dir}")
+    return measurement_dir
 
-    # Check for full path in .env
-    full_path = os.getenv("VITE_BACKEND_FULL_MEASUREMENT_PATH")
-    if full_path:
-        logger.info(f"Used full / absolute path for measurements: {full_path}")
-        return os.path.abspath(full_path)
-    else:
-        # No full path, so combine measurement directory with default location
-        measurement_dir = os.getenv("VITE_BACKEND_MEASUREMENT_DIR", "icodaq")
-        data_dir = user_data_dir(measurement_dir, appauthor=False)
+def get_config_dir() -> str:
+    config_dir = os.path.join(get_application_dir(), "config")
+    logger.info(f"Config directory: {config_dir}")
+    return config_dir
 
-        logger.info(f"Measurement directory: {data_dir}")
-        return data_dir
+def get_dataspace_file_path() -> str:
+    return os.path.join(get_config_dir(), CONFIG_FILE_DEFINITIONS.DATASPACE.filename)
 
+def get_sensors_file_path() -> str:
+    return os.path.join(get_config_dir(), CONFIG_FILE_DEFINITIONS.SENSORS.filename)
+
+def get_metadata_file_path() -> str:
+    return os.path.join(get_config_dir(), CONFIG_FILE_DEFINITIONS.METADATA.filename)
+
+def copy_config_files_if_not_exists(src_path: str, dest_path: str):
+    for f in os.listdir(src_path):
+        if os.path.isfile(os.path.join(dest_path, f)):
+            logger.info(f"Config file {f} already exists in {dest_path}")
+        else:
+            shutil.copy(os.path.join(src_path, f), os.path.join(dest_path, f))
+            logger.info(f"Copied config file {f} to {dest_path}")
 
 def tries_to_traverse_directory(received_filename: str | os.PathLike) -> bool:
     directory_traversal_linux_chars = ["/", "%2F"]

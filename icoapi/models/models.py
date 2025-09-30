@@ -196,18 +196,36 @@ class ControlResponse:
     data: MeasurementStatus
 
 
+@dataclass
+class Feature:
+    enabled: bool
+    healthy: bool
+
+
 class SystemStateModel(BaseModel, JSONEncoder):
     """Data model for API state"""
     can_ready: bool
     disk_capacity: DiskCapacity
     measurement_status: MeasurementStatus
-    cloud_status: bool
+    cloud: Feature
 
 
 class SocketMessage(BaseModel, JSONEncoder):
     """Data model for websocket message"""
     message: str
     data: Optional[Any] = None
+
+
+@dataclass
+class TridentConfig:
+    protocol: str
+    domain: str
+    base_path: str
+    service: str
+    username: str
+    password: str
+    default_bucket: str
+    enabled: bool
 
 
 @dataclass
@@ -291,6 +309,7 @@ class PCBSensorConfiguration:
 class AvailableSensorInformation:
     sensors: list[Sensor]
     configurations: list[PCBSensorConfiguration]
+    default_configuration_id: str
 
 
 class HDF5NodeInfo(BaseModel, JSONEncoder):
@@ -311,3 +330,30 @@ class ParsedMetadata(BaseModel, JSONEncoder):
     acceleration: HDF5NodeInfo
     pictures: dict[str, list[str]]
     sensors: list[Sensor]
+
+
+@dataclass
+class ConfigFileBackup:
+    filename: str
+    timestamp: str
+
+
+@dataclass
+class ConfigFile:
+    name: str
+    filename: str
+    backup: list[ConfigFileBackup]
+    endpoint: str
+    timestamp: str
+    description: str
+
+
+@dataclass
+class ConfigResponse:
+    files: list[ConfigFile]
+
+
+class ConfigRestoreRequest(BaseModel):
+    filename: str
+    backup_filename: str
+
