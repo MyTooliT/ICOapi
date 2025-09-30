@@ -8,13 +8,11 @@ from contextlib import asynccontextmanager
 
 from icoapi.routers import config_routes, sensor_routes, stu_routes, sth_routes, common, file_routes, \
     measurement_routes, cloud_routes, log_routes
-from icoapi.scripts.data_handling import read_and_parse_trident_config
 from icoapi.scripts.file_handling import copy_config_files_if_not_exists, ensure_folder_exists, get_application_dir, \
     get_config_dir, \
-    get_dataspace_file_path, get_measurement_dir, \
+    get_measurement_dir, \
     is_bundled, load_env_file
-from icoapi.models.globals import MeasurementSingleton, NetworkSingleton, TridentHandler, get_trident_client, \
-    setup_trident
+from icoapi.models.globals import MeasurementSingleton, NetworkSingleton, setup_trident
 from icoapi.utils.logging_setup import setup_logging
 import logging
 

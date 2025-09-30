@@ -43,13 +43,14 @@ async def list_files_and_capacity(
         capacity = get_disk_space_in_gb(get_drive_or_root_path())
         files_info: list[MeasurementFileDetails] = []
         cloud_files: list[TridentBucketObject] = []
-        try:
-            objects = storage.get_bucket_objects()
-            cloud_files = [TridentBucketObject(**obj) for obj in objects]
-        except HTTPException as e:
-            logger.error(f"Error listing cloud files")
-        except Exception as e:
-            logger.error(f"General exception when comparing files to cloud: {e}")
+        if storage is not None:
+            try:
+                objects = storage.get_bucket_objects()
+                cloud_files = [TridentBucketObject(**obj) for obj in objects]
+            except HTTPException as e:
+                logger.error(f"Error listing cloud files")
+            except Exception as e:
+                logger.error(f"General exception when comparing files to cloud: {e}")
         # Iterate over files in the directory
         for filename in os.listdir(measurement_dir):
             file_path = os.path.join(measurement_dir, filename)
@@ -61,7 +62,7 @@ async def list_files_and_capacity(
                     is_uploaded=False,
                     upload_timestamp=None
                 )
-                if storage.get_client() is not None:
+                if storage is not None:
                     matches = [file for file in cloud_files if filename in file.Key]
                     if matches:
                         cloud_details.is_uploaded = True

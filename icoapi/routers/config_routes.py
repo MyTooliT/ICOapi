@@ -219,7 +219,7 @@ async def upload_dataspace_file(
 
     store_config(raw_content, config_dir, CONFIG_FILE_DEFINITIONS.DATASPACE.filename)
 
-    TridentHandler._client = None
+    TridentHandler.client = None
     await setup_trident()
 
     return {"detail": "Dataspace configuration uploaded successfully."}
@@ -336,7 +336,7 @@ async def restore_config_file(
         f"Restored {payload.filename} from backup {payload.backup_filename}")
 
     if payload.filename == CONFIG_FILE_DEFINITIONS.DATASPACE.filename:
-        TridentHandler._client = None
+        TridentHandler.client = None
         await setup_trident()
         logger.info("Trident client re-initialized")
     return {"detail": "Configuration restored successfully."}
