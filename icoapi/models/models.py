@@ -324,6 +324,9 @@ class ConfigFile:
     name: str
     filename: str
     backup: list[ConfigFileBackup]
+    endpoint: str
+    timestamp: str
+    description: str
 
 
 @dataclass

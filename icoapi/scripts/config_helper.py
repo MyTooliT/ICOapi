@@ -1,6 +1,7 @@
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Tuple, TypedDict, Union
 import numbers
 
 ALLOWED_YAML_CONTENT_TYPES = {
@@ -31,11 +32,45 @@ SENSOR_REQUIRED_FIELDS = {
 
 CONFIG_BACKUP_DIRNAME = "backup"
 BACKUP_TIMESTAMP_FORMAT = "%Y%m%dT%H%M%SZ"
-METADATA_FILENAME = "metadata.yaml"
-SENSORS_FILENAME = "sensors.yaml"
-ENV_FILENAME = ".env"
 
 PathLike = Union[str, Path]
+
+
+@dataclass
+class ConfigFileDescription:
+    endpoint: str
+    title: str
+    description: str
+    filename: str
+
+@dataclass
+class ConfigFileDefinition:
+    METADATA: ConfigFileDescription
+    SENSORS: ConfigFileDescription
+    ENV: ConfigFileDescription
+
+
+CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
+    METADATA = ConfigFileDescription(
+        endpoint="meta",
+        title="Metadata Configuration",
+        description="Configuration file containing your pre- and post-measurement metadata profiles.",
+        filename="metadata.yaml"
+    ),
+    SENSORS=ConfigFileDescription(
+        endpoint="sensors",
+        title="Sensor Configuration",
+        description="Configuration file containing sensor definitions and tool holder configurations.",
+        filename="sensors.yaml"
+    ),
+    ENV=ConfigFileDescription(
+        endpoint="env",
+        title="Environment Variables",
+        description="Environment variables containing system settings.",
+        filename=".env"
+    )
+)
+
 
 
 def validate_metadata_payload(payload: Any) -> list[str]:

@@ -1,3 +1,5 @@
+from dataclasses import asdict, fields
+from datetime import datetime
 from pathlib import Path
 import logging
 import os
@@ -10,10 +12,8 @@ from icoapi.models.models import ConfigFile, ConfigFileBackup, ConfigResponse, C
 from icoapi.scripts.config_helper import (
     ALLOWED_ENV_CONTENT_TYPES,
     ALLOWED_YAML_CONTENT_TYPES,
-    ENV_FILENAME,
-    METADATA_FILENAME,
-    SENSORS_FILENAME,
     CONFIG_BACKUP_DIRNAME,
+    CONFIG_FILE_DEFINITIONS,
     is_backup_file_for,
     list_config_backups,
     store_config_file,
@@ -50,11 +50,11 @@ router = APIRouter(
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE_DEFINITIONS = [
-    ("Metadata configuration", METADATA_FILENAME),
-    ("Sensors configuration", SENSORS_FILENAME),
-    ("Environment variables", ENV_FILENAME),
-]
+# CONFIG_FILE_DEFINITIONS = [
+#     ("Metadata configuration", METADATA_FILENAME),
+#     ("Sensors configuration", SENSORS_FILENAME),
+#     ("Environment variables", ENV_FILENAME),
+# ]
 
 
 def file_response(config_dir: str, filename: str, media_type: str) -> FileResponse:
@@ -89,7 +89,7 @@ def store_config(content: bytes, config_dir: str, filename: str):
     404: HTTP_404_FILE_NOT_FOUND_SPEC,
 })
 async def get_metadata_file(config_dir: str = Depends(get_config_dir)) -> FileResponse:
-    return file_response(config_dir, METADATA_FILENAME, "application/x-yaml")
+    return file_response(config_dir, CONFIG_FILE_DEFINITIONS.METADATA.filename, "application/x-yaml")
 
 
 @router.post(
@@ -133,7 +133,7 @@ async def upload_metadata_file(
             detail=error_detail,
         )
 
-    store_config(raw_content, config_dir, METADATA_FILENAME)
+    store_config(raw_content, config_dir, CONFIG_FILE_DEFINITIONS.METADATA.filename)
     return {"detail": "Metadata configuration uploaded successfully."}
 
 
@@ -142,7 +142,7 @@ async def upload_metadata_file(
     404: HTTP_404_FILE_NOT_FOUND_SPEC,
 })
 async def get_sensors_file(config_dir: str = Depends(get_config_dir)) -> FileResponse:
-    return file_response(config_dir, SENSORS_FILENAME, "application/x-yaml")
+    return file_response(config_dir, CONFIG_FILE_DEFINITIONS.SENSORS.filename, "application/x-yaml")
 
 
 @router.post(
@@ -186,7 +186,7 @@ async def upload_sensors_file(
             detail=error_detail,
         )
 
-    store_config(raw_content, config_dir, SENSORS_FILENAME)
+    store_config(raw_content, config_dir, CONFIG_FILE_DEFINITIONS.SENSORS.filename)
     return {"detail": "Sensor configuration uploaded successfully."}
 
 
@@ -195,7 +195,7 @@ async def upload_sensors_file(
     404: HTTP_404_FILE_NOT_FOUND_SPEC,
 })
 async def get_env_file(config_dir: str = Depends(get_config_dir)) -> FileResponse:
-    return file_response(config_dir, ENV_FILENAME, "text/plain")
+    return file_response(config_dir, CONFIG_FILE_DEFINITIONS.ENV.filename, "text/plain")
 
 
 @router.post(
@@ -217,7 +217,7 @@ async def upload_env_file(
     if raw_content is None:
         raw_content = b""
 
-    store_config(raw_content, config_dir, ENV_FILENAME)
+    store_config(raw_content, config_dir, CONFIG_FILE_DEFINITIONS.ENV.filename)
     return {"detail": "Environment file uploaded successfully."}
 
 
@@ -231,16 +231,20 @@ async def upload_env_file(
 async def get_config_backups(config_dir: str = Depends(get_config_dir)) -> ConfigResponse:
     try:
         files: list[ConfigFile] = []
-        for display_name, filename in CONFIG_FILE_DEFINITIONS:
+        for f in fields(CONFIG_FILE_DEFINITIONS):
+            DEF = getattr(CONFIG_FILE_DEFINITIONS, f.name)
             backup_entries = [
                 ConfigFileBackup(filename=backup_name, timestamp=timestamp)
-                for backup_name, timestamp in list_config_backups(config_dir, filename)
+                for backup_name, timestamp in list_config_backups(config_dir, DEF.filename)
             ]
             files.append(
                 ConfigFile(
-                    name=display_name,
-                    filename=filename,
+                    name=DEF.title,
+                    filename=DEF.filename,
                     backup=backup_entries,
+                    endpoint=DEF.endpoint,
+                    timestamp=datetime.fromtimestamp(os.path.getmtime(f"{config_dir}/{DEF.filename}")).isoformat(),
+                    description=DEF.description,
                 )
             )
     except OSError as exc:
@@ -263,7 +267,7 @@ async def restore_config_file(
     payload: ConfigRestoreRequest,
     config_dir: str = Depends(get_config_dir),
 ):
-    config_lookup = {filename for _, filename in CONFIG_FILE_DEFINITIONS}
+    config_lookup = [d.filename for d in vars(CONFIG_FILE_DEFINITIONS).values()]
     if payload.filename not in config_lookup:
         logger.error(f"Restore requested for unknown configuration file: {payload.filename}")
         raise HTTP_400_INVALID_CONFIG_RESTORE_EXCEPTION
