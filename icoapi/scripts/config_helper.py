@@ -115,20 +115,14 @@ def validate_yaml_info_header(payload: Any) -> list[str]:
 
 
 def validate_metadata_payload(payload: Any) -> list[str]:
-    errors: list[str] = []
     if not isinstance(payload, dict):
         return ["Root document must be a mapping"]
 
-    info = payload.get("info")
-    if not isinstance(info, dict):
-        errors.append("info: expected mapping with metadata info")
-    else:
-        version = info.get("version")
-        if not isinstance(version, str) or not version.strip():
-            errors.append("info -> version: expected non-empty string")
-        default_profile_id = info.get("default_profile_id")
-        if not isinstance(default_profile_id, str) or not default_profile_id.strip():
-            errors.append("info -> default_profile_id: expected non-empty string")
+    errors = validate_yaml_info_header(payload)
+
+    default_profile_id = payload.get("default_profile_id")
+    if not is_valid_string(default_profile_id):
+        errors.append("default_profile_id: expected non-empty string")
 
     profiles = payload.get("profiles")
     if not isinstance(profiles, dict) or not profiles:

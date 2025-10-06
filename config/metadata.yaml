@@ -1,7 +1,9 @@
 info:
-  version: 0.0.2
-  generated_at: '2025-09-15T08:30:42.079Z'
-  default_profile_id: milling
+  schema_name: metadata_schema
+  schema_version: 0.0.1
+  name: General Purpose Milling Only
+  date: '2025-09-15T08:30:42Z'
+default_profile_id: milling
 profiles:
   milling:
     id: milling
