@@ -32,6 +32,7 @@ SENSOR_REQUIRED_FIELDS = {
 
 CONFIG_BACKUP_DIRNAME = "backup"
 BACKUP_TIMESTAMP_FORMAT = "%Y%m%dT%H%M%SZ"
+UTC_TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 PathLike = Union[str, Path]
 
@@ -78,7 +79,39 @@ CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
     )
 )
 
+def is_valid_string(value: Any) -> bool:
+    return isinstance(value, str) and value.strip()
 
+
+def validate_yaml_info_header(payload: Any) -> list[str]:
+    errors: list[str] = []
+
+    info = payload.get("info")
+    if not isinstance(info, dict):
+        return ["info: expected mapping with metadata info"]
+
+    schema_name = info.get("schema_name")
+    if not is_valid_string(schema_name):
+        errors.append("info -> schema_name: expected non-empty string")
+
+    schema_version = info.get("schema_version")
+    if not is_valid_string(schema_version):
+        errors.append("info -> schema_version: expected non-empty string")
+
+    name = info.get("name")
+    if not is_valid_string(name):
+        errors.append("info -> name: expected non-empty string")
+
+    date = info.get("date")
+    if not is_valid_string(date):
+        errors.append("info -> date: expected non-empty string")
+    else:
+        try:
+            datetime.strptime(date, UTC_TIMESTAMP_FORMAT)
+        except ValueError:
+            errors.append("info -> date: expected date in UTC timestamp format")
+
+    return errors
 
 
 def validate_metadata_payload(payload: Any) -> list[str]:
@@ -164,9 +197,10 @@ def validate_field_definition(field: dict[str, Any], path: list[str], errors: li
 
 
 def validate_sensors_payload(payload: Any) -> list[str]:
-    errors: list[str] = []
     if not isinstance(payload, dict):
         return ["Root document must be a mapping"]
+
+    errors = validate_yaml_info_header(payload)
 
     sensors = payload.get("sensors")
     sensor_ids: set[str] = set()
