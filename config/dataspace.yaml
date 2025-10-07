@@ -1,7 +1,7 @@
 info:
   schema_name: dataspace_schema
   schema_version: 0.0.1
-  config_name: Disabled Trident
+  config_name: Disabled Dataspace Connection
   config_date: '2025-10-07T13:52:40+0200'
   config_version: 0.0.1
 connection:
