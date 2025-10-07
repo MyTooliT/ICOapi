@@ -1,8 +1,9 @@
 info:
   schema_name: sensors_schema
   schema_version: 0.0.1
-  name: MB ALL Sensors
-  date: '2025-10-06T12:00:00Z'
+  config_name: MB ALL Sensors
+  config_date: '2025-10-06T12:00:00Z'
+  config_version: 0.0.1
 sensors:
 - name: Acceleration 100g
   offset: -125.0

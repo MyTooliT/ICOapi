@@ -1,8 +1,9 @@
 info:
   schema_name: metadata_schema
   schema_version: 0.0.1
-  name: General Purpose Milling Only
-  date: '2025-09-15T08:30:42Z'
+  config_name: General Purpose Milling Only
+  config_date: '2025-09-15T08:30:42Z'
+  config_version: 0.0.1
 default_profile_id: milling
 profiles:
   milling:

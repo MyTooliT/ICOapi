@@ -1,8 +1,9 @@
 info:
   schema_name: dataspace_schema
   schema_version: 0.0.1
-  name: Trident Dataspace Schema
-  date: '2025-10-06T12:00:00Z'
+  config_name: Trident Dataspace Schema
+  config_date: '2025-10-06T12:00:00Z'
+  config_version: 0.0.1
 connection:
   enabled: False
   username:

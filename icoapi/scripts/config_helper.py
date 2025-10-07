@@ -101,19 +101,22 @@ def validate_yaml_info_header(payload: Any) -> list[str]:
     if not is_valid_string(schema_version):
         errors.append("info -> schema_version: expected non-empty string")
 
-    name = info.get("name")
+    name = info.get("config_name")
     if not is_valid_string(name):
-        errors.append("info -> name: expected non-empty string")
+        errors.append("info -> config_name: expected non-empty string")
 
-    date = info.get("date")
+    version = info.get("config_version")
+    if not is_valid_string(version):
+        errors.append("info -> config_version: expected non-empty string")
+
+    date = info.get("config_date")
     if not is_valid_string(date):
-        errors.append("info -> date: expected non-empty string")
+        errors.append("info -> config_date: expected non-empty string")
     else:
         try:
             datetime.strptime(date, UTC_TIMESTAMP_FORMAT)
         except ValueError:
             errors.append("info -> date: expected date in UTC timestamp format")
-
     return errors
 
 
@@ -359,8 +362,9 @@ def parse_info_header_from_file(config_file: Path) -> ConfigFileInfoHeader | Non
                 return ConfigFileInfoHeader(
                     schema_name=info.get("schema_name"),
                     schema_version=info.get("schema_version"),
-                    name=info.get("name"),
-                    date=info.get("date")
+                    config_name=info.get("config_name"),
+                    config_date=info.get("config_date"),
+                    config_version=info.get("config_version")
                 )
     else:
         return None
