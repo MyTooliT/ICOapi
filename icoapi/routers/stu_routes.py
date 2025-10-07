@@ -14,7 +14,10 @@ router = APIRouter(
 
 @router.get('')
 async def stu(network: Network = Depends(get_network)) -> list[STUDeviceResponseModel]:
-    return await get_stu(network)
+    try:
+        return await get_stu(network)
+    except mytoolit.can.network.NoResponseError:
+        raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
 
 
 @router.put(
