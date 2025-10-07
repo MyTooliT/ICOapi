@@ -10,7 +10,8 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from starlette.responses import FileResponse
 
 from icoapi.models.globals import TridentHandler, get_trident_client, setup_trident
-from icoapi.models.models import ConfigFile, ConfigFileBackup, ConfigResponse, ConfigRestoreRequest
+from icoapi.models.models import ConfigFile, ConfigFileBackup, ConfigFileInfoHeader, ConfigResponse, \
+    ConfigRestoreRequest
 from icoapi.models.trident import StorageClient
 from icoapi.scripts.config_helper import (
     ALLOWED_ENV_CONTENT_TYPES,
@@ -72,6 +73,17 @@ async def validate_and_parse_yaml_file(file: UploadFile) -> (Any, bytes):
     return parsed_yaml, raw_content
 
 
+def get_info_header_from_yaml(parsed_yaml: Any) -> ConfigFileInfoHeader:
+    info = parsed_yaml["info"]
+    return ConfigFileInfoHeader(
+        config_version=info["config_version"],
+        config_date=info["config_date"],
+        config_name=info["config_name"],
+        schema_name=info["schema_name"],
+        schema_version=info["schema_version"],
+    )
+
+
 def file_response(config_dir: str, filename: str, media_type: str) -> FileResponse:
     try:
         return FileResponse(
@@ -116,6 +128,7 @@ async def get_metadata_file(config_dir: str = Depends(get_config_dir)) -> FileRe
         422: HTTP_422_METADATA_SCHEMA_SPEC,
         500: HTTP_500_CONFIG_WRITE_SPEC,
     },
+    response_model=ConfigFileInfoHeader
 )
 async def upload_metadata_file(
     file: UploadFile = File(..., description="YAML metadata configuration file"),
@@ -136,8 +149,10 @@ async def upload_metadata_file(
             detail=error_detail,
         )
 
+    header = get_info_header_from_yaml(parsed_yaml)
+
     store_config(raw_content, config_dir, CONFIG_FILE_DEFINITIONS.METADATA.filename)
-    return {"detail": "Metadata configuration uploaded successfully."}
+    return header
 
 
 @router.get("/sensors", responses={
@@ -157,6 +172,7 @@ async def get_sensors_file(config_dir: str = Depends(get_config_dir)) -> FileRes
         422: HTTP_422_SENSORS_SCHEMA_SPEC,
         500: HTTP_500_CONFIG_WRITE_SPEC,
     },
+    response_model=ConfigFileInfoHeader
 )
 async def upload_sensors_file(
     file: UploadFile = File(..., description="YAML sensors configuration file"),
@@ -177,8 +193,10 @@ async def upload_sensors_file(
             detail=error_detail,
         )
 
+    header = get_info_header_from_yaml(parsed_yaml)
+
     store_config(raw_content, config_dir, CONFIG_FILE_DEFINITIONS.SENSORS.filename)
-    return {"detail": "Sensor configuration uploaded successfully."}
+    return header
 
 
 @router.post(
@@ -190,6 +208,7 @@ async def upload_sensors_file(
         422: HTTP_422_DATASPACE_SCHEMA_SPEC,
         500: HTTP_500_CONFIG_WRITE_SPEC,
     },
+    response_model=ConfigFileInfoHeader
 )
 async def upload_dataspace_file(
     file: UploadFile = File(..., description="YAML sensors configuration file"),
@@ -204,19 +223,20 @@ async def upload_dataspace_file(
 
     if errors:
         logger.error(f"Dataspace YAML validation failed: {errors}")
-        error_detail = f"{HTTP_422_DATASPACE_SCHEMA_SPEC.detail} Errors: {'; '.join(errors)}"
+        error_detail = f"{HTTP_422_DATASPACE_SCHEMA_EXCEPTION.detail} Errors: {'; '.join(errors)}"
         raise HTTPException(
             status_code=HTTP_422_DATASPACE_SCHEMA_EXCEPTION.status_code,
             detail=error_detail,
         )
 
+    header = get_info_header_from_yaml(parsed_yaml)
 
     store_config(raw_content, config_dir, CONFIG_FILE_DEFINITIONS.DATASPACE.filename)
 
     TridentHandler.client = None
     await setup_trident()
 
-    return {"detail": "Dataspace configuration uploaded successfully."}
+    return header
 
 
 @router.get("/env", responses={
