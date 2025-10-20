@@ -16,6 +16,9 @@ class HostNotFoundError(HTTPException):
 class AuthorizationError(HTTPException):
     """Error for authorization error"""
 
+class PresignError(HTTPException):
+    """Error representing failure in presigning"""
+
 class TridentConnection:
     def __init__(self, service: str, username: str, password: str, domain: str):
         self.service = service
@@ -171,8 +174,25 @@ class StorageClient:
             complete_filename_with_folder = f"{folder}/{filename}"
             logger.info(f"Trying file <{filename}> to bucket <{bucket}> under folder <{folder}>.")
 
+        presigned_url_response = self.connection.get("/s3/presigned-upload", params={
+            "bucket": bucket,
+            "key": complete_filename_with_folder,
+            "expiresInSeconds": 600
+        })
+
+        if presigned_url_response.status_code != 200:
+            logger.error(f"Error getting presigned URL for upload: code {presigned_url_response.status_code} with {presigned_url_response.text}")
+            raise PresignError
+
+        data = presigned_url_response.json()
+        presigned_url = data["presignedUrl"]
+        if not presigned_url:
+            logger.error(f"Error getting presigned URL for upload: no presigned URL returned.")
+            raise PresignError
+        logger.info(f"Got presigned URL for upload: {presigned_url}")
+
         with open(file_path, "rb") as f:
-            return self.connection.request("POST", "/s3/upload", files={"file": f}, data={"bucket": bucket, "key": complete_filename_with_folder})
+            return requests.put(presigned_url, data=f)
 
     def authenticate(self, *args, **kwargs):
         self.connection.authenticate()
