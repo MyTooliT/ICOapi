@@ -433,6 +433,25 @@ The application is set up to log _everything_. This is how the logging is set up
 | Critical Failure / unrecoverable  | `CRITICAL`           | For very serious errors. Indicates a critical condition — program may abort.                          |
 | Unexpected exception (with trace) | `logger.exception()` | Serious errors, but the exception was caught.                                                         |
 
+## Release
+
+1. Make sure that all test run successfully:
+
+   ```sh
+   make test
+   ```
+
+2. Check that the [latest build of the CI system finished successfully](https://git.ift.tuwien.ac.at/ift/icotronic/icoapi/-/pipelines)
+
+3. Create [a new release](https://git.ift.tuwien.ac.at/ift/icotronic/icoapi/-/releases)
+
+   **Note:** In the text below we assume that you replace `<VERSION>` number with the actual version number of the release e.g. `1.0.0`
+
+   1. Insert `<VERSION>` in “Tag name” 
+   2. For “Release title” use something like `Version <VERSION>`, where version is the release number
+   3. Insert the release notes into “Release notes”
+   4. Click on “Create release”
+
 # Example Requests
 
 **Note:** The sample requests below use the [command line version of httpie](https://httpie.io/cli)
