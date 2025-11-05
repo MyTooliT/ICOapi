@@ -1,6 +1,7 @@
 import os
 import sys
 from os import getenv
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -74,7 +75,7 @@ def main():
     if is_bundled():
         config_src = os.path.join(sys._MEIPASS, "config")
     else:
-        config_src = os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "config")
+        config_src = Path(__file__).parent.parent / "config"
     copy_config_files_if_not_exists(
         config_src,
         get_config_dir()
