@@ -209,7 +209,7 @@ def write_and_remove_picture_metadata(prefix: MetadataPrefix, picture_parameters
             del meta.parameters[param]
 
 
-def write_image_array(storage: StorageData, name: str, array: np.array, overwrite: bool):
+def write_image_array(storage: StorageData, name: str, array: np.ndarray, overwrite: bool):
     try:
         storage.hdf.create_array(storage.hdf.root, name, array)
     except tables.exceptions.NodeError:
