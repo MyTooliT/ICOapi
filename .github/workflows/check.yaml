@@ -41,7 +41,7 @@ jobs:
 
     - name: Install HDF5 on macOS
       if: runner.os == 'macOS'
-      run: brew install hdf5
+      run: brew install hdf5 c-blosc2 lzo bzip2
 
     - name: Install uv
       uses: astral-sh/setup-uv@v6
