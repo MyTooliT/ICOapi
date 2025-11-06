@@ -184,6 +184,7 @@ async def get_analyzed_file(name: str, measurement_dir: Annotated[str, Depends(g
 @router.post("/analyze")
 async def post_analyzed_file(file: UploadFile, measurement_dir: Annotated[str, Depends(get_measurement_dir)]) -> PlainTextResponse:
 
+    assert file.filename is not None
     filename = get_suffixed_filename(file.filename, measurement_dir)
 
     file_path = os.path.join(measurement_dir, filename)
