@@ -69,7 +69,7 @@ async def write_sensor_config_if_required(
     """
     if sensor_configuration.requires_channel_configuration_support():
         try:
-            await sytem.write_sensor_configuration(sensor_configuration)
+            await system.write_sensor_configuration(sensor_configuration)
         except UnsupportedFeatureException as exception:
             raise UnsupportedFeatureException(
                 f"Sensor channel configuration “{sensor_configuration}” is "
