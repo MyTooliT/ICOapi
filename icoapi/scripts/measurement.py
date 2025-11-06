@@ -6,6 +6,7 @@ import logging
 import numpy as np
 
 import tables.exceptions
+from icostate import ICOsystem
 from icotronic.can.error import UnsupportedFeatureException
 from icotronic.can.adc import ADCConfiguration
 from icotronic.can.streaming import StreamingConfiguration, StreamingData, StreamingTimeoutError
