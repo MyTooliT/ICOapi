@@ -55,7 +55,7 @@ router = APIRouter(
 
 logger = logging.getLogger(__name__)
 
-async def validate_and_parse_yaml_file(file: UploadFile) -> (Any, bytes):
+async def validate_and_parse_yaml_file(file: UploadFile) -> tuple[Any, bytes]:
     if file.content_type and file.content_type.lower() not in ALLOWED_YAML_CONTENT_TYPES:
         raise HTTP_415_UNSUPPORTED_YAML_MEDIA_TYPE_EXCEPTION
 
