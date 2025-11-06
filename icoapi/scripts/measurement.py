@@ -304,6 +304,9 @@ async def run_measurement(
             logger.info(f"Opened measurement file: <{measurement_file_path}> for writing")
 
             storage["conversion"] = "true"
+            assert isinstance(instructions.adc, ADCValues)
+            assert isinstance(instructions.adc.reference_voltage, float)
+            
             storage["adc_reference_voltage"] = f"{instructions.adc.reference_voltage}"
             if instructions.meta:
                 write_metadata(MetadataPrefix.PRE, instructions.meta, storage)
