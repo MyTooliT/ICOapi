@@ -107,7 +107,7 @@ def setup_logging() -> None:
     ws_handler = WebSocketLogHandler()
     ws_handler.setFormatter(formatter)
 
-    for h in [file_handler, console_handler, ws_handler]:
+    for h in (file_handler, console_handler, ws_handler):
         root_logger.addHandler(h)
 
     logging.getLogger("uvicorn").handlers.clear()
