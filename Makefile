@@ -14,21 +14,21 @@ all: check test
 
 .PHONY: setup
 setup:
-	poetry lock
-	poetry install --all-extras
+	uv venv --allow-existing
+	uv sync --all-extras
 
 .PHONY: check
 check:
-	poetry run mypy .
-	poetry run flake8 $(TEST_DIRECTORY)
+	uv run mypy .
+	uv run flake8 $(TEST_DIRECTORY)
 
 .PHONY: test
 test:
-	poetry run pytest
+	uv run pytest
 
 .PHONY: run
 run: check
-	poetry run python $(MODULE)/api.py
+	uv run python $(MODULE)/api.py
 	
 .PHONY: reset
 reset:
