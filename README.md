@@ -18,7 +18,7 @@ To get a complete experience, even for development, you need:
 
 On Linux, the API (rather: the underlying CAN library) requires:
 - The proper driver for your CAN device (PCAN-USB if used)
-- The CAN port set up as described in [this guide](https://mytoolit.github.io/ICOc/#introduction:section:pcan-driver:linux)
+- The CAN port set up as described in [this guide](https://mytoolit.github.io/ICOtronic/#introduction:section:pcan-driver:linux)
   - Including the setup for ``systemd-networkd``!
 
 
