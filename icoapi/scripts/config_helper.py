@@ -49,12 +49,19 @@ class ConfigFileDescription:
 
 @dataclass
 class ConfigFileDefinition:
+    ENV: ConfigFileDescription
     METADATA: ConfigFileDescription
     SENSORS: ConfigFileDescription
     DATASPACE: ConfigFileDescription
 
 
 CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
+    ENV=ConfigFileDescription(
+        endpoint="env",
+        title="Environment Configuration",
+        description="Configuration file containing environment configurations.",
+        filename=".env"
+    ),
     METADATA = ConfigFileDescription(
         endpoint="meta",
         title="Metadata Configuration",
