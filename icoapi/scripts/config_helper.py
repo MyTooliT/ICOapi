@@ -106,6 +106,7 @@ def validate_yaml_info_header(payload: Any) -> list[str]:
         errors.append("info -> config_date: expected non-empty string")
     else:
         try:
+            assert isinstance(date, str)
             datetime.fromisoformat(date)
         except ValueError:
             errors.append("info -> date: expected date in UTC timestamp format")
