@@ -38,8 +38,8 @@ class ICOsystemSingleton:
                     await cls._instance.connect_stu()
                     await get_messenger().push_messenger_update()
                     logger.info(f"Created ICOsystem instance with ID <{id(cls._instance)}>")
-        except CANInitError:
-            logger.error("Cannot establish CAN connection")
+        except CANInitError as error:
+            logger.error(f"Cannot establish CAN connection: {error}")
 
     @classmethod
     async def get_instance(cls):
