@@ -110,7 +110,7 @@ HTTP_415_UNSUPPORTED_YAML_MEDIA_TYPE_SPEC = {
 }
 
 HTTP_422_METADATA_SCHEMA_EXCEPTION = HTTPException(
-    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
     detail="Provided YAML does not satisfy metadata schema."
 )
 HTTP_422_METADATA_SCHEMA_SPEC = {
@@ -134,7 +134,7 @@ HTTP_422_METADATA_SCHEMA_SPEC = {
 }
 
 HTTP_422_SENSORS_SCHEMA_EXCEPTION = HTTPException(
-    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
     detail="Provided YAML does not satisfy sensors schema."
 )
 HTTP_422_SENSORS_SCHEMA_SPEC = {
@@ -158,7 +158,7 @@ HTTP_422_SENSORS_SCHEMA_SPEC = {
 }
 
 HTTP_422_DATASPACE_SCHEMA_EXCEPTION = HTTPException(
-    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
     detail="Provided YAML does not satisfy sensors schema."
 )
 HTTP_422_DATASPACE_SCHEMA_SPEC = {
