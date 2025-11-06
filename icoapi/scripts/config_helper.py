@@ -76,7 +76,7 @@ CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
 )
 
 def is_valid_string(value: Any) -> bool:
-    return isinstance(value, str) and value.strip()
+    return bool(value.strip()) if isinstance(value, str) else False
 
 
 def validate_yaml_info_header(payload: Any) -> list[str]:
