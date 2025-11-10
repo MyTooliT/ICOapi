@@ -1,7 +1,10 @@
+"""Tests for misc endpoints"""
+
 # -- Tests --------------------------------------------------------------------
 
 
 class TestGeneral:
+    """General endpoint test methods"""
 
     def test_state(self, state_prefix, client) -> None:
         """Test endpoint ``/state``"""
