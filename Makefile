@@ -20,7 +20,7 @@ setup:
 .PHONY: check
 check:
 	uv run mypy .
-	uv run flake8 $(TEST_DIRECTORY)
+	uv run flake8 .
 
 .PHONY: test
 test:

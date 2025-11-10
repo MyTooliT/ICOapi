@@ -56,5 +56,23 @@ preview = true
 unstable = true
 enable-unstable-feature = ["string_processing"]
 
+[tool.flake8]
+ignore = [
+  # Whitespace before colon
+  "E203",
+  # Module level import not at top of file
+  "E402",
+  # Line too long
+  "E501",
+  # Line break before binary operator
+  "W503",
+  # Line break after binary operator
+  "W504"
+]
+per-file-ignores = "__init__.py:F401"
+exclude = [
+  ".venv",
+]
+
 [tool.mypy]
 ignore_missing_imports = true
