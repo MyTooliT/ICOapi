@@ -9,11 +9,6 @@ from icoapi.api import app
 # -- Fixtures -----------------------------------------------------------------
 
 
-@fixture(scope="session")
-def anyio_backend():
-    return "asyncio"
-
-
 @fixture
 def measurement_prefix():
     return "measurement"

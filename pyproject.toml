@@ -46,6 +46,7 @@ dev = [
 test = [
   "httpx>=0.28.1",
   "pytest",
+  "pytest-asyncio",
   "pytest-sugar>=1.1.1",
 ]
 
@@ -79,8 +80,10 @@ exclude = [
 ignore_missing_imports = true
 
 [tool.pylint]
-asyncio_mode = "auto"
 ignore-paths = [ 
   ".venv/.*$",
   "icoapi", 
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
