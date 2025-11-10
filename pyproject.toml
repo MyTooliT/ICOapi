@@ -82,7 +82,10 @@ ignore_missing_imports = true
 [tool.pylint]
 ignore-paths = [ 
   ".venv/.*$",
-  "icoapi", 
+  "icoapi/models", 
+  "icoapi/routers", 
+  "icoapi/scripts", 
+  "icoapi/utils", 
 ]
 
 [tool.pytest.ini_options]

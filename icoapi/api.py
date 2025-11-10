@@ -1,11 +1,14 @@
+"""Main entry point for API"""
+
 import os
+import logging
 import sys
+from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
 
 from icoapi.routers import (
     config_routes,
@@ -33,11 +36,10 @@ from icoapi.models.globals import (
     setup_trident,
 )
 from icoapi.utils.logging_setup import setup_logging
-import logging
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
     """
     This function handles startup and shutdown of the API.
     Anything before <yield> will be run on startup; everything after on shutdown.
@@ -46,12 +48,12 @@ async def lifespan(app: FastAPI):
     MeasurementSingleton.create_instance_if_none()
     try:
         await setup_trident()
-    except Exception as e:
-        logger.error(f"Error when setting up Trident: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("Error when setting up Trident: %s", e)
     try:
         await ICOsystemSingleton.create_instance_if_none()
-    except Exception as e:
-        logger.error(f"Error when initializing CAN connection: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("Error when initializing CAN connection: %s", e)
     yield
     MeasurementSingleton.clear_clients()
     await ICOsystemSingleton.close_instance()
@@ -71,7 +73,7 @@ app.include_router(prefix="/api/v1", router=config_routes.router)
 
 logger = logging.getLogger(__name__)
 origins = getenv("VITE_API_ORIGINS", "").split(",")
-logger.info(f"Accepted origins for CORS: {origins}")
+logger.info("Accepted origins for CORS: %s", origins)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -83,7 +85,9 @@ app.add_middleware(
 
 
 def main():
-    import uvicorn
+    """API entry point"""
+
+    import uvicorn  # pylint: disable=import-outside-toplevel
 
     load_env_file()
     setup_logging()
@@ -93,7 +97,9 @@ def main():
     ensure_folder_exists(get_config_dir())
 
     if is_bundled():
-        config_src = os.path.join(sys._MEIPASS, "config")
+        config_src = os.path.join(
+            sys._MEIPASS, "config"  # pylint: disable=protected-access
+        )
     else:
         config_src = Path(__file__).parent / "config"
     copy_config_files_if_not_exists(
@@ -101,10 +107,10 @@ def main():
         get_config_dir()
     )
 
-    PORT = int(getenv("VITE_API_PORT", 33215))
-    HOST = getenv("VITE_API_HOSTNAME", "0.0.0.0")
+    port = int(getenv("VITE_API_PORT", "33215"))
+    host = getenv("VITE_API_HOSTNAME", "0.0.0.0")
 
-    uvicorn.run("icoapi.api:app", host=HOST, port=PORT, log_config=None)
+    uvicorn.run("icoapi.api:app", host=host, port=port, log_config=None)
 
 
 if __name__ == "__main__":
