@@ -1,7 +1,10 @@
+"""Tests for measurement endpoint"""
+
 # -- Classes ------------------------------------------------------------------
 
 
 class TestMeasurement:
+    """Measurement endpoint test methods"""
 
     def test_root(self, measurement_prefix, client) -> None:
         """Test endpoint ``/``"""
@@ -64,7 +67,9 @@ class TestMeasurement:
             }]
         }
 
-    def test_stream(self, measurement, measurement_prefix, client) -> None:
+    def test_stream(
+        self, measurement, measurement_prefix, client  # pylint: disable=unused-argument
+    ) -> None:
         """Check WebSocket streaming data"""
 
         measurement_status = str(measurement_prefix)
