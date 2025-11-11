@@ -1,11 +1,14 @@
+"""Routes for logging functionality"""
+
 import io
+import logging
 import os
 import re
 import zipfile
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from starlette.responses import Response, StreamingResponse
-import logging
+
 from icoapi.models.models import LogFileMeta, LogListResponse, LogResponse
 from icoapi.utils.logging_setup import (
     log_watchers,
@@ -23,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 @router.get("", response_model=LogListResponse)
 def list_logs():
+    """List log files"""
+
     base_dir = os.path.dirname(LOG_PATH)
     log_files = [f for f in os.listdir(base_dir) if f.startswith(LOG_NAME)]
 
@@ -33,7 +38,7 @@ def list_logs():
             with open(path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
             first_ts, last_ts = parse_timestamps(lines)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             first_ts = last_ts = None
 
         try:
@@ -48,7 +53,8 @@ def list_logs():
                 )
             )
         except FileNotFoundError:
-            # This only happens when you change the files manually; and as soon as the logs fill back up it is gone
+            # This only happens when you change the files manually; and as soon
+            # as the logs fill back up it is gone
             pass
 
     return LogListResponse(
@@ -61,6 +67,8 @@ def list_logs():
 
 @router.get("/view", response_model=LogResponse)
 def view_log_file(file: str = Query(...), limit: int = Query(0)):
+    """View log file"""
+
     base_dir = os.path.dirname(LOG_PATH)
     safe_base = os.path.abspath(base_dir)
     requested_path = os.path.abspath(os.path.join(base_dir, file))
@@ -75,24 +83,26 @@ def view_log_file(file: str = Query(...), limit: int = Query(0)):
         with open(requested_path, "r", encoding="utf-8", errors="ignore") as f:
             if limit > 0:
                 # Efficient line-limiting (no storing the whole file)
-                from collections import deque
+                from collections import deque  # pylint: disable=import-outside-toplevel
 
                 lines = deque(f, maxlen=limit)
                 content = "".join(lines)
             else:
                 content = f.read()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading log file: {e}")
+        raise HTTPException(status_code=500, detail=f"Error reading log file: {e}") from e
 
     return LogResponse(filename=file, content=content)
 
 
 @router.get("/download/{file}")
 def download_log_file(file: str):
+    """Download log file"""
+
     base_dir = os.path.dirname(LOG_PATH)
     safe_base = os.path.abspath(base_dir)
 
-    logger.info(f"Downloading log file: {file}")
+    logger.info("Downloading log file: %s", file)
 
     requested_path = os.path.abspath(os.path.join(base_dir, file))
 
@@ -106,7 +116,7 @@ def download_log_file(file: str):
         with open(requested_path, "rb") as f:
             content = f.read()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading log file: {e}")
+        raise HTTPException(status_code=500, detail=f"Error reading log file: {e}") from e
 
     return Response(
         content=content,
@@ -117,9 +127,11 @@ def download_log_file(file: str):
 
 @router.get("/all", response_class=StreamingResponse)
 async def download_logs_zip():
+    """Download log files as zipped file"""
+
     base_dir = os.path.dirname(LOG_PATH)
-    LOG_FILE_PATTERN = re.compile(r".*\.log(\.\d+)?$")
-    log_files = [f for f in os.listdir(base_dir) if LOG_FILE_PATTERN.fullmatch(f)]
+    log_file_pattern = re.compile(r".*\.log(\.\d+)?$")
+    log_files = [f for f in os.listdir(base_dir) if log_file_pattern.fullmatch(f)]
     if not log_files:
         raise HTTPException(status_code=404, detail="No log files found.")
 
@@ -141,6 +153,8 @@ async def download_logs_zip():
 
 @router.websocket("/stream")
 async def websocket_logs(websocket: WebSocket):
+    """WebSocket for logging data"""
+
     await websocket.accept()
     log_watchers.append(websocket)
     try:
