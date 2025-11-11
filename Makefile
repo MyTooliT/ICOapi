@@ -30,7 +30,7 @@ test:
 .PHONY: run
 run:
 	uv run python $(MODULE)/api.py
-	
+
 .PHONY: reset
 reset:
 	http PUT $(HTTP_URL)/stu/reset
@@ -38,15 +38,15 @@ reset:
 .PHONY: connect
 connect:
 	http PUT $(HTTP_URL)/sth/connect mac_address=$(MAC_ADDRESS)
-	
+
 .PHONY: disconnect
 disconnect:
 	http PUT $(HTTP_URL)/sth/disconnect
-	
+
 .PHONY: sensor
 sensor:
 	http GET $(HTTP_URL)/sensor
-	
+
 .PHONY: start-measurement
 start-measurement:
 	http POST $(HTTP_URL)/measurement/start \
@@ -69,15 +69,15 @@ start-measurement:
 	  meta[version]="" \
 	  meta[profile]="" \
 	  meta[parameters]:=\{\}
-	  
+
 .PHONY: measurement-status
 status:
 	http GET "$(HTTP_URL)/measurement"
-	
+
 .PHONY: stream
 stream:
 	http $(WS_URL)/measurement/stream
-	  
+
 .PHONY: stop-measurement
 stop-measurement:
 	http POST $(HTTP_URL)/measurement/stop
