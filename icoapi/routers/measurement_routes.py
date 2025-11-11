@@ -107,8 +107,7 @@ async def websocket_endpoint(
     await websocket.accept()
     measurement_state.clients.append(websocket)
     logger.info(
-        f"Client connected to measurement stream - now {len(measurement_state.clients)}"
-        " clients"
+        f"Client connected to measurement stream - now {len(measurement_state.clients)} clients"
     )
 
     try:
@@ -124,6 +123,5 @@ async def websocket_endpoint(
             )
         except ValueError:
             logger.debug(
-                "Client was already disconnected - still"
-                f" {len(measurement_state.clients)} clients"
+                f"Client was already disconnected - still {len(measurement_state.clients)} clients"
             )

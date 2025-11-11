@@ -1,3 +1,5 @@
+"""Routes for configuration data"""
+
 from dataclasses import fields
 from datetime import datetime
 from pathlib import Path
@@ -62,10 +64,7 @@ logger = logging.getLogger(__name__)
 
 
 async def validate_and_parse_yaml_file(file: UploadFile) -> tuple[Any, bytes]:
-    if (
-        file.content_type
-        and file.content_type.lower() not in ALLOWED_YAML_CONTENT_TYPES
-    ):
+    if file.content_type and file.content_type.lower() not in ALLOWED_YAML_CONTENT_TYPES:
         raise HTTP_415_UNSUPPORTED_YAML_MEDIA_TYPE_EXCEPTION
 
     raw_content = await file.read()
@@ -157,9 +156,7 @@ async def upload_metadata_file(
 
     if errors:
         logger.error(f"Metadata YAML validation failed: {errors}")
-        error_detail = (
-            f"{HTTP_422_METADATA_SCHEMA_EXCEPTION.detail} Errors: {'; '.join(errors)}"
-        )
+        error_detail = f"{HTTP_422_METADATA_SCHEMA_EXCEPTION.detail} Errors: {'; '.join(errors)}"
         raise HTTPException(
             status_code=HTTP_422_METADATA_SCHEMA_EXCEPTION.status_code,
             detail=error_detail,
@@ -179,9 +176,7 @@ async def upload_metadata_file(
     },
 )
 async def get_sensors_file(config_dir: str = Depends(get_config_dir)) -> FileResponse:
-    return file_response(
-        config_dir, CONFIG_FILE_DEFINITIONS.SENSORS.filename, "application/x-yaml"
-    )
+    return file_response(config_dir, CONFIG_FILE_DEFINITIONS.SENSORS.filename, "application/x-yaml")
 
 
 @router.post(
@@ -208,9 +203,7 @@ async def upload_sensors_file(
 
     if errors:
         logger.error(f"Sensors YAML validation failed: {errors}")
-        error_detail = (
-            f"{HTTP_422_SENSORS_SCHEMA_EXCEPTION.detail} Errors: {'; '.join(errors)}"
-        )
+        error_detail = f"{HTTP_422_SENSORS_SCHEMA_EXCEPTION.detail} Errors: {'; '.join(errors)}"
         raise HTTPException(
             status_code=HTTP_422_SENSORS_SCHEMA_EXCEPTION.status_code,
             detail=error_detail,
@@ -246,9 +239,7 @@ async def upload_dataspace_file(
 
     if errors:
         logger.error(f"Dataspace YAML validation failed: {errors}")
-        error_detail = (
-            f"{HTTP_422_DATASPACE_SCHEMA_EXCEPTION.detail} Errors: {'; '.join(errors)}"
-        )
+        error_detail = f"{HTTP_422_DATASPACE_SCHEMA_EXCEPTION.detail} Errors: {'; '.join(errors)}"
         raise HTTPException(
             status_code=HTTP_422_DATASPACE_SCHEMA_EXCEPTION.status_code,
             detail=error_detail,
@@ -354,9 +345,7 @@ async def restore_config_file(
 ):
     config_lookup = [d.filename for d in vars(CONFIG_FILE_DEFINITIONS).values()]
     if payload.filename not in config_lookup:
-        logger.error(
-            f"Restore requested for unknown configuration file: {payload.filename}"
-        )
+        logger.error(f"Restore requested for unknown configuration file: {payload.filename}")
         raise HTTP_400_INVALID_CONFIG_RESTORE_EXCEPTION
 
     backup_dir = Path(config_dir) / CONFIG_BACKUP_DIRNAME
@@ -368,8 +357,7 @@ async def restore_config_file(
 
     if not is_backup_file_for(payload.filename, payload.backup_filename):
         logger.error(
-            f"Backup {payload.backup_filename} does not match configuration"
-            f" {payload.filename}"
+            f"Backup {payload.backup_filename} does not match configuration {payload.filename}"
         )
         raise HTTP_400_INVALID_CONFIG_RESTORE_EXCEPTION
 

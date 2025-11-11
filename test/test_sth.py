@@ -39,9 +39,7 @@ class TestSTH:
         node = test_sensor_node
 
         mac_address = node["mac_address"]
-        response = client.put(
-            f"{sth_prefix}/connect", json={"mac_address": mac_address}
-        )
+        response = client.put(f"{sth_prefix}/connect", json={"mac_address": mac_address})
         assert response.status_code == 200
         assert response.json() is None
 
@@ -51,9 +49,7 @@ class TestSTH:
         # = Test Error Response =
         # =======================
 
-        response = client.put(
-            f"{sth_prefix}/connect", json={"mac_address": "01-02-03-04-05-06"}
-        )
+        response = client.put(f"{sth_prefix}/connect", json={"mac_address": "01-02-03-04-05-06"})
 
         assert response.status_code == 404
 

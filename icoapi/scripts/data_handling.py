@@ -205,9 +205,7 @@ def read_and_parse_sensor_data(
                 for ch_num, ch_entry in cfg.get("channels", {}).items():
                     sid = ch_entry.get("sensor_id")
                     if sid not in sensor_map:
-                        raise ValueError(
-                            f"Channel {ch_num} references unknown sensor_id '{sid}'"
-                        )
+                        raise ValueError(f"Channel {ch_num} references unknown sensor_id '{sid}'")
                     chan_map[int(ch_num)] = sensor_map[sid]
                 configs.append(
                     PCBSensorConfiguration(
@@ -287,9 +285,7 @@ def get_sensor_for_channel(
         if sensor:
             return sensor
         else:
-            logger.error(
-                f"Could not find sensor with ID {channel_instruction.sensor_id}."
-            )
+            logger.error(f"Could not find sensor with ID {channel_instruction.sensor_id}.")
 
     logger.info(
         "No sensor ID requested or not found for channel"

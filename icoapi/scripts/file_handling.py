@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 def load_env_file():
     # First try: local development
     env_loaded = load_dotenv(
-        os.path.join(
-            os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "config", ".env"
-        ),
+        os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "config", ".env"),
         verbose=True,
     )
     if not env_loaded:
@@ -37,9 +35,7 @@ def load_env_file():
             "Environment variables not found in local directory. Trying to load from"
             f" app data: {bundle_dir}"
         )
-        env_loaded = load_dotenv(
-            os.path.join(bundle_dir, "config", ".env"), verbose=True
-        )
+        env_loaded = load_dotenv(os.path.join(bundle_dir, "config", ".env"), verbose=True)
     if not env_loaded:
         logger.critical("Environment variables not found")
         raise EnvironmentError(".env not found")

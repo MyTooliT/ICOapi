@@ -18,9 +18,7 @@ HTTP_404_STH_UNREACHABLE_SPEC = {
                 "required": ["detail", "status_code"],
             },
             "example": {
-                "detail": (
-                    "STH could not be connected and must be out of reach or discharged."
-                ),
+                "detail": "STH could not be connected and must be out of reach or discharged.",
                 "status_code": 404,
             },
         }

@@ -49,9 +49,7 @@ async def stu_reset(
     responses={
         200: {
             "description": "Returns true if the STU is connected, false otherwise.",
-            "content": {
-                "application/json": {"schema": {"type": "boolean"}, "example": True}
-            },
+            "content": {"application/json": {"schema": {"type": "boolean"}, "example": True}},
         },
         502: HTTP_502_CAN_NO_RESPONSE_SPEC,
     },

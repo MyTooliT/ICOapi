@@ -75,9 +75,7 @@ def setup_logging() -> None:
     root_logger.setLevel(LOG_LEVEL)
 
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s")
-    console_formatter = logging.Formatter(
-        "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
-    )
+    console_formatter = logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s")
 
     if LOG_USE_JSON:
         formatter = JSONFormatter()

@@ -46,9 +46,7 @@ router = APIRouter(
                             "properties": {
                                 "name": {
                                     "type": "string",
-                                    "description": (
-                                        "The (Bluetooth advertisement) name of the STH"
-                                    ),
+                                    "description": "The (Bluetooth advertisement) name of the STH",
                                 },
                                 "device_number": {
                                     "type": "integer",
@@ -56,9 +54,7 @@ router = APIRouter(
                                 },
                                 "mac_address": {
                                     "type": "string",
-                                    "description": (
-                                        "The (Bluetooth) MAC address of the STH"
-                                    ),
+                                    "description": "The (Bluetooth) MAC address of the STH",
                                 },
                                 "rssi": {
                                     "type": "integer",
@@ -150,9 +146,7 @@ async def sth_rename(
     device_info: STHRenameRequestModel, system: ICOsystem = Depends(get_system)
 ) -> STHRenameResponseModel:
     try:
-        return await rename_sth_device(
-            system, device_info.mac_address, device_info.new_name
-        )
+        return await rename_sth_device(system, device_info.mac_address, device_info.new_name)
     except TimeoutError:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION
     except NoResponseError:

@@ -5,9 +5,7 @@ from icoapi.models.models import STUDeviceResponseModel
 
 async def get_stu(system: ICOsystem) -> list[STUDeviceResponseModel]:
     mac_eui = await system.stu.get_mac_address()
-    dev = STUDeviceResponseModel(
-        device_number=1, mac_address=mac_eui.format(), name="STU 1"
-    )
+    dev = STUDeviceResponseModel(device_number=1, mac_address=mac_eui.format(), name="STU 1")
 
     return [dev]
 

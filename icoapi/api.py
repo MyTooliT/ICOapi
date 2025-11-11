@@ -97,9 +97,7 @@ def main():
     ensure_folder_exists(get_config_dir())
 
     if is_bundled():
-        config_src = os.path.join(
-            sys._MEIPASS, "config"  # pylint: disable=protected-access
-        )
+        config_src = os.path.join(sys._MEIPASS, "config")  # pylint: disable=protected-access
     else:
         config_src = Path(__file__).parent / "config"
     copy_config_files_if_not_exists(

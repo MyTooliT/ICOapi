@@ -67,8 +67,7 @@ CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
         endpoint="meta",
         title="Metadata Configuration",
         description=(
-            "Configuration file containing your pre- and post-measurement metadata"
-            " profiles."
+            "Configuration file containing your pre- and post-measurement metadata profiles."
         ),
         filename="metadata.yaml",
     ),
@@ -76,17 +75,14 @@ CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
         endpoint="sensors",
         title="Sensor Configuration",
         description=(
-            "Configuration file containing sensor definitions and tool holder"
-            " configurations."
+            "Configuration file containing sensor definitions and tool holder configurations."
         ),
         filename="sensors.yaml",
     ),
     DATASPACE=ConfigFileDescription(
         endpoint="dataspace",
         title="Data Space Configuration",
-        description=(
-            "Configuration file containing your data space connection settings."
-        ),
+        description="Configuration file containing your data space connection settings.",
         filename="dataspace.yaml",
     ),
 )
@@ -169,9 +165,7 @@ def validate_profile(profile_key: str, profile_value: dict) -> list[str]:
             if not isinstance(section, dict):
                 errors.append(f"{path_prefix} -> {stage}: expected mapping of sections")
             else:
-                validate_sections(
-                    section, ["profiles", str(profile_key), stage], errors
-                )
+                validate_sections(section, ["profiles", str(profile_key), stage], errors)
 
     return errors
 
@@ -200,9 +194,7 @@ def is_field_definition(value: dict[str, Any]) -> bool:
     return FIELD_DEFINITION_REQUIRED_KEYS.issubset(value.keys())
 
 
-def validate_field_definition(
-    field: dict[str, Any], path: list[str], errors: list[str]
-) -> None:
+def validate_field_definition(field: dict[str, Any], path: list[str], errors: list[str]) -> None:
     for key in FIELD_DEFINITION_REQUIRED_KEYS:
         field_value = field.get(key)
         if not isinstance(field_value, str) or not field_value.strip():
@@ -227,24 +219,19 @@ def validate_sensors_payload(payload: Any) -> list[str]:
     else:
         for index, sensor in enumerate(sensors):
             if not isinstance(sensor, dict):
-                errors.append(
-                    f"sensors[{index}]: expected mapping with sensor definition"
-                )
+                errors.append(f"sensors[{index}]: expected mapping with sensor definition")
                 continue
 
             for field in SENSOR_REQUIRED_FIELDS:
                 value = sensor.get(field)
                 if value is None or (isinstance(value, str) and not value.strip()):
-                    errors.append(
-                        f"sensors[{index}] -> {field}: expected non-empty value"
-                    )
+                    errors.append(f"sensors[{index}] -> {field}: expected non-empty value")
 
             sensor_id = sensor.get("sensor_id")
             if isinstance(sensor_id, str):
                 if sensor_id in sensor_ids:
                     errors.append(
-                        f"sensors[{index}] -> sensor_id: duplicate sensor_id"
-                        f" '{sensor_id}'"
+                        f"sensors[{index}] -> sensor_id: duplicate sensor_id '{sensor_id}'"
                     )
                 else:
                     sensor_ids.add(sensor_id)
@@ -254,15 +241,11 @@ def validate_sensors_payload(payload: Any) -> list[str]:
             for numeric_field in ("phys_min", "phys_max", "volt_min", "volt_max"):
                 value = sensor.get(numeric_field)
                 if not isinstance(value, numbers.Real):
-                    errors.append(
-                        f"sensors[{index}] -> {numeric_field}: expected numeric value"
-                    )
+                    errors.append(f"sensors[{index}] -> {numeric_field}: expected numeric value")
 
             sensor_type = sensor.get("sensor_type")
             if sensor_type is not None and not isinstance(sensor_type, str):
-                errors.append(
-                    f"sensors[{index}] -> sensor_type: expected string when provided"
-                )
+                errors.append(f"sensors[{index}] -> sensor_type: expected string when provided")
 
     configs = payload.get("sensor_configurations")
     if configs is not None:
@@ -271,9 +254,7 @@ def validate_sensors_payload(payload: Any) -> list[str]:
         else:
             for cfg_index, config in enumerate(configs):
                 if not isinstance(config, dict):
-                    errors.append(
-                        f"sensor_configurations[{cfg_index}]: expected mapping"
-                    )
+                    errors.append(f"sensor_configurations[{cfg_index}]: expected mapping")
                     continue
 
                 for key in ("configuration_id", "configuration_name"):

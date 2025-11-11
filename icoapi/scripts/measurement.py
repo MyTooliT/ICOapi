@@ -56,19 +56,13 @@ async def setup_adc(system: ICOsystem, instructions: MeasurementInstructions) ->
     adc_config = ADCConfiguration(
         prescaler=instructions.adc.prescaler if instructions.adc.prescaler else 2,
         acquisition_time=(
-            instructions.adc.acquisition_time
-            if instructions.adc.acquisition_time
-            else 8
+            instructions.adc.acquisition_time if instructions.adc.acquisition_time else 8
         ),
         oversampling_rate=(
-            instructions.adc.oversampling_rate
-            if instructions.adc.oversampling_rate
-            else 64
+            instructions.adc.oversampling_rate if instructions.adc.oversampling_rate else 64
         ),
         reference_voltage=(
-            instructions.adc.reference_voltage
-            if instructions.adc.reference_voltage
-            else 3.3
+            instructions.adc.reference_voltage if instructions.adc.reference_voltage else 3.3
         ),
     )
 
@@ -111,16 +105,12 @@ def get_measurement_indices(
     """
     first_index = 0
     second_index = 1 if streaming_configuration.first else 0
-    third_index = (
-        (second_index + 1) if streaming_configuration.second else (first_index + 1)
-    )
+    third_index = (second_index + 1) if streaming_configuration.second else (first_index + 1)
 
     return [first_index, second_index, third_index]
 
 
-def create_objects(
-    timestamps: list[float], ift_vals: list[float]
-) -> list[dict[str, float]]:
+def create_objects(timestamps: list[float], ift_vals: list[float]) -> list[dict[str, float]]:
     """
     Assembles the ift values and timestamps into a list of objects.
     :param timestamps: List of timestamps
@@ -161,9 +151,7 @@ async def send_ift_values(
     instructions: MeasurementInstructions,
     measurement_state: MeasurementState,
 ) -> None:
-    logger.debug(
-        f"IFT value computation requested for channel: <{instructions.ift_channel}>"
-    )
+    logger.debug(f"IFT value computation requested for channel: <{instructions.ift_channel}>")
 
     assert isinstance(instructions.adc, ADCValues)
     assert isinstance(instructions.adc.prescaler, int)
@@ -174,19 +162,13 @@ async def send_ift_values(
     freq = ADCConfiguration(
         prescaler=instructions.adc.prescaler if instructions.adc.prescaler else 2,
         acquisition_time=(
-            instructions.adc.acquisition_time
-            if instructions.adc.acquisition_time
-            else 8
+            instructions.adc.acquisition_time if instructions.adc.acquisition_time else 8
         ),
         oversampling_rate=(
-            instructions.adc.oversampling_rate
-            if instructions.adc.oversampling_rate
-            else 64
+            instructions.adc.oversampling_rate if instructions.adc.oversampling_rate else 64
         ),
         reference_voltage=(
-            instructions.adc.reference_voltage
-            if instructions.adc.reference_voltage
-            else 3.3
+            instructions.adc.reference_voltage if instructions.adc.reference_voltage else 3.3
         ),
     ).sample_rate()
 
@@ -221,9 +203,7 @@ async def send_ift_values(
             logger.warning("Client must be disconnected, passing")
 
 
-def write_metadata(
-    prefix: MetadataPrefix, metadata: Metadata, storage: StorageData
-) -> None:
+def write_metadata(prefix: MetadataPrefix, metadata: Metadata, storage: StorageData) -> None:
     picture_parameters = find_picture_parameters(metadata)
     if picture_parameters and len(picture_parameters) > 0:
         write_and_remove_picture_metadata(prefix, picture_parameters, metadata, storage)
@@ -258,28 +238,21 @@ def write_and_remove_picture_metadata(
 
         try:
             write_image_array(storage, f"{prefix}__{param}", nd_array, True)
-            logger.info(
-                f"Added {len(nd_array)} picture(s) for parameter {param} to storage"
-            )
+            logger.info(f"Added {len(nd_array)} picture(s) for parameter {param} to storage")
             del meta.parameters[param]
         except ValueError:
             logger.warning(f"Could not add pictures for parameter {param} to storage")
         except tables.exceptions.NodeError:
             storage.hdf.remove_node("/", f"{prefix}__{param}", recursive=True)
             logger.info(
-                f"Removed {param} image array from storage root node as it is being"
-                " overwritten."
+                f"Removed {param} image array from storage root node as it is being overwritten."
             )
             write_image_array(storage, f"{prefix}__{param}", nd_array, True)
-            logger.info(
-                f"Added {len(nd_array)} picture(s) for parameter {param} to storage"
-            )
+            logger.info(f"Added {len(nd_array)} picture(s) for parameter {param} to storage")
             del meta.parameters[param]
 
 
-def write_image_array(
-    storage: StorageData, name: str, array: np.ndarray, overwrite: bool
-):
+def write_image_array(storage: StorageData, name: str, array: np.ndarray, overwrite: bool):
     try:
         storage.hdf.create_array(storage.hdf.root, name, array)
     except tables.exceptions.NodeError:
@@ -375,23 +348,17 @@ async def run_measurement(
 
     # NOTE: The array data.values only contains the activated channels. This means we need to compute the
     #       index at which each channel is located. This may not be pretty, but it works.
-    [first_index, second_index, third_index] = get_measurement_indices(
-        streaming_configuration
-    )
+    [first_index, second_index, third_index] = get_measurement_indices(streaming_configuration)
 
     timestamps: list[float] = []
     ift_relevant_channel: list[float] = []
     ift_sent: bool = False
     start_time: float = 0
-    measurement_file_path = Path(
-        f"{get_measurement_dir()}/{measurement_state.name}.hdf5"
-    )
+    measurement_file_path = Path(f"{get_measurement_dir()}/{measurement_state.name}.hdf5")
     try:
         with Storage(measurement_file_path, streaming_configuration) as storage:
 
-            logger.info(
-                f"Opened measurement file: <{measurement_file_path}> for writing"
-            )
+            logger.info(f"Opened measurement file: <{measurement_file_path}> for writing")
 
             storage["conversion"] = "true"
             assert isinstance(instructions.adc, ADCValues)
@@ -401,9 +368,7 @@ async def run_measurement(
             if instructions.meta:
                 write_metadata(MetadataPrefix.PRE, instructions.meta, storage)
 
-            async with system.sensor_node.open_data_stream(
-                streaming_configuration
-            ) as stream:
+            async with system.sensor_node.open_data_stream(streaming_configuration) as stream:
 
                 logger.info(f"Opened measurement stream: <{measurement_file_path}>")
 
@@ -423,29 +388,20 @@ async def run_measurement(
                 )
 
                 if streaming_configuration.first:
-                    if (
-                        not streaming_configuration.second
-                        and not streaming_configuration.third
-                    ):
+                    if not streaming_configuration.second and not streaming_configuration.third:
                         logger.info(
                             "Running in single channel mode with sensor"
                             f" {sensor_configuration.first}."
                         )
 
-                    elif (
-                        streaming_configuration.second
-                        and not streaming_configuration.third
-                    ):
+                    elif streaming_configuration.second and not streaming_configuration.third:
                         logger.info(
                             "Running in dual channel mode with channels 1 (Sensor"
                             f" {sensor_configuration.first}) and 2 (Sensor"
                             f" {sensor_configuration.second})."
                         )
 
-                    elif (
-                        not streaming_configuration.second
-                        and streaming_configuration.third
-                    ):
+                    elif not streaming_configuration.second and streaming_configuration.third:
                         logger.info(
                             "Running in dual channel mode with channels 1 (Sensor"
                             f" {sensor_configuration.first}) and 3 (Sensor"
@@ -485,16 +441,12 @@ async def run_measurement(
                     )
                     storage.add_streaming_data(data)
 
-                    if counter >= (
-                        sample_rate // int(os.getenv("WEBSOCKET_UPDATE_RATE", 60))
-                    ):
+                    if counter >= (sample_rate // int(os.getenv("WEBSOCKET_UPDATE_RATE", 60))):
                         for client in measurement_state.clients:
                             try:
                                 await client.send_json(data_collected_for_send)
                             except RuntimeError:
-                                logger.warning(
-                                    f"Failed to send data to client <{client.client}>"
-                                )
+                                logger.warning(f"Failed to send data to client <{client.client}>")
                         data_collected_for_send.clear()
                         counter = 0
                     else:
@@ -553,16 +505,12 @@ async def run_measurement(
                     await asyncio.sleep(1)
                 logger.info("Received post-measurement metadata")
                 await general_messenger.send_post_meta_completed()
-                write_metadata(
-                    MetadataPrefix.POST, measurement_state.post_meta, storage
-                )
+                write_metadata(MetadataPrefix.POST, measurement_state.post_meta, storage)
 
     except StreamingTimeoutError as e:
         logger.debug("Stream timeout error")
         for client in measurement_state.clients:
-            await client.send_json(
-                {"error": True, "type": type(e).__name__, "message": str(e)}
-            )
+            await client.send_json({"error": True, "type": type(e).__name__, "message": str(e)})
         measurement_state.clients.clear()
     except asyncio.CancelledError as e:
         logger.debug(
@@ -570,9 +518,7 @@ async def run_measurement(
             f" already sent: <{ift_sent}>"
         )
         if instructions.ift_requested and not ift_sent:
-            await send_ift_values(
-                timestamps, ift_relevant_channel, instructions, measurement_state
-            )
+            await send_ift_values(timestamps, ift_relevant_channel, instructions, measurement_state)
         raise asyncio.CancelledError from e
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")

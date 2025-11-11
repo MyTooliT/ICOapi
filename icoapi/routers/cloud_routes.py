@@ -26,9 +26,7 @@ async def upload_file(
     """Upload file to cloud storage"""
 
     if client is None:
-        logger.warning(
-            "Tried to upload file to cloud, but no cloud connection is available."
-        )
+        logger.warning("Tried to upload file to cloud, but no cloud connection is available.")
     else:
         try:
             client.upload_file(os.path.join(measurement_dir, filename), filename)
@@ -42,9 +40,7 @@ async def authenticate(storage: Annotated[StorageClient, Depends(get_trident_cli
     """Authenticate to cloud storage"""
 
     if storage is None:
-        logger.warning(
-            "Tried to authenticate to cloud, but no cloud connection is available."
-        )
+        logger.warning("Tried to authenticate to cloud, but no cloud connection is available.")
         await setup_trident()
     else:
         storage.revoke_auth()
@@ -70,9 +66,7 @@ async def get_cloud_files(
     """Get files from cloud"""
 
     if storage is None:
-        logger.warning(
-            "Tried to authenticate to cloud, but no cloud connection is available."
-        )
+        logger.warning("Tried to authenticate to cloud, but no cloud connection is available.")
         await setup_trident()
         return []
 
