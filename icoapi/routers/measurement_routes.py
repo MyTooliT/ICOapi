@@ -1,3 +1,5 @@
+"""Routes for measurement data"""
+
 import asyncio
 import datetime
 import logging
@@ -33,6 +35,8 @@ async def start_measurement(
     measurement_state: MeasurementState = Depends(get_measurement_state),
     general_messenger=Depends(get_messenger),
 ):
+    """Start measurement"""
+
     message: str = "Measurement is already running."
     measurement_state.stop_flag = False
 
@@ -58,8 +62,8 @@ async def start_measurement(
         measurement_state.start_time = start.isoformat()
         try:
             measurement_state.tool_name = await system.sensor_node.get_name()
-            logger.debug(f"Tool found - name: {measurement_state.tool_name}")
-        except Exception:
+            logger.debug("Tool found - name: %s", measurement_state.tool_name)
+        except Exception:  # pylint: disable=broad-exception-caught
             measurement_state.tool_name = "noname"
             logger.error("Tool not found!")
         measurement_state.instructions = instructions
@@ -67,8 +71,9 @@ async def start_measurement(
             run_measurement(system, instructions, measurement_state, general_messenger)
         )
         logger.info(
-            f"Created measurement task with tool <{measurement_state.tool_name}> and"
-            f" timeout of {instructions.time}"
+            "Created measurement task with tool <%s> and timeout of %s",
+            measurement_state.tool_name,
+            instructions.time,
         )
 
         message = "Measurement started successfully."
@@ -80,6 +85,8 @@ async def start_measurement(
 async def stop_measurement(
     measurement_state: MeasurementState = Depends(get_measurement_state),
 ):
+    """Stop measurement"""
+
     logger.info("Received stop request.")
     measurement_state.stop_flag = True
 
@@ -88,6 +95,8 @@ async def stop_measurement(
 async def post_meta(
     meta: Metadata, measurement_state: MeasurementState = Depends(get_measurement_state)
 ):
+    """Set post-measurement metadata"""
+
     measurement_state.post_meta = meta
     logger.info("Received and set post metadata")
 
@@ -96,6 +105,7 @@ async def post_meta(
 async def measurement_status(
     measurement_state: MeasurementState = Depends(get_measurement_state),
 ):
+    """Get measurement status"""
     return measurement_state.get_status()
 
 
@@ -104,10 +114,12 @@ async def websocket_endpoint(
     websocket: WebSocket,
     measurement_state: MeasurementState = Depends(get_measurement_state),
 ):
+    """Stream measurement data"""
+
     await websocket.accept()
     measurement_state.clients.append(websocket)
     logger.info(
-        f"Client connected to measurement stream - now {len(measurement_state.clients)} clients"
+        "Client connected to measurement stream - now %s clients", len(measurement_state.clients)
     )
 
     try:
@@ -118,10 +130,11 @@ async def websocket_endpoint(
         try:
             measurement_state.clients.remove(websocket)
             logger.info(
-                "Client disconnected from measurement stream - now"
-                f" {len(measurement_state.clients)} clients"
+                "Client disconnected from measurement stream - now %s clients",
+                len(measurement_state.clients),
             )
         except ValueError:
             logger.debug(
-                f"Client was already disconnected - still {len(measurement_state.clients)} clients"
+                "Client was already disconnected - still %s clients",
+                len(measurement_state.clients),
             )
