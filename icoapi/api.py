@@ -75,7 +75,7 @@ def main():
     if is_bundled():
         config_src = os.path.join(sys._MEIPASS, "config")
     else:
-        config_src = Path(__file__).parent.parent / "config"
+        config_src = Path(__file__).parent / "config"
     copy_config_files_if_not_exists(
         config_src,
         get_config_dir()
