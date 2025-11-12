@@ -84,7 +84,6 @@ ignore_missing_imports = true
 ignore-paths = [
   ".venv/.*$",
   "icoapi/models/trident",
-  "icoapi/scripts/errors.py",
   "icoapi/scripts/file_handling.py",
   "icoapi/scripts/measurement.py",
   "icoapi/scripts/sth_scripts.py",

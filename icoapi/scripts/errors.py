@@ -1,3 +1,5 @@
+"""HTTP error codes"""
+
 from fastapi import HTTPException
 from starlette import status
 
