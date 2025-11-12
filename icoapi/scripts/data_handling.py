@@ -1,9 +1,13 @@
+"""Code for handling sensor data"""
+
+import logging
 import os
 from os import PathLike, path
 from typing import List, Optional
 import yaml
-from icotronic.measurement import StorageData
+
 from tables import Float32Col, IsDescription, StringCol
+from icotronic.measurement import StorageData
 
 from icoapi.models.models import (
     MeasurementInstructionChannel,
@@ -12,8 +16,6 @@ from icoapi.models.models import (
     PCBSensorConfiguration,
     TridentConfig,
 )
-import logging
-
 from icoapi.models.models import ADCValues
 from icoapi.scripts.config_helper import validate_dataspace_payload
 from icoapi.scripts.file_handling import ensure_folder_exists, get_sensors_file_path
@@ -22,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_sensor_defaults() -> list[Sensor]:
+    """Get list of default sensors"""
+
     return [
         Sensor(
             name="Acceleration 100g",
@@ -137,6 +141,8 @@ def get_sensor_defaults() -> list[Sensor]:
 
 
 def get_sensor_configuration_defaults() -> list[dict]:
+    """Get sensor channel default mapping"""
+
     return [{
         "configuration_id": "default",
         "configuration_name": "Default",
@@ -161,6 +167,8 @@ def get_voltage_from_raw(v_ref: float) -> float:
 
 
 def get_sensors() -> list[Sensor]:
+    """Get sensor default configuration"""
+
     file_path = get_sensors_file_path()
     try:
         sensors, _, _ = read_and_parse_sensor_data(file_path)
@@ -175,12 +183,14 @@ def get_sensors() -> list[Sensor]:
 def read_and_parse_sensor_data(
     file_path: str | PathLike,
 ) -> tuple[list[Sensor], list[PCBSensorConfiguration], str]:
+    """Read sensor configuration from file"""
+
     try:
-        with open(file_path, "r") as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             data = yaml.safe_load(file)
             sensors = [Sensor(**sensor) for sensor in data["sensors"]]
             sensor_map: dict[str, Sensor] = {s.sensor_id: s for s in sensors}
-            logger.info(f"Found {len(sensors)} sensors in {file_path}")
+            logger.info("Found %s sensors in %s", len(sensors), file_path)
 
             configs: list[PCBSensorConfiguration] = []
             for cfg in data.get("sensor_configurations", []):
@@ -203,11 +213,13 @@ def read_and_parse_sensor_data(
                 default_configuration_id = configs[0].configuration_id
 
             return sensors, configs, default_configuration_id
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Could not find sensor.yaml file at {file_path}")
+    except FileNotFoundError as error:
+        raise FileNotFoundError(f"Could not find sensor.yaml file at {file_path}") from error
 
 
 def get_sensor_config_data() -> tuple[list[Sensor], list[PCBSensorConfiguration], str]:
+    """Get sensor configuration data"""
+
     file_path = get_sensors_file_path()
     try:
         return read_and_parse_sensor_data(file_path)
@@ -222,14 +234,18 @@ def get_sensor_config_data() -> tuple[list[Sensor], list[PCBSensorConfiguration]
 def write_sensor_defaults(
     sensors: list[Sensor], configuration: list[dict], file_path: str | PathLike
 ):
+    """Writer sensor default configuration"""
+
     ensure_folder_exists(os.path.dirname(file_path))
-    with open(file_path, "w+") as file:
+    with open(file_path, "w+", encoding="utf-8") as file:
         default_data = {"sensors": [sensor.model_dump() for sensor in sensors]}
         yaml.safe_dump(default_data, file, sort_keys=False)
         yaml.safe_dump({"sensor_configurations": configuration}, file, sort_keys=False)
         logger.info(
-            f"File not found. Created new sensor.yaml with {len(sensors)} default"
-            f" sensors and {len(configuration)} default sensor configurations."
+            "File not found. Created new sensor.yaml with %s default"
+            " sensors and %s default sensor configurations.",
+            len(sensors),
+            len(configuration),
         )
 
 
@@ -247,8 +263,11 @@ def find_sensor_by_id(sensors: List[Sensor], sensor_id: str) -> Optional[Sensor]
     for sensor in sensors:
         if sensor.sensor_id == sensor_id:
             logger.debug(
-                f"Found sensor with ID {sensor.sensor_id}: {sensor.name} | k2:"
-                f" {sensor.scaling_factor} | d2: {sensor.offset}"
+                "Found sensor with ID %s: %s | k2: %s | d2: %s",
+                sensor.sensor_id,
+                sensor.name,
+                sensor.scaling_factor,
+                sensor.offset,
             )
             return sensor
     return None
@@ -257,28 +276,34 @@ def find_sensor_by_id(sensors: List[Sensor], sensor_id: str) -> Optional[Sensor]
 def get_sensor_for_channel(
     channel_instruction: MeasurementInstructionChannel,
 ) -> Optional[Sensor]:
+    """Get sensor for a specific measurement channel"""
+
     sensors = get_sensors()
 
     if channel_instruction.sensor_id:
         logger.debug(
-            f"Got sensor id {channel_instruction.sensor_id} for channel number"
-            f" {channel_instruction.channel_number}"
+            "Got sensor id %s for channel number %s",
+            channel_instruction.sensor_id,
+            channel_instruction.channel_number,
         )
         sensor = find_sensor_by_id(sensors, channel_instruction.sensor_id)
         if sensor:
             return sensor
-        else:
-            logger.error(f"Could not find sensor with ID {channel_instruction.sensor_id}.")
+
+        logger.error("Could not find sensor with ID %s.", channel_instruction.sensor_id)
 
     logger.info(
-        "No sensor ID requested or not found for channel"
-        f" {channel_instruction.channel_number}. Taking defaults."
+        "No sensor ID requested or not found for channel %s. Taking defaults.",
+        channel_instruction.channel_number,
     )
     if channel_instruction.channel_number in range(1, 11):
         sensor = sensors[channel_instruction.channel_number - 1]
         logger.info(
-            f"Default sensor for channel {channel_instruction.channel_number}:"
-            f" {sensor.name} | k2: {sensor.scaling_factor} | d2: {sensor.offset}"
+            "Default sensor for channel %s: %s | k2: %s | d2: %s",
+            channel_instruction.channel_number,
+            sensor.name,
+            sensor.scaling_factor,
+            sensor.offset,
         )
         return sensor
 
@@ -287,8 +312,8 @@ def get_sensor_for_channel(
         return None
 
     logger.error(
-        f"Could not get sensor for channel {channel_instruction.channel_number}."
-        " Interpreting as percentage."
+        "Could not get sensor for channel %s. Interpreting as percentage.",
+        channel_instruction.channel_number,
     )
     return Sensor(
         name="Raw",
@@ -301,6 +326,9 @@ def get_sensor_for_channel(
         volt_max=3.3,
         dimension="Raw",
     )
+
+
+# pylint: disable=too-few-public-methods
 
 
 class SensorDescription(IsDescription):
@@ -319,7 +347,12 @@ class SensorDescription(IsDescription):
     offset = Float32Col()  # Float for offset
 
 
+# pylint: enable=too-few-public-methods
+
+
 def add_sensor_data_to_storage(storage: StorageData, sensors: List[Sensor]) -> None:
+    """Add sensor data to storage oject"""
+
     if not storage.hdf:
         logger.error("Could not add sensors to storage; no storage found.")
         return
@@ -349,19 +382,23 @@ def add_sensor_data_to_storage(storage: StorageData, sensors: List[Sensor]) -> N
         row.append()
         count += 1
 
-    logger.info(f"Added {count} sensors to the HDF5 file.")
+    logger.info("Added %s sensors to the HDF5 file.", count)
 
 
 def read_and_parse_trident_config(file_path: str) -> TridentConfig:
-    logger.info(f"Trying to read dataspace config file: {file_path}")
+    """Read Trident configuration file"""
+
+    logger.info("Trying to read dataspace config file: %s", file_path)
     if not path.exists(file_path):
         raise FileNotFoundError(f"Dataspace config file not found: {file_path}")
 
     try:
-        with open(file_path, "r") as file:
+        with open(file_path, "r", encoding="utf-8") as file:
             payload = yaml.safe_load(file)
     except Exception as e:
-        raise Exception(f"Error parsing dataspace config file: {file_path}") from e
+        raise Exception(  # pylint: disable=broad-exception-raised
+            f"Error parsing dataspace config file: {file_path}"
+        ) from e
 
     errors = validate_dataspace_payload(payload)
 
@@ -369,7 +406,7 @@ def read_and_parse_trident_config(file_path: str) -> TridentConfig:
         raise ValueError("|".join(errors))
 
     data = payload.get("connection")
-    logger.info(f"Found dataspace config: {data}")
+    logger.info("Found dataspace config: %s", data)
 
     return TridentConfig(
         protocol=str(data["protocol"]).strip(),
@@ -383,7 +420,12 @@ def read_and_parse_trident_config(file_path: str) -> TridentConfig:
     )
 
 
+# pylint: disable=too-few-public-methods
+
+
 class MeasurementSensorInfo:
+    """Sensor information for measurement"""
+
     first_channel_sensor: Sensor | None
     second_channel_sensor: Sensor | None
     third_channel_sensor: Sensor | None
@@ -399,9 +441,14 @@ class MeasurementSensorInfo:
         self.voltage_scaling = get_voltage_from_raw(instructions.adc.reference_voltage)
 
     def get_values(self):
+        """Return sensors for channels and voltage scaling"""
+
         return (
             self.first_channel_sensor,
             self.second_channel_sensor,
             self.third_channel_sensor,
             self.voltage_scaling,
         )
+
+
+# pylint: enable=too-few-public-methods
