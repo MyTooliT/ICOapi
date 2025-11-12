@@ -155,23 +155,6 @@ def get_sensor_configuration_defaults() -> list[dict]:
     }]
 
 
-asdf = """
-        configuration_id: default
-        configuration_name: Default
-        channels:
-          1: { sensor_id: acc100g_01 }
-          2: { sensor_id: acc40g_y }
-          3: { sensor_id: acc40g_z }
-          4: { sensor_id: acc40g_x }
-          5: { sensor_id: temp_01 }
-          6: { sensor_id: photo_01 }
-          7: { sensor_id: backpack_01 }
-          8: { sensor_id: backpack_02 }
-          9: { sensor_id: backpack_03 }
-          10: { sensor_id: vbat_01 }
-        """
-
-
 def get_voltage_from_raw(v_ref: float) -> float:
     """Get the conversion factor from bit value to voltage"""
     return v_ref / 2**16
