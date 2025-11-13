@@ -140,7 +140,7 @@ def is_dangerous_filename(filename: str) -> Tuple[bool, str | None]:
 
 
 def get_disk_space_in_gb(path_or_drive: str | os.PathLike = "/") -> DiskCapacity:
-    """Get disk space in Gigabyte"""
+    """Get disk space in gibibyte"""
 
     try:
         total, _, free = shutil.disk_usage(path_or_drive)
