@@ -8,8 +8,8 @@ from icoapi.models.models import STUDeviceResponseModel
 async def get_stu(system: ICOsystem) -> list[STUDeviceResponseModel]:
     """Get connected STU"""
 
-    mac_eui = await system.stu.get_mac_address()
-    dev = STUDeviceResponseModel(device_number=1, mac_address=mac_eui.format(), name="STU 1")
+    eui = await system.get_stu_mac_address()
+    dev = STUDeviceResponseModel(device_number=1, mac_address=eui.format(), name="STU 1")
 
     return [dev]
 
