@@ -1,3 +1,5 @@
+"""Scripts for sensor nodes (e.g. STHs)"""
+
 from typing import List
 import logging
 from icostate import ADCConfiguration, ICOsystem, SensorNodeInfo
@@ -18,7 +20,7 @@ async def get_sth_devices_from_network(system: ICOsystem) -> List[SensorNodeInfo
 async def connect_sth_device_by_mac(system: ICOsystem, mac_address: str) -> None:
     """Connect a STH device by a given MAC address"""
     await system.connect_sensor_node_mac(mac_address)
-    logger.info(f"STU 1 has connection: {await system.is_sensor_node_connected()}")
+    logger.info("STU 1 has connection: %s", await system.is_sensor_node_connected())
 
 
 async def disconnect_sth_devices(system: ICOsystem) -> None:
@@ -42,12 +44,15 @@ async def rename_sth_device(
 
 
 async def read_sth_adc(system: ICOsystem) -> ADCConfiguration | None:
+    """Read ADC configuration of sensor node"""
     if await system.is_sensor_node_connected():
         return await system.get_adc_configuration()
     return None
 
 
 async def write_sth_adc(system: ICOsystem, config: ADCValues) -> None:
+    """Write ADC configuration of sensor node"""
+
     if not await system.is_sensor_node_connected():
         raise TimeoutError
     adc = ADCConfiguration(
