@@ -12,6 +12,10 @@ NAME = "Test-STH"
 
 all: check test
 
+.PHONY: setup
+setup:
+	poetry lock && poetry install --all-extras
+
 .PHONY: check
 check:
 	poetry run mypy .
