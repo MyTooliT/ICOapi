@@ -443,7 +443,7 @@ The application is set up to log _everything_. This is how the logging is set up
    make
    ```
 
-2. Make sure all [workflows of the CI system work correctly](https://github.com/MyTooliT/Cleaned-ICOapi/actions)
+2. Make sure all [workflows of the CI system work correctly](https://github.com/MyTooliT/ICOapi/actions)
 
 4. Release a new version on [PyPI](https://pypi.org/project/icoapi/):
    1. Increase version number
@@ -458,7 +458,7 @@ The application is set up to log _everything_. This is how the logging is set up
    git push && git push --tags
    ```
 
-5. Open the [release notes](https://github.com/MyTooliT/Cleaned-ICOapi/tree/main/doc/release) for the latest version and [create a new release](https://github.com/MyTooliT/Cleaned-ICOapi/releases/new)
+5. Open the [release notes](https://github.com/MyTooliT/ICOapi/tree/main/doc/release) for the latest version and [create a new release](https://github.com/MyTooliT/ICOapi/releases/new)
    1. Paste them into the main text of the release web page
    2. Insert the version number into the tag field
    3. For the release title use “Version <VERSION>”, where `<VERSION>` specifies the version number (e.g. “Version 0.2”)
