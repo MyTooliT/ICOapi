@@ -243,7 +243,7 @@ class SystemStateModel(BaseModel, JSONEncoder):
 
 
 class SocketMessage(BaseModel, JSONEncoder):
-    """Data model for websocket message"""
+    """Data model for WebSocket message"""
 
     message: str
     data: Optional[Any] = None
