@@ -1,5 +1,9 @@
 """Tests for misc endpoints"""
 
+# -- Imports ------------------------------------------------------------------
+
+from logging import getLogger
+
 # -- Tests --------------------------------------------------------------------
 
 
@@ -24,6 +28,18 @@ class TestGeneral:
         for attribute in ("instructions", "name", "start_time", "tool_name"):
             assert measurement_status[attribute] is None
         assert measurement_status["running"] is False
+
+    def test_state_websocket(self, state_prefix, client) -> None:
+        """Test WebSocket endpoint ``state``"""
+
+        ws_url = str(client.base_url).replace("http", "ws")
+        state = f"{ws_url}{state_prefix}"
+
+        logger = getLogger(__name__)
+        logger.info("Try to connect to WebSocket URL: %s", state)
+
+        with client.websocket_connect(state):
+            pass
 
     def test_reset_can(self, reset_can_prefix, client) -> None:
         """Test endpoint ``reset-can``"""
