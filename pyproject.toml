@@ -47,7 +47,6 @@ test = [
   "httpx>=0.28.1",
   "httpx-ws>=0.8.2",
   "pytest",
-  "pytest-asyncio",
   "pytest-sugar>=1.1.1",
 ]
 
@@ -88,7 +87,6 @@ ignore-paths = [
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = [
   "test"
 ]

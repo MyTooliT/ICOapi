@@ -3,6 +3,8 @@
 # -- Imports ------------------------------------------------------------------
 
 from fastapi.testclient import TestClient
+from httpx import AsyncClient
+from httpx_ws.transport import ASGIWebSocketTransport
 from netaddr import EUI
 from pytest import fixture
 
@@ -13,7 +15,7 @@ from icoapi.api import app
 # pylint: disable=redefined-outer-name
 
 
-@fixture
+@fixture(scope="session")
 def anyio_backend():
     """Set default async backend"""
 
@@ -85,6 +87,17 @@ def client():
         base_url="http://test/api/v1/",
     ) as test_client:
         yield test_client
+
+
+@fixture(scope="session")
+async def async_client():
+    """Async test client used to communicate with API"""
+
+    async with AsyncClient(
+        transport=ASGIWebSocketTransport(app=app),
+        base_url="http://test/api/v1/",
+    ) as async_client:
+        yield async_client
 
 
 @fixture
