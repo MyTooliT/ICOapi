@@ -4,6 +4,13 @@
 
 from logging import getLogger
 
+from httpx import AsyncClient
+from httpx_ws import aconnect_ws
+from httpx_ws.transport import ASGIWebSocketTransport
+from pytest import mark
+
+from icoapi.api import app
+
 # -- Tests --------------------------------------------------------------------
 
 
@@ -29,17 +36,22 @@ class TestGeneral:
             assert measurement_status[attribute] is None
         assert measurement_status["running"] is False
 
-    def test_state_websocket(self, state_prefix, client) -> None:
+    @mark.anyio
+    async def test_state_websocket(self, state_prefix) -> None:
         """Test WebSocket endpoint ``state``"""
 
-        ws_url = str(client.base_url).replace("http", "ws")
-        state = f"{ws_url}{state_prefix}"
+        async with AsyncClient(
+            transport=ASGIWebSocketTransport(app=app),
+            base_url="http://test/api/v1/",
+        ) as async_client:
+            ws_url = str(async_client.base_url).replace("http", "ws")
+            state = f"{ws_url}{state_prefix}"
 
-        logger = getLogger(__name__)
-        logger.info("Try to connect to WebSocket URL: %s", state)
+            logger = getLogger(__name__)
+            logger.debug("Try to connect to WebSocket URL: %s", state)
 
-        with client.websocket_connect(state):
-            pass
+            async with aconnect_ws(state, async_client):
+                pass
 
     def test_reset_can(self, reset_can_prefix, client) -> None:
         """Test endpoint ``reset-can``"""
