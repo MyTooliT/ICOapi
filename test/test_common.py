@@ -37,28 +37,21 @@ class TestGeneral:
             assert measurement_status[attribute] is None
         assert measurement_status["running"] is False
 
-    async def get_websocket_messages(
-        self, url: str, async_client: AsyncClient
-    ):
+    async def get_websocket_messages(self, ws: AsyncWebSocketSession):
         """Retrieve messages from WebSocket"""
 
         logger = getLogger(__name__)
 
         messages = []
-        logger.debug("Try to connect to WebSocket URL: %s", url)
-        ws: AsyncWebSocketSession
-        async with aconnect_ws(url, async_client) as ws:
-            try:
-                while True:
-                    message: str = await wait_for(
-                        ws.receive_text(), timeout=20.0
-                    )
-                    messages.append(loads(message))
-                    logger.debug("Retrieved WebSocket message: %s", message)
-            except (CancelledError, TimeoutError):
-                pass
+        try:
+            while True:
+                message: str = await wait_for(ws.receive_text(), timeout=20.0)
+                messages.append(loads(message))
+                logger.debug("Retrieved WebSocket message: %s", message)
+        except (CancelledError, TimeoutError):
+            pass
 
-            return messages
+        return messages
 
     async def connect_and_disconnect_sensor_node(
         self, sth_prefix: str, async_client: AsyncClient, mac_address: EUI
@@ -86,17 +79,19 @@ class TestGeneral:
         logger = getLogger(__name__)
         mac_address = test_sensor_node["mac_address"]
 
-        async with TaskGroup() as task_group:
-            messages_task = task_group.create_task(
-                self.get_websocket_messages(state, async_client)
-            )
-            connection_task = task_group.create_task(
-                self.connect_and_disconnect_sensor_node(
-                    sth_prefix, async_client, mac_address
+        ws: AsyncWebSocketSession
+        async with aconnect_ws(state, async_client) as ws:
+            async with TaskGroup() as task_group:
+                messages_task = task_group.create_task(
+                    self.get_websocket_messages(ws)
                 )
-            )
-            await connection_task
-            messages_task.cancel()
+                connection_task = task_group.create_task(
+                    self.connect_and_disconnect_sensor_node(
+                        sth_prefix, async_client, mac_address
+                    )
+                )
+                await connection_task
+                messages_task.cancel()
 
         messages = messages_task.result()
         assert len(messages) >= 1
