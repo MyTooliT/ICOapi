@@ -4,7 +4,7 @@
 
 from asyncio import sleep, TaskGroup, wait_for
 from asyncio.exceptions import CancelledError
-from json import loads
+from json import dumps, loads
 from logging import getLogger
 
 from netaddr import EUI
@@ -33,9 +33,16 @@ async def get_websocket_messages(ws: AsyncWebSocketSession):
 
 
 async def connect_and_disconnect_sensor_node(
-    sth_prefix: str, async_client: AsyncClient, mac_address: EUI
+    sth_prefix: str,
+    async_client: AsyncClient,
+    ws_state: AsyncWebSocketSession,
+    mac_address: EUI,
 ):
-    """Connect to and than disconnect from sensor node"""
+    """Connect to and than disconnect from sensor node
+
+    Retrieves current state information from state WebSocket ``ws_state`` after
+    connection changes.
+    """
 
     logger = getLogger(__name__)
 
@@ -43,10 +50,12 @@ async def connect_and_disconnect_sensor_node(
     await async_client.put(
         f"{sth_prefix}/connect", json={"mac_address": mac_address}
     )
-    await sleep(0)
+    get_state = dumps({"message": "get_state"})
+    await ws_state.send_text(get_state)
     logger.debug("Disconnect from sensor node")
     await async_client.put(f"{sth_prefix}/disconnect")
-    await sleep(0)
+    await ws_state.send_text(get_state)
+    await sleep(1)  # Wait until new state message is written to socket
 
 
 # -- Tests --------------------------------------------------------------------
@@ -92,24 +101,22 @@ class TestGeneral:
                 )
                 connection_task = task_group.create_task(
                     connect_and_disconnect_sensor_node(
-                        sth_prefix, async_client, mac_address
+                        sth_prefix, async_client, ws, mac_address
                     )
                 )
                 await connection_task
                 messages_task.cancel()
 
         messages = messages_task.result()
-        assert len(messages) >= 1
+        assert len(messages) >= 2
 
-        logger.debug(
-            "Retrieved %d message%s",
-            len(messages),
-            "s" if len(messages) > 1 else "",
-        )
+        logger.debug("Retrieved %d messages", len(messages))
         for message_number, message in enumerate(messages, start=1):
             assert "message" in message
             assert message["message"] == "state"
             assert "data" in message
+            assert "can_ready" in message["data"]
+            assert message["data"]["can_ready"] is True
             logger.debug("Message %d: %s", message_number, message)
 
     def test_reset_can(self, reset_can_prefix, client) -> None:
