@@ -4,12 +4,12 @@ setup:
 	uv venv --allow-existing
 	uv sync --all-extras
 
-check:
+check: setup
 	uv run mypy .
 	uv run flake8 .
 	uv run pylint .
 
-test:
+test: check
 	uv run pytest
 
 run:
