@@ -2,7 +2,8 @@
 
 # -- Imports ------------------------------------------------------------------
 
-from asyncio import TaskGroup, wait_for
+from asyncio import sleep, TaskGroup, wait_for
+from asyncio.exceptions import CancelledError
 from json import loads
 from logging import getLogger
 
@@ -35,11 +36,12 @@ class TestGeneral:
         assert measurement_status["running"] is False
 
     @mark.anyio
-    async def test_state_websocket(self, state_prefix, async_client) -> None:
+    async def test_state_websocket(
+        self, state_prefix, sth_prefix, test_sensor_node, async_client
+    ) -> None:
         """Test WebSocket endpoint ``state``"""
 
-        ws_url = str(async_client.base_url).replace("http", "ws")
-        state = f"{ws_url}{state_prefix}"
+        state = str(async_client.base_url).replace("http", "ws") + state_prefix
         logger = getLogger(__name__)
 
         async def get_websocket_messages():
@@ -49,21 +51,42 @@ class TestGeneral:
                 try:
                     while True:
                         message = await wait_for(
-                            state_ws.receive_text(), timeout=1.0
+                            state_ws.receive_text(), timeout=20.0
                         )
                         messages.append(loads(message))
-                except TimeoutError:
+                        logger.debug(
+                            "Retrieved WebSocket message: %s", message
+                        )
+                except CancelledError, TimeoutError:
                     pass
 
                 return messages
 
-        async with TaskGroup() as task_group:
-            stream_data_task = task_group.create_task(get_websocket_messages())
+        async def connect_and_disconnect():
+            mac_address = test_sensor_node["mac_address"]
+            logger.debug("Connect to sensor node")
+            await async_client.put(
+                f"{sth_prefix}/connect", json={"mac_address": mac_address}
+            )
+            await sleep(0)
+            logger.debug("Disconnect from sensor node")
+            await async_client.put(f"{sth_prefix}/disconnect")
+            await sleep(0)
 
-        messages = stream_data_task.result()
+        async with TaskGroup() as task_group:
+            messages_task = task_group.create_task(get_websocket_messages())
+            connection_task = task_group.create_task(connect_and_disconnect())
+            await connection_task
+            messages_task.cancel()
+
+        messages = messages_task.result()
         assert len(messages) >= 1
 
-        logger.debug("Retrieved %d messages", len(stream_data_task.result()))
+        logger.debug(
+            "Retrieved %d message%s",
+            len(messages),
+            "s" if len(messages) > 1 else "",
+        )
         for message_number, message in enumerate(messages, start=1):
             assert "message" in message
             assert message["message"] == "state"
