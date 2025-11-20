@@ -12,6 +12,43 @@ from httpx import AsyncClient
 from httpx_ws import aconnect_ws, AsyncWebSocketSession
 from pytest import mark
 
+# -- Functions ----------------------------------------------------------------
+
+
+async def get_websocket_messages(ws: AsyncWebSocketSession):
+    """Retrieve messages from WebSocket"""
+
+    logger = getLogger(__name__)
+
+    messages = []
+    try:
+        while True:
+            message: str = await wait_for(ws.receive_text(), timeout=20.0)
+            messages.append(loads(message))
+            logger.debug("Retrieved WebSocket message: %s", message)
+    except (CancelledError, TimeoutError):
+        pass
+
+    return messages
+
+
+async def connect_and_disconnect_sensor_node(
+    sth_prefix: str, async_client: AsyncClient, mac_address: EUI
+):
+    """Connect to and than disconnect from sensor node"""
+
+    logger = getLogger(__name__)
+
+    logger.debug("Connect to sensor node")
+    await async_client.put(
+        f"{sth_prefix}/connect", json={"mac_address": mac_address}
+    )
+    await sleep(0)
+    logger.debug("Disconnect from sensor node")
+    await async_client.put(f"{sth_prefix}/disconnect")
+    await sleep(0)
+
+
 # -- Tests --------------------------------------------------------------------
 
 
@@ -37,38 +74,6 @@ class TestGeneral:
             assert measurement_status[attribute] is None
         assert measurement_status["running"] is False
 
-    async def get_websocket_messages(self, ws: AsyncWebSocketSession):
-        """Retrieve messages from WebSocket"""
-
-        logger = getLogger(__name__)
-
-        messages = []
-        try:
-            while True:
-                message: str = await wait_for(ws.receive_text(), timeout=20.0)
-                messages.append(loads(message))
-                logger.debug("Retrieved WebSocket message: %s", message)
-        except (CancelledError, TimeoutError):
-            pass
-
-        return messages
-
-    async def connect_and_disconnect_sensor_node(
-        self, sth_prefix: str, async_client: AsyncClient, mac_address: EUI
-    ):
-        """Connect to and than disconnect from sensor node"""
-
-        logger = getLogger(__name__)
-
-        logger.debug("Connect to sensor node")
-        await async_client.put(
-            f"{sth_prefix}/connect", json={"mac_address": mac_address}
-        )
-        await sleep(0)
-        logger.debug("Disconnect from sensor node")
-        await async_client.put(f"{sth_prefix}/disconnect")
-        await sleep(0)
-
     @mark.anyio
     async def test_state_websocket(
         self, state_prefix, sth_prefix, test_sensor_node, async_client
@@ -83,10 +88,10 @@ class TestGeneral:
         async with aconnect_ws(state, async_client) as ws:
             async with TaskGroup() as task_group:
                 messages_task = task_group.create_task(
-                    self.get_websocket_messages(ws)
+                    get_websocket_messages(ws)
                 )
                 connection_task = task_group.create_task(
-                    self.connect_and_disconnect_sensor_node(
+                    connect_and_disconnect_sensor_node(
                         sth_prefix, async_client, mac_address
                     )
                 )
