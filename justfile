@@ -1,3 +1,8 @@
+# -- Settings ------------------------------------------------------------------
+
+# Use latest version of PowerShell on Windows
+set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
+
 # -- Variables -----------------------------------------------------------------
 
 package := "icoapi"
