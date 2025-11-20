@@ -4,7 +4,6 @@
 
 from asyncio import sleep, TaskGroup, wait_for
 from asyncio.exceptions import CancelledError
-from json import dumps, loads
 from logging import getLogger
 
 from netaddr import EUI
@@ -23,8 +22,8 @@ async def get_websocket_messages(ws: AsyncWebSocketSession):
     messages = []
     try:
         while True:
-            message: str = await wait_for(ws.receive_text(), timeout=20.0)
-            messages.append(loads(message))
+            message = await wait_for(ws.receive_json(), timeout=20.0)
+            messages.append(message)
             logger.debug("Retrieved WebSocket message: %s", message)
     except (CancelledError, TimeoutError):
         pass
@@ -50,11 +49,11 @@ async def connect_and_disconnect_sensor_node(
     await async_client.put(
         f"{sth_prefix}/connect", json={"mac_address": mac_address}
     )
-    get_state = dumps({"message": "get_state"})
-    await ws_state.send_text(get_state)
+    get_state = {"message": "get_state"}
+    await ws_state.send_json(get_state)
     logger.debug("Disconnect from sensor node")
     await async_client.put(f"{sth_prefix}/disconnect")
-    await ws_state.send_text(get_state)
+    await ws_state.send_json(get_state)
     await sleep(1)  # Wait until new state message is written to socket
 
 
