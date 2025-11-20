@@ -48,7 +48,9 @@ class TestGeneral:
             async with aconnect_ws(state, async_client) as state_ws:
                 try:
                     while True:
-                        message = await wait_for(state_ws.receive_text(), timeout=1.0)
+                        message = await wait_for(
+                            state_ws.receive_text(), timeout=1.0
+                        )
                         messages.append(loads(message))
                 except TimeoutError:
                     pass

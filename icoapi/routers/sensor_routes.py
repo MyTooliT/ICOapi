@@ -18,5 +18,7 @@ def query_sensors():
 
     sensors, configs, default = get_sensor_config_data()
     return AvailableSensorInformation(
-        sensors=sensors, configurations=configs, default_configuration_id=default
+        sensors=sensors,
+        configurations=configs,
+        default_configuration_id=default,
     )

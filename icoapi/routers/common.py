@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 
 @router.get("/state", status_code=status.HTTP_200_OK)
 def state(
-    measurement_state: Annotated[MeasurementState, Depends(get_measurement_state)],
+    measurement_state: Annotated[
+        MeasurementState, Depends(get_measurement_state)
+    ],
     cloud: Annotated[Feature, Depends(get_trident_feature)],
 ) -> SystemStateModel:
     """Get system state"""

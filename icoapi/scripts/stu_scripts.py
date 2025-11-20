@@ -9,7 +9,9 @@ async def get_stu(system: ICOsystem) -> list[STUDeviceResponseModel]:
     """Get connected STU"""
 
     eui = await system.get_stu_mac_address()
-    dev = STUDeviceResponseModel(device_number=1, mac_address=eui.format(), name="STU 1")
+    dev = STUDeviceResponseModel(
+        device_number=1, mac_address=eui.format(), name="STU 1"
+    )
 
     return [dev]
 

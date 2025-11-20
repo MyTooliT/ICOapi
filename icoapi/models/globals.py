@@ -18,7 +18,10 @@ from icoapi.models.models import (
 )
 from icoapi.models.trident import StorageClient
 from icoapi.scripts.data_handling import read_and_parse_trident_config
-from icoapi.scripts.file_handling import get_dataspace_file_path, get_disk_space_in_gb
+from icoapi.scripts.file_handling import (
+    get_dataspace_file_path,
+    get_disk_space_in_gb,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,10 @@ class ICOsystemSingleton:
                     # STU Connection is required for any CAN communication
                     await cls._instance.connect_stu()
                     await get_messenger().push_messenger_update()
-                    logger.info("Created ICOsystem instance with ID <%s>", id(cls._instance))
+                    logger.info(
+                        "Created ICOsystem instance with ID <%s>",
+                        id(cls._instance),
+                    )
         except CANInitError as error:
             logger.error("Cannot establish CAN connection: %s", error)
 
@@ -73,7 +79,10 @@ class ICOsystemSingleton:
                 )
                 await cls._instance.disconnect_stu()
                 await get_messenger().push_messenger_update()
-                logger.debug("Closing ICOsystem instance with ID <%s>", id(cls._instance))
+                logger.debug(
+                    "Closing ICOsystem instance with ID <%s>",
+                    id(cls._instance),
+                )
                 cls._instance = None
 
     @classmethod
@@ -162,7 +171,9 @@ class MeasurementSingleton:
 
         if cls._instance is None:
             cls._instance = MeasurementState()
-            logger.info("Created Measurement instance with ID <%s>", id(cls._instance))
+            logger.info(
+                "Created Measurement instance with ID <%s>", id(cls._instance)
+            )
 
     @classmethod
     def get_instance(cls):
@@ -177,7 +188,10 @@ class MeasurementSingleton:
 
         num_of_clients = len(cls._instance.clients)
         cls._instance.clients.clear()
-        logger.info("Cleared %s clients from measurement WebSocket list", num_of_clients)
+        logger.info(
+            "Cleared %s clients from measurement WebSocket list",
+            num_of_clients,
+        )
 
 
 async def get_measurement_state():
@@ -308,10 +322,13 @@ class GeneralMessenger:
 
         try:
             cls._clients.remove(messenger)
-            logger.info("Removed WebSocket instance from general messenger list")
+            logger.info(
+                "Removed WebSocket instance from general messenger list"
+            )
         except ValueError:
             logger.warning(
-                "Tried removing WebSocket instance from general messenger list but failed."
+                "Tried removing WebSocket instance from general messenger list"
+                " but failed."
             )
 
     @classmethod
@@ -341,14 +358,18 @@ class GeneralMessenger:
         """Send post measurement metadata"""
 
         for client in cls._clients:
-            await client.send_json(SocketMessage(message="post_meta_request").model_dump())
+            await client.send_json(
+                SocketMessage(message="post_meta_request").model_dump()
+            )
 
     @classmethod
     async def send_post_meta_completed(cls):
         """Send post measurement metadata completed"""
 
         for client in cls._clients:
-            await client.send_json(SocketMessage(message="post_meta_completed").model_dump())
+            await client.send_json(
+                SocketMessage(message="post_meta_completed").model_dump()
+            )
 
 
 def get_messenger():

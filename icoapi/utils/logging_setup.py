@@ -56,7 +56,9 @@ class JSONFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
-        return orjson.dumps(log_data).decode("utf-8")  # pylint: disable=no-member
+        return orjson.dumps(log_data).decode(  # pylint: disable=no-member
+            "utf-8"
+        )
 
 
 class WebSocketLogHandler(logging.Handler):
@@ -88,8 +90,12 @@ def setup_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(LOG_LEVEL)
 
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s")
-    console_formatter = logging.Formatter("%(asctime)s [%(levelname)s] [%(name)s] %(message)s")
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
+    )
+    console_formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
+    )
 
     if LOG_USE_JSON:
         formatter = JSONFormatter()
@@ -135,13 +141,17 @@ def setup_logging() -> None:
 def parse_timestamps(lines: list[str]) -> tuple[Optional[str], Optional[str]]:
     """Parse logger timestamps"""
 
-    ts_pattern = re.compile(r"(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})")
+    ts_pattern = re.compile(
+        r"(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})"
+    )
     timestamps = []
     for line in lines:
         match = ts_pattern.search(line)  # ← use .search instead of .match
         if match:
             try:
-                ts = datetime.strptime(match.group("ts"), "%Y-%m-%d %H:%M:%S,%f")
+                ts = datetime.strptime(
+                    match.group("ts"), "%Y-%m-%d %H:%M:%S,%f"
+                )
                 timestamps.append(ts.isoformat())
             except ValueError:
                 continue

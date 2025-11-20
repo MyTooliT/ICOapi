@@ -68,7 +68,9 @@ async def start_measurement(
             logger.error("Tool not found!")
         measurement_state.instructions = instructions
         measurement_state.task = asyncio.create_task(
-            run_measurement(system, instructions, measurement_state, general_messenger)
+            run_measurement(
+                system, instructions, measurement_state, general_messenger
+            )
         )
         logger.info(
             "Created measurement task with tool <%s> and timeout of %s",
@@ -78,7 +80,9 @@ async def start_measurement(
 
         message = "Measurement started successfully."
 
-    return ControlResponse(message=message, data=measurement_state.get_status())
+    return ControlResponse(
+        message=message, data=measurement_state.get_status()
+    )
 
 
 @router.post("/stop")
@@ -93,7 +97,8 @@ async def stop_measurement(
 
 @router.post("/post_meta")
 async def post_meta(
-    meta: Metadata, measurement_state: MeasurementState = Depends(get_measurement_state)
+    meta: Metadata,
+    measurement_state: MeasurementState = Depends(get_measurement_state),
 ):
     """Set post-measurement metadata"""
 
@@ -119,7 +124,8 @@ async def websocket_endpoint(
     await websocket.accept()
     measurement_state.clients.append(websocket)
     logger.info(
-        "Client connected to measurement stream - now %s clients", len(measurement_state.clients)
+        "Client connected to measurement stream - now %s clients",
+        len(measurement_state.clients),
     )
 
     try:

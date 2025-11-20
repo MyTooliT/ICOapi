@@ -5,8 +5,15 @@ import logging
 import os
 import re
 import zipfile
+from collections import deque
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from starlette.responses import Response, StreamingResponse
 
 from icoapi.models.models import LogFileMeta, LogListResponse, LogResponse
@@ -83,14 +90,14 @@ def view_log_file(file: str = Query(...), limit: int = Query(0)):
         with open(requested_path, "r", encoding="utf-8", errors="ignore") as f:
             if limit > 0:
                 # Efficient line-limiting (no storing the whole file)
-                from collections import deque  # pylint: disable=import-outside-toplevel
-
                 lines = deque(f, maxlen=limit)
                 content = "".join(lines)
             else:
                 content = f.read()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading log file: {e}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Error reading log file: {e}"
+        ) from e
 
     return LogResponse(filename=file, content=content)
 
@@ -116,7 +123,9 @@ def download_log_file(file: str):
         with open(requested_path, "rb") as f:
             content = f.read()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading log file: {e}") from e
+        raise HTTPException(
+            status_code=500, detail=f"Error reading log file: {e}"
+        ) from e
 
     return Response(
         content=content,
@@ -131,7 +140,9 @@ async def download_logs_zip():
 
     base_dir = os.path.dirname(LOG_PATH)
     log_file_pattern = re.compile(r".*\.log(\.\d+)?$")
-    log_files = [f for f in os.listdir(base_dir) if log_file_pattern.fullmatch(f)]
+    log_files = [
+        f for f in os.listdir(base_dir) if log_file_pattern.fullmatch(f)
+    ]
     if not log_files:
         raise HTTPException(status_code=404, detail="No log files found.")
 

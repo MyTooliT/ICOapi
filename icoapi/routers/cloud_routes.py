@@ -9,7 +9,11 @@ from starlette.status import HTTP_502_BAD_GATEWAY
 
 from icoapi.models.globals import get_trident_client, setup_trident
 from icoapi.models.models import TridentBucketObject
-from icoapi.models.trident import AuthorizationError, HostNotFoundError, StorageClient
+from icoapi.models.trident import (
+    AuthorizationError,
+    HostNotFoundError,
+    StorageClient,
+)
 from icoapi.scripts.file_handling import get_measurement_dir
 
 router = APIRouter(prefix="/cloud", tags=["Cloud Connection"])
@@ -26,21 +30,31 @@ async def upload_file(
     """Upload file to cloud storage"""
 
     if client is None:
-        logger.warning("Tried to upload file to cloud, but no cloud connection is available.")
+        logger.warning(
+            "Tried to upload file to cloud, but no cloud connection is"
+            " available."
+        )
     else:
         try:
-            client.upload_file(os.path.join(measurement_dir, filename), filename)
+            client.upload_file(
+                os.path.join(measurement_dir, filename), filename
+            )
             logger.info("Successfully uploaded file <%s>", filename)
         except HTTPException as e:
             logger.error(e)
 
 
 @router.post("/authenticate")
-async def authenticate(storage: Annotated[StorageClient, Depends(get_trident_client)]):
+async def authenticate(
+    storage: Annotated[StorageClient, Depends(get_trident_client)],
+):
     """Authenticate to cloud storage"""
 
     if storage is None:
-        logger.warning("Tried to authenticate to cloud, but no cloud connection is available.")
+        logger.warning(
+            "Tried to authenticate to cloud, but no cloud connection is"
+            " available."
+        )
         await setup_trident()
     else:
         storage.revoke_auth()
@@ -66,7 +80,10 @@ async def get_cloud_files(
     """Get files from cloud"""
 
     if storage is None:
-        logger.warning("Tried to authenticate to cloud, but no cloud connection is available.")
+        logger.warning(
+            "Tried to authenticate to cloud, but no cloud connection is"
+            " available."
+        )
         await setup_trident()
         return []
 

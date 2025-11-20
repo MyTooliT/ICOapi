@@ -70,20 +70,30 @@ async def list_files_and_capacity(
             except HTTPException:
                 logger.error("Error listing cloud files")
             except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.error("General exception when comparing files to cloud: %s", e)
+                logger.error(
+                    "General exception when comparing files to cloud: %s", e
+                )
         # Iterate over files in the directory
         for filename in os.listdir(measurement_dir):
             file_path = os.path.join(measurement_dir, filename)
             if os.path.isfile(file_path):
                 # Get file creation time and size
-                creation_time = datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
+                creation_time = datetime.fromtimestamp(
+                    os.path.getctime(file_path)
+                ).isoformat()
                 file_size = os.path.getsize(file_path)
-                cloud_details = FileCloudDetails(is_uploaded=False, upload_timestamp=None)
+                cloud_details = FileCloudDetails(
+                    is_uploaded=False, upload_timestamp=None
+                )
                 if storage is not None:
-                    matches = [file for file in cloud_files if filename in file.Key]
+                    matches = [
+                        file for file in cloud_files if filename in file.Key
+                    ]
                     if matches:
                         cloud_details.is_uploaded = True
-                        cloud_details.upload_timestamp = matches[0].LastModified
+                        cloud_details.upload_timestamp = matches[
+                            0
+                        ].LastModified
 
                 details = MeasurementFileDetails(
                     name=filename,
@@ -94,19 +104,25 @@ async def list_files_and_capacity(
                 files_info.append(details)
         return FileListResponseModel(capacity, files_info, measurement_dir)
     except FileNotFoundError as error:
-        raise HTTPException(status_code=404, detail="Directory not found") from error
+        raise HTTPException(
+            status_code=404, detail="Directory not found"
+        ) from error
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.get("/{name}")
-async def download_file(name: str, measurement_dir: Annotated[str, Depends(get_measurement_dir)]):
+async def download_file(
+    name: str, measurement_dir: Annotated[str, Depends(get_measurement_dir)]
+):
     """Download measurement files"""
 
     # Sanitization
     danger, cause = is_dangerous_filename(name)
     if danger:
-        raise HTTPException(status_code=405, detail=f"Method not allowed: {cause}")
+        raise HTTPException(
+            status_code=405, detail=f"Method not allowed: {cause}"
+        )
 
     full_path = os.path.join(measurement_dir, name)
     if not os.path.isfile(full_path):
@@ -116,13 +132,17 @@ async def download_file(name: str, measurement_dir: Annotated[str, Depends(get_m
 
 
 @router.delete("/{name}")
-async def delete_file(name: str, measurement_dir: Annotated[str, Depends(get_measurement_dir)]):
+async def delete_file(
+    name: str, measurement_dir: Annotated[str, Depends(get_measurement_dir)]
+):
     """Delete measurement file"""
 
     # Sanitization
     danger, cause = is_dangerous_filename(name)
     if danger:
-        raise HTTPException(status_code=405, detail=f"Method not allowed: {cause}")
+        raise HTTPException(
+            status_code=405, detail=f"Method not allowed: {cause}"
+        )
 
     full_path = os.path.join(measurement_dir, name)
     if os.path.isfile(full_path):
@@ -130,7 +150,9 @@ async def delete_file(name: str, measurement_dir: Annotated[str, Depends(get_mea
             os.remove(full_path)
             return {"detail": f"File '{name}' deleted successfully"}
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}") from e
+            raise HTTPException(
+                status_code=500, detail=f"Failed to delete file: {str(e)}"
+            ) from e
     else:
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -143,7 +165,9 @@ async def get_analyzed_file(
 
     danger, cause = is_dangerous_filename(name)
     if danger:
-        raise HTTPException(status_code=405, detail=f"Method not allowed: {cause}")
+        raise HTTPException(
+            status_code=405, detail=f"Method not allowed: {cause}"
+        )
 
     file_path = os.path.join(measurement_dir, name)
     if not os.path.isfile(file_path):
@@ -186,7 +210,8 @@ async def get_analyzed_file(
                 counter=batch_counter,
                 timestamp=batch_timestamp,
                 datasets=[
-                    Dataset(name=column, data=batch[column].tolist()) for column in datasets.columns
+                    Dataset(name=column, data=batch[column].tolist())
+                    for column in datasets.columns
                 ],
             )
 
@@ -209,7 +234,8 @@ async def get_analyzed_file(
 
 @router.post("/analyze")
 async def post_analyzed_file(
-    file: UploadFile, measurement_dir: Annotated[str, Depends(get_measurement_dir)]
+    file: UploadFile,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
 ) -> PlainTextResponse:
     """Upload file for analysis"""
 
@@ -234,7 +260,10 @@ async def get_file_meta(
     return ParsedMetadata(
         acceleration=data.acceleration_meta,
         pictures=data.pictures,
-        sensors=[Sensor(**sensor) for sensor in data.sensor_df.to_dict(orient="records")],
+        sensors=[
+            Sensor(**sensor)
+            for sensor in data.sensor_df.to_dict(orient="records")
+        ],
     )
 
 
@@ -263,7 +292,8 @@ async def overwrite_post_meta(
             del node.attrs["post_metadata"]
         except NoSuchNodeError as error:
             raise HTTPException(
-                status_code=500, detail="Acceleration data not found in the file"
+                status_code=500,
+                detail="Acceleration data not found in the file",
             ) from error
         write_metadata(MetadataPrefix.POST, metadata, storage)
 
@@ -293,7 +323,8 @@ async def overwrite_pre_meta(
             del node.attrs["pre_metadata"]
         except NoSuchNodeError as error:
             raise HTTPException(
-                status_code=500, detail="Acceleration data not found in the file"
+                status_code=500,
+                detail="Acceleration data not found in the file",
             ) from error
         write_metadata(MetadataPrefix.PRE, metadata, storage)
 
@@ -302,7 +333,9 @@ def get_node_names(hdf5_file_handle: tables.File) -> list[str]:
     """Get name of HDF5 nodes"""
 
     nodes = hdf5_file_handle.list_nodes("/")
-    return [node._v_pathname for node in nodes]  # pylint: disable=protected-access
+    return [
+        node._v_pathname for node in nodes  # pylint: disable=protected-access
+    ]
 
 
 def get_picture_node_names(hdf5_file_handle: tables.File) -> list[str]:
@@ -394,7 +427,8 @@ def get_file_data(
             acceleration_meta = node_to_dict(acceleration_data)
         except NoSuchNodeError as error:
             raise HTTPException(
-                status_code=500, detail="Acceleration data not found in the file"
+                status_code=500,
+                detail="Acceleration data not found in the file",
             ) from error
         except AssertionError as error:
             raise HTTPException(
@@ -410,16 +444,24 @@ def get_file_data(
                     obj[index] = pic
                 if MetadataPrefix.PRE in pics_key:
                     stripped_key = pics_key.split(f"{MetadataPrefix.PRE}__")[1]
-                    acceleration_meta.attributes["pre_metadata"]["parameters"][stripped_key] = obj
+                    acceleration_meta.attributes["pre_metadata"]["parameters"][
+                        stripped_key
+                    ] = obj
                 elif MetadataPrefix.POST in pics_key:
-                    stripped_key = pics_key.split(f"{MetadataPrefix.POST}__")[1]
-                    acceleration_meta.attributes["post_metadata"]["parameters"][stripped_key] = obj
+                    stripped_key = pics_key.split(f"{MetadataPrefix.POST}__")[
+                        1
+                    ]
+                    acceleration_meta.attributes["post_metadata"][
+                        "parameters"
+                    ][stripped_key] = obj
                 else:
                     logger.error("Unknown picture key: %s", pics_key)
         except KeyError:
             pass
         except IndexError as error:
-            raise HTTPException(status_code=500, detail="Picture data is not prefixed.") from error
+            raise HTTPException(
+                status_code=500, detail="Picture data is not prefixed."
+            ) from error
 
         # pylint: enable=consider-using-dict-items, consider-iterating-dictionary
 
@@ -427,7 +469,9 @@ def get_file_data(
         try:
             sensor_data = file_handle.get_node("/sensors")
             assert isinstance(sensor_data, tables.Table)
-            sensor_df = pd.DataFrame.from_records(sensor_data.read(), columns=sensor_data.colnames)
+            sensor_df = pd.DataFrame.from_records(
+                sensor_data.read(), columns=sensor_data.colnames
+            )
         except NoSuchNodeError:
             # No sensor data available; pass
             pass
@@ -463,11 +507,15 @@ def ensure_dataframe_with_columns(df, required_columns) -> pd.DataFrame:
     """
     # Ensure the object is a DataFrame
     if not isinstance(df, pd.DataFrame):
-        raise TypeError(f"Expected a pandas DataFrame, but got {type(df).__name__}")
+        raise TypeError(
+            f"Expected a pandas DataFrame, but got {type(df).__name__}"
+        )
 
     # Check for required columns
     missing_columns = set(required_columns) - set(df.columns)
     if missing_columns:
-        raise ValueError(f"Missing required columns: {', '.join(missing_columns)}")
+        raise ValueError(
+            f"Missing required columns: {', '.join(missing_columns)}"
+        )
 
     return df

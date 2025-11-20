@@ -40,7 +40,9 @@ from icoapi.scripts.sth_scripts import disconnect_sth_devices
 logger = logging.getLogger(__name__)
 
 
-async def setup_adc(system: ICOsystem, instructions: MeasurementInstructions) -> int:
+async def setup_adc(
+    system: ICOsystem, instructions: MeasurementInstructions
+) -> int:
     """
     Write ADC configuration to the holder.
 
@@ -56,22 +58,32 @@ async def setup_adc(system: ICOsystem, instructions: MeasurementInstructions) ->
     assert isinstance(instructions.adc.reference_voltage, float)
 
     adc_config = ADCConfiguration(
-        prescaler=instructions.adc.prescaler if instructions.adc.prescaler else 2,
+        prescaler=(
+            instructions.adc.prescaler if instructions.adc.prescaler else 2
+        ),
         acquisition_time=(
-            instructions.adc.acquisition_time if instructions.adc.acquisition_time else 8
+            instructions.adc.acquisition_time
+            if instructions.adc.acquisition_time
+            else 8
         ),
         oversampling_rate=(
-            instructions.adc.oversampling_rate if instructions.adc.oversampling_rate else 64
+            instructions.adc.oversampling_rate
+            if instructions.adc.oversampling_rate
+            else 64
         ),
         reference_voltage=(
-            instructions.adc.reference_voltage if instructions.adc.reference_voltage else 3.3
+            instructions.adc.reference_voltage
+            if instructions.adc.reference_voltage
+            else 3.3
         ),
     )
 
     try:
         await system.set_adc_configuration(adc_config)
     except NoResponseError:
-        logger.warning("No response from CAN bus - ADC configuration not written")
+        logger.warning(
+            "No response from CAN bus - ADC configuration not written"
+        )
 
     sample_rate = adc_config.sample_rate()
     logger.info("Sample Rate: %s Hz", sample_rate)
@@ -107,12 +119,18 @@ def get_measurement_indices(
     """
     first_index = 0
     second_index = 1 if streaming_configuration.first else 0
-    third_index = (second_index + 1) if streaming_configuration.second else (first_index + 1)
+    third_index = (
+        (second_index + 1)
+        if streaming_configuration.second
+        else (first_index + 1)
+    )
 
     return [first_index, second_index, third_index]
 
 
-def create_objects(timestamps: list[float], ift_vals: list[float]) -> list[dict[str, float]]:
+def create_objects(
+    timestamps: list[float], ift_vals: list[float]
+) -> list[dict[str, float]]:
     """
     Assembles the ift values and timestamps into a list of objects.
     :param timestamps: List of timestamps
@@ -155,7 +173,10 @@ async def send_ift_values(
 ) -> None:
     """Calculate and send IFT values"""
 
-    logger.debug("IFT value computation requested for channel: <%s>", instructions.ift_channel)
+    logger.debug(
+        "IFT value computation requested for channel: <%s>",
+        instructions.ift_channel,
+    )
 
     assert isinstance(instructions.adc, ADCValues)
     assert isinstance(instructions.adc.prescaler, int)
@@ -164,15 +185,23 @@ async def send_ift_values(
     assert isinstance(instructions.adc.reference_voltage, float)
 
     freq = ADCConfiguration(
-        prescaler=instructions.adc.prescaler if instructions.adc.prescaler else 2,
+        prescaler=(
+            instructions.adc.prescaler if instructions.adc.prescaler else 2
+        ),
         acquisition_time=(
-            instructions.adc.acquisition_time if instructions.adc.acquisition_time else 8
+            instructions.adc.acquisition_time
+            if instructions.adc.acquisition_time
+            else 8
         ),
         oversampling_rate=(
-            instructions.adc.oversampling_rate if instructions.adc.oversampling_rate else 64
+            instructions.adc.oversampling_rate
+            if instructions.adc.oversampling_rate
+            else 64
         ),
         reference_voltage=(
-            instructions.adc.reference_voltage if instructions.adc.reference_voltage else 3.3
+            instructions.adc.reference_voltage
+            if instructions.adc.reference_voltage
+            else 3.3
         ),
     ).sample_rate()
 
@@ -209,12 +238,16 @@ async def send_ift_values(
             logger.warning("Client must be disconnected, passing")
 
 
-def write_metadata(prefix: MetadataPrefix, metadata: Metadata, storage: StorageData) -> None:
+def write_metadata(
+    prefix: MetadataPrefix, metadata: Metadata, storage: StorageData
+) -> None:
     """Write metadata to storage object"""
 
     picture_parameters = find_picture_parameters(metadata)
     if picture_parameters and len(picture_parameters) > 0:
-        write_and_remove_picture_metadata(prefix, picture_parameters, metadata, storage)
+        write_and_remove_picture_metadata(
+            prefix, picture_parameters, metadata, storage
+        )
 
     meta_dump = json.dumps(metadata.__dict__, default=lambda o: o.__dict__)
     storage[f"{prefix}_metadata"] = meta_dump
@@ -250,21 +283,35 @@ def write_and_remove_picture_metadata(
 
         try:
             write_image_array(storage, f"{prefix}__{param}", nd_array, True)
-            logger.info("Added %s picture(s) for parameter %s to storage", len(nd_array), param)
+            logger.info(
+                "Added %s picture(s) for parameter %s to storage",
+                len(nd_array),
+                param,
+            )
             del meta.parameters[param]
         except ValueError:
-            logger.warning("Could not add pictures for parameter %s to storage", param)
+            logger.warning(
+                "Could not add pictures for parameter %s to storage", param
+            )
         except tables.exceptions.NodeError:
             storage.hdf.remove_node("/", f"{prefix}__{param}", recursive=True)
             logger.info(
-                "Removed %s image array from storage root node as it is being overwritten.", param
+                "Removed %s image array from storage root node as it is being"
+                " overwritten.",
+                param,
             )
             write_image_array(storage, f"{prefix}__{param}", nd_array, True)
-            logger.info("Added %s picture(s) for parameter %s to storage", len(nd_array), param)
+            logger.info(
+                "Added %s picture(s) for parameter %s to storage",
+                len(nd_array),
+                param,
+            )
             del meta.parameters[param]
 
 
-def write_image_array(storage: StorageData, name: str, array: np.ndarray, overwrite: bool):
+def write_image_array(
+    storage: StorageData, name: str, array: np.ndarray, overwrite: bool
+):
     """Add image array to storage data"""
 
     try:
@@ -300,7 +347,10 @@ def get_sendable_data_and_apply_conversion(
     )
 
     if streaming_configuration.first:
-        if not streaming_configuration.second and not streaming_configuration.third:
+        if (
+            not streaming_configuration.second
+            and not streaming_configuration.third
+        ):
 
             def convert_single(val: float) -> float:
                 volts = val * voltage_scaling
@@ -309,27 +359,47 @@ def get_sendable_data_and_apply_conversion(
             data.apply(convert_single)
             data_to_send.first = data.values[0]
 
-        elif streaming_configuration.second and not streaming_configuration.third:
+        elif (
+            streaming_configuration.second
+            and not streaming_configuration.third
+        ):
             data.values = [
-                first_channel_sensor.convert_to_phys(data.values[0] * voltage_scaling),
-                second_channel_sensor.convert_to_phys(data.values[1] * voltage_scaling),
+                first_channel_sensor.convert_to_phys(
+                    data.values[0] * voltage_scaling
+                ),
+                second_channel_sensor.convert_to_phys(
+                    data.values[1] * voltage_scaling
+                ),
             ]
             data_to_send.first = data.values[0]
             data_to_send.second = data.values[1]
 
-        elif not streaming_configuration.second and streaming_configuration.third:
+        elif (
+            not streaming_configuration.second
+            and streaming_configuration.third
+        ):
             data.values = [
-                first_channel_sensor.convert_to_phys(data.values[0] * voltage_scaling),
-                third_channel_sensor.convert_to_phys(data.values[1] * voltage_scaling),
+                first_channel_sensor.convert_to_phys(
+                    data.values[0] * voltage_scaling
+                ),
+                third_channel_sensor.convert_to_phys(
+                    data.values[1] * voltage_scaling
+                ),
             ]
             data_to_send.first = data.values[0]
             data_to_send.third = data.values[1]
 
         else:
             data.values = [
-                first_channel_sensor.convert_to_phys(data.values[0] * voltage_scaling),
-                second_channel_sensor.convert_to_phys(data.values[1] * voltage_scaling),
-                third_channel_sensor.convert_to_phys(data.values[2] * voltage_scaling),
+                first_channel_sensor.convert_to_phys(
+                    data.values[0] * voltage_scaling
+                ),
+                second_channel_sensor.convert_to_phys(
+                    data.values[1] * voltage_scaling
+                ),
+                third_channel_sensor.convert_to_phys(
+                    data.values[2] * voltage_scaling
+                ),
             ]
             data_to_send.first = data.values[0]
             data_to_send.second = data.values[1]
@@ -372,50 +442,78 @@ async def run_measurement(
     # NOTE: The array data.values only contains the activated channels. This
     # means we need to compute the index at which each channel is located.
     # This may not be pretty, but it works.
-    [first_index, second_index, third_index] = get_measurement_indices(streaming_configuration)
+    [first_index, second_index, third_index] = get_measurement_indices(
+        streaming_configuration
+    )
 
     timestamps: list[float] = []
     ift_relevant_channel: list[float] = []
     ift_sent: bool = False
     start_time: float = 0
-    measurement_file_path = Path(f"{get_measurement_dir()}/{measurement_state.name}.hdf5")
+    measurement_file_path = Path(
+        f"{get_measurement_dir()}/{measurement_state.name}.hdf5"
+    )
     try:
-        with Storage(measurement_file_path, streaming_configuration) as storage:
+        with Storage(
+            measurement_file_path, streaming_configuration
+        ) as storage:
 
-            logger.info("Opened measurement file: <%s> for writing", measurement_file_path)
+            logger.info(
+                "Opened measurement file: <%s> for writing",
+                measurement_file_path,
+            )
 
             storage["conversion"] = "true"
             assert isinstance(instructions.adc, ADCValues)
             assert isinstance(instructions.adc.reference_voltage, float)
 
-            storage["adc_reference_voltage"] = f"{instructions.adc.reference_voltage}"
+            storage["adc_reference_voltage"] = (
+                f"{instructions.adc.reference_voltage}"
+            )
             if instructions.meta:
                 write_metadata(MetadataPrefix.PRE, instructions.meta, storage)
 
-            async with system.sensor_node.open_data_stream(streaming_configuration) as stream:
+            async with system.sensor_node.open_data_stream(
+                streaming_configuration
+            ) as stream:
 
-                logger.info("Opened measurement stream: <%s>", measurement_file_path)
+                logger.info(
+                    "Opened measurement stream: <%s>", measurement_file_path
+                )
 
                 counter: int = 0
                 data_collected_for_send: list = []
 
                 sensor_info = MeasurementSensorInfo(instructions)
-                (first_channel_sensor, second_channel_sensor, third_channel_sensor, _) = (
-                    sensor_info.get_values()
-                )
+                (
+                    first_channel_sensor,
+                    second_channel_sensor,
+                    third_channel_sensor,
+                    _,
+                ) = sensor_info.get_values()
                 add_sensor_data_to_storage(
                     storage,
-                    [first_channel_sensor, second_channel_sensor, third_channel_sensor],
+                    [
+                        first_channel_sensor,
+                        second_channel_sensor,
+                        third_channel_sensor,
+                    ],
                 )
 
                 if streaming_configuration.first:
-                    if not streaming_configuration.second and not streaming_configuration.third:
+                    if (
+                        not streaming_configuration.second
+                        and not streaming_configuration.third
+                    ):
                         logger.info(
                             "Running in single channel mode with sensor %s.",
                             sensor_configuration.first,
                         )
 
-                    elif streaming_configuration.second and not streaming_configuration.third:
+                    elif (
+                        streaming_configuration.second
+                        and not streaming_configuration.third
+                    ):
                         logger.info(
                             "Running in dual channel mode with channels 1 "
                             "(Sensor %s) and 2 (Sensor %s).",
@@ -423,7 +521,10 @@ async def run_measurement(
                             sensor_configuration.second,
                         )
 
-                    elif not streaming_configuration.second and streaming_configuration.third:
+                    elif (
+                        not streaming_configuration.second
+                        and streaming_configuration.third
+                    ):
                         logger.info(
                             "Running in dual channel mode with channels 1 "
                             "(Sensor %s) and 3 (Sensor %s).",
@@ -433,7 +534,8 @@ async def run_measurement(
 
                     else:
                         logger.info(
-                            "Running in triple channel mode with sensors %s, %s and %s.",
+                            "Running in triple channel mode with sensors %s,"
+                            " %s and %s.",
                             sensor_configuration.first,
                             sensor_configuration.second,
                             sensor_configuration.third,
@@ -443,7 +545,9 @@ async def run_measurement(
 
                     if start_time == 0:
                         start_time = data.timestamp
-                        logger.debug("Set measurement start time to %s", start_time)
+                        logger.debug(
+                            "Set measurement start time to %s", start_time
+                        )
 
                     # Convert timestamp to seconds since measurement start
                     data.timestamp = data.timestamp - start_time
@@ -453,27 +557,41 @@ async def run_measurement(
                     if instructions.ift_requested:
                         match instructions.ift_channel:
                             case "first":
-                                ift_relevant_channel.append(data.values[first_index])
+                                ift_relevant_channel.append(
+                                    data.values[first_index]
+                                )
                             case "second":
-                                ift_relevant_channel.append(data.values[second_index])
+                                ift_relevant_channel.append(
+                                    data.values[second_index]
+                                )
                             case "third":
-                                ift_relevant_channel.append(data.values[third_index])
+                                ift_relevant_channel.append(
+                                    data.values[third_index]
+                                )
 
                     data_to_send = get_sendable_data_and_apply_conversion(
                         streaming_configuration, sensor_info, data
                     )
                     storage.add_streaming_data(data)
 
-                    if counter >= (sample_rate // int(os.getenv("WEBSOCKET_UPDATE_RATE", "60"))):
+                    if counter >= (
+                        sample_rate
+                        // int(os.getenv("WEBSOCKET_UPDATE_RATE", "60"))
+                    ):
                         for client in measurement_state.clients:
                             try:
                                 await client.send_json(data_collected_for_send)
                             except RuntimeError:
-                                logger.warning("Failed to send data to client <%s>", client.client)
+                                logger.warning(
+                                    "Failed to send data to client <%s>",
+                                    client.client,
+                                )
                         data_collected_for_send.clear()
                         counter = 0
                     else:
-                        data_collected_for_send.append(data_to_send.model_dump())
+                        data_collected_for_send.append(
+                            data_to_send.model_dump()
+                        )
                         counter += 1
 
                     # Skip exit conditions on the first iteration
@@ -518,7 +636,10 @@ async def run_measurement(
             # Send IFT value values at once after the measurement is finished.
             if instructions.ift_requested:
                 await send_ift_values(
-                    timestamps, ift_relevant_channel, instructions, measurement_state
+                    timestamps,
+                    ift_relevant_channel,
+                    instructions,
+                    measurement_state,
                 )
                 ift_sent = True
 
@@ -529,12 +650,16 @@ async def run_measurement(
                     await asyncio.sleep(1)
                 logger.info("Received post-measurement metadata")
                 await general_messenger.send_post_meta_completed()
-                write_metadata(MetadataPrefix.POST, measurement_state.post_meta, storage)
+                write_metadata(
+                    MetadataPrefix.POST, measurement_state.post_meta, storage
+                )
 
     except StreamingTimeoutError as e:
         logger.debug("Stream timeout error")
         for client in measurement_state.clients:
-            await client.send_json({"error": True, "type": type(e).__name__, "message": str(e)})
+            await client.send_json(
+                {"error": True, "type": type(e).__name__, "message": str(e)}
+            )
         measurement_state.clients.clear()
     except asyncio.CancelledError as e:
         logger.debug(
@@ -543,7 +668,12 @@ async def run_measurement(
             ift_sent,
         )
         if instructions.ift_requested and not ift_sent:
-            await send_ift_values(timestamps, ift_relevant_channel, instructions, measurement_state)
+            await send_ift_values(
+                timestamps,
+                ift_relevant_channel,
+                instructions,
+                measurement_state,
+            )
         raise asyncio.CancelledError from e
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")

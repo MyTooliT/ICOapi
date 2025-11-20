@@ -48,15 +48,23 @@ router = APIRouter(
                             "properties": {
                                 "name": {
                                     "type": "string",
-                                    "description": "The (Bluetooth advertisement) name of the STH",
+                                    "description": (
+                                        "The (Bluetooth advertisement) name of"
+                                        " the STH"
+                                    ),
                                 },
                                 "device_number": {
                                     "type": "integer",
-                                    "description": "The device number of the STH",
+                                    "description": (
+                                        "The device number of the STH"
+                                    ),
                                 },
                                 "mac_address": {
                                     "type": "string",
-                                    "description": "The (Bluetooth) MAC address of the STH",
+                                    "description": (
+                                        "The (Bluetooth) MAC address of"
+                                        " the STH"
+                                    ),
                                 },
                                 "rssi": {
                                     "type": "integer",
@@ -91,11 +99,15 @@ router = APIRouter(
         502: HTTP_502_CAN_NO_RESPONSE_SPEC,
     },
 )
-async def sth(system: ICOsystem = Depends(get_system)) -> list[STHDeviceResponseModel]:
+async def sth(
+    system: ICOsystem = Depends(get_system),
+) -> list[STHDeviceResponseModel]:
     """Get a list of available sensor devices"""
     try:
         devices = await get_sth_devices_from_network(system)
-        return [STHDeviceResponseModel.from_network(device) for device in devices]
+        return [
+            STHDeviceResponseModel.from_network(device) for device in devices
+        ]
     except NoResponseError as error:
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
@@ -154,7 +166,9 @@ async def sth_rename(
     """Rename sensor node"""
 
     try:
-        return await rename_sth_device(system, device_info.mac_address, device_info.new_name)
+        return await rename_sth_device(
+            system, device_info.mac_address, device_info.new_name
+        )
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
@@ -229,7 +243,9 @@ async def read_adc(system: ICOsystem = Depends(get_system)) -> ADCValues:
         502: HTTP_502_CAN_NO_RESPONSE_SPEC,
     },
 )
-async def write_adc(config: ADCValues, system: ICOsystem = Depends(get_system)) -> None:
+async def write_adc(
+    config: ADCValues, system: ICOsystem = Depends(get_system)
+) -> None:
     """Write ADC configuration"""
 
     try:

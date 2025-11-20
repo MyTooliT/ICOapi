@@ -18,7 +18,10 @@ from icoapi.models.models import (
 )
 from icoapi.models.models import ADCValues
 from icoapi.scripts.config_helper import validate_dataspace_payload
-from icoapi.scripts.file_handling import ensure_folder_exists, get_sensors_file_path
+from icoapi.scripts.file_handling import (
+    ensure_folder_exists,
+    get_sensors_file_path,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +179,9 @@ def get_sensors() -> list[Sensor]:
     except FileNotFoundError:
         sensor_defaults = get_sensor_defaults()
         configuration_defaults = get_sensor_configuration_defaults()
-        write_sensor_defaults(sensor_defaults, configuration_defaults, file_path)
+        write_sensor_defaults(
+            sensor_defaults, configuration_defaults, file_path
+        )
         return sensor_defaults
 
 
@@ -198,7 +203,10 @@ def read_and_parse_sensor_data(
                 for ch_num, ch_entry in cfg.get("channels", {}).items():
                     sid = ch_entry.get("sensor_id")
                     if sid not in sensor_map:
-                        raise ValueError(f"Channel {ch_num} references unknown sensor_id '{sid}'")
+                        raise ValueError(
+                            f"Channel {ch_num} references unknown sensor_id"
+                            f" '{sid}'"
+                        )
                     chan_map[int(ch_num)] = sensor_map[sid]
                 configs.append(
                     PCBSensorConfiguration(
@@ -214,10 +222,14 @@ def read_and_parse_sensor_data(
 
             return sensors, configs, default_configuration_id
     except FileNotFoundError as error:
-        raise FileNotFoundError(f"Could not find sensor.yaml file at {file_path}") from error
+        raise FileNotFoundError(
+            f"Could not find sensor.yaml file at {file_path}"
+        ) from error
 
 
-def get_sensor_config_data() -> tuple[list[Sensor], list[PCBSensorConfiguration], str]:
+def get_sensor_config_data() -> (
+    tuple[list[Sensor], list[PCBSensorConfiguration], str]
+):
     """Get sensor configuration data"""
 
     file_path = get_sensors_file_path()
@@ -227,7 +239,9 @@ def get_sensor_config_data() -> tuple[list[Sensor], list[PCBSensorConfiguration]
     except FileNotFoundError:
         sensor_default = get_sensor_defaults()
         configuration_defaults = get_sensor_configuration_defaults()
-        write_sensor_defaults(sensor_default, configuration_defaults, file_path)
+        write_sensor_defaults(
+            sensor_default, configuration_defaults, file_path
+        )
         return read_and_parse_sensor_data(file_path)
 
 
@@ -240,7 +254,9 @@ def write_sensor_defaults(
     with open(file_path, "w+", encoding="utf-8") as file:
         default_data = {"sensors": [sensor.model_dump() for sensor in sensors]}
         yaml.safe_dump(default_data, file, sort_keys=False)
-        yaml.safe_dump({"sensor_configurations": configuration}, file, sort_keys=False)
+        yaml.safe_dump(
+            {"sensor_configurations": configuration}, file, sort_keys=False
+        )
         logger.info(
             "File not found. Created new sensor.yaml with %s default"
             " sensors and %s default sensor configurations.",
@@ -249,7 +265,9 @@ def write_sensor_defaults(
         )
 
 
-def find_sensor_by_id(sensors: List[Sensor], sensor_id: str) -> Optional[Sensor]:
+def find_sensor_by_id(
+    sensors: List[Sensor], sensor_id: str
+) -> Optional[Sensor]:
     """
     Finds a sensor by its ID from the list of sensors.
 
@@ -290,7 +308,9 @@ def get_sensor_for_channel(
         if sensor:
             return sensor
 
-        logger.error("Could not find sensor with ID %s.", channel_instruction.sensor_id)
+        logger.error(
+            "Could not find sensor with ID %s.", channel_instruction.sensor_id
+        )
 
     logger.info(
         "No sensor ID requested or not found for channel %s. Taking defaults.",
@@ -335,7 +355,9 @@ class SensorDescription(IsDescription):
     """Description of HDF5 sensor table"""
 
     name = StringCol(itemsize=100)  # Fixed-size string for the name
-    sensor_type = StringCol(itemsize=100)  # Fixed-size string for the sensor type
+    sensor_type = StringCol(
+        itemsize=100
+    )  # Fixed-size string for the sensor type
     sensor_id = StringCol(itemsize=100)  # Fixed-size string for the sensor ID
     unit = StringCol(itemsize=10)  # Fixed-size string for the unit
     dimension = StringCol(itemsize=100)  # Fixed-size string for the unit
@@ -350,7 +372,9 @@ class SensorDescription(IsDescription):
 # pylint: enable=too-few-public-methods
 
 
-def add_sensor_data_to_storage(storage: StorageData, sensors: List[Sensor]) -> None:
+def add_sensor_data_to_storage(
+    storage: StorageData, sensors: List[Sensor]
+) -> None:
     """Add sensor data to storage oject"""
 
     if not storage.hdf:
@@ -390,7 +414,9 @@ def read_and_parse_trident_config(file_path: str) -> TridentConfig:
 
     logger.info("Trying to read dataspace config file: %s", file_path)
     if not path.exists(file_path):
-        raise FileNotFoundError(f"Dataspace config file not found: {file_path}")
+        raise FileNotFoundError(
+            f"Dataspace config file not found: {file_path}"
+        )
 
     try:
         with open(file_path, "r", encoding="utf-8") as file:
@@ -434,11 +460,15 @@ class MeasurementSensorInfo:
     def __init__(self, instructions: MeasurementInstructions):
         super().__init__()
         self.first_channel_sensor = get_sensor_for_channel(instructions.first)
-        self.second_channel_sensor = get_sensor_for_channel(instructions.second)
+        self.second_channel_sensor = get_sensor_for_channel(
+            instructions.second
+        )
         self.third_channel_sensor = get_sensor_for_channel(instructions.third)
         assert isinstance(instructions.adc, ADCValues)
         assert isinstance(instructions.adc.reference_voltage, float)
-        self.voltage_scaling = get_voltage_from_raw(instructions.adc.reference_voltage)
+        self.voltage_scaling = get_voltage_from_raw(
+            instructions.adc.reference_voltage
+        )
 
     def get_values(self):
         """Return sensors for channels and voltage scaling"""

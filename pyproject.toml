@@ -54,7 +54,7 @@ test = [
 icoapi = "icoapi.api:main"
 
 [tool.black]
-line-length = 100
+line-length = 79
 preview = true
 unstable = true
 enable-unstable-feature = ["string_processing"]

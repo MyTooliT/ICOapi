@@ -29,7 +29,9 @@ class TestSTH:
         assert len(sensor_device["name"]) <= 8
         assert 0 >= sensor_device["rssi"] >= -90
 
-    def test_connect_disconnect(self, sth_prefix, test_sensor_node, client) -> None:
+    def test_connect_disconnect(
+        self, sth_prefix, test_sensor_node, client
+    ) -> None:
         """Test endpoint ``/connect`` and ``/disconnect``"""
 
         # ========================
@@ -37,7 +39,9 @@ class TestSTH:
         # ========================
 
         mac_address = test_sensor_node["mac_address"]
-        response = client.put(f"{sth_prefix}/connect", json={"mac_address": mac_address})
+        response = client.put(
+            f"{sth_prefix}/connect", json={"mac_address": mac_address}
+        )
         assert response.status_code == 200
         assert response.json() is None
 
@@ -47,7 +51,9 @@ class TestSTH:
         # = Test Error Response =
         # =======================
 
-        response = client.put(f"{sth_prefix}/connect", json={"mac_address": "01-02-03-04-05-06"})
+        response = client.put(
+            f"{sth_prefix}/connect", json={"mac_address": "01-02-03-04-05-06"}
+        )
 
         assert response.status_code == 404
 

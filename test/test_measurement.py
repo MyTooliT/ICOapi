@@ -25,7 +25,9 @@ class TestMeasurement:
         ):
             assert key in body
 
-    def test_start(self, measurement_prefix, measurement_configuration, client) -> None:
+    def test_start(
+        self, measurement_prefix, measurement_configuration, client
+    ) -> None:
         """Test endpoint ``/start``"""
 
         measurement_status = measurement_prefix
@@ -39,7 +41,9 @@ class TestMeasurement:
         response = client.post(start, json=measurement_configuration)
         assert response.status_code == 200
 
-        assert response.json()["message"] == "Measurement started successfully."
+        assert (
+            response.json()["message"] == "Measurement started successfully."
+        )
 
         response = client.get(measurement_status)
         assert response.status_code == 200
@@ -68,7 +72,10 @@ class TestMeasurement:
         }
 
     def test_stream(
-        self, measurement, measurement_prefix, client  # pylint: disable=unused-argument
+        self,
+        measurement,  # pylint: disable=unused-argument
+        measurement_prefix,
+        client,
     ) -> None:
         """Check WebSocket streaming data"""
 

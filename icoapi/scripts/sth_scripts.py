@@ -9,7 +9,9 @@ from icoapi.models.models import STHRenameResponseModel, ADCValues
 logger = logging.getLogger(__name__)
 
 
-async def get_sth_devices_from_network(system: ICOsystem) -> List[SensorNodeInfo]:
+async def get_sth_devices_from_network(
+    system: ICOsystem,
+) -> List[SensorNodeInfo]:
     """Get a list of available sensor devices"""
 
     sensor_devices = await system.collect_sensor_nodes()
@@ -17,10 +19,14 @@ async def get_sth_devices_from_network(system: ICOsystem) -> List[SensorNodeInfo
     return sensor_devices
 
 
-async def connect_sth_device_by_mac(system: ICOsystem, mac_address: str) -> None:
+async def connect_sth_device_by_mac(
+    system: ICOsystem, mac_address: str
+) -> None:
     """Connect a STH device by a given MAC address"""
     await system.connect_sensor_node_mac(mac_address)
-    logger.info("STU 1 has connection: %s", await system.is_sensor_node_connected())
+    logger.info(
+        "STU 1 has connection: %s", await system.is_sensor_node_connected()
+    )
 
 
 async def disconnect_sth_devices(system: ICOsystem) -> None:

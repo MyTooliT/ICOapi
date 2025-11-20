@@ -5,10 +5,14 @@ from starlette import status
 
 HTTP_404_STH_UNREACHABLE_EXCEPTION = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND,
-    detail="STH could not be connected and must be out of reach or discharged.",
+    detail=(
+        "STH could not be connected and must be out of reach or discharged."
+    ),
 )
 HTTP_404_STH_UNREACHABLE_SPEC = {
-    "description": "STH could not be connected and must be out of reach or discharged.",
+    "description": (
+        "STH could not be connected and must be out of reach or discharged."
+    ),
     "content": {
         "application/json": {
             "schema": {
@@ -20,7 +24,10 @@ HTTP_404_STH_UNREACHABLE_SPEC = {
                 "required": ["detail", "status_code"],
             },
             "example": {
-                "detail": "STH could not be connected and must be out of reach or discharged.",
+                "detail": (
+                    "STH could not be connected and must be out of reach or"
+                    " discharged."
+                ),
                 "status_code": 404,
             },
         }
@@ -76,7 +83,8 @@ HTTP_502_CAN_NO_RESPONSE_SPEC = {
 }
 
 HTTP_400_INVALID_YAML_EXCEPTION = HTTPException(
-    status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to parse YAML payload."
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="Failed to parse YAML payload.",
 )
 HTTP_400_INVALID_YAML_SPEC = {
     "description": "Failed to parse YAML payload.",

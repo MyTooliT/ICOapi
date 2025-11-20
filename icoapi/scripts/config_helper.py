@@ -71,14 +71,17 @@ CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
     ENV=ConfigFileDescription(
         endpoint="env",
         title="Environment Configuration",
-        description="Configuration file containing environment configurations.",
+        description=(
+            "Configuration file containing environment configurations."
+        ),
         filename=".env",
     ),
     METADATA=ConfigFileDescription(
         endpoint="meta",
         title="Metadata Configuration",
         description=(
-            "Configuration file containing your pre- and post-measurement metadata profiles."
+            "Configuration file containing your pre- and post-measurement"
+            " metadata profiles."
         ),
         filename="metadata.yaml",
     ),
@@ -86,14 +89,18 @@ CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
         endpoint="sensors",
         title="Sensor Configuration",
         description=(
-            "Configuration file containing sensor definitions and tool holder configurations."
+            "Configuration file containing sensor definitions and tool holder"
+            " configurations."
         ),
         filename="sensors.yaml",
     ),
     DATASPACE=ConfigFileDescription(
         endpoint="dataspace",
         title="Data Space Configuration",
-        description="Configuration file containing your data space connection settings.",
+        description=(
+            "Configuration file containing your data space connection"
+            " settings."
+        ),
         filename="dataspace.yaml",
     ),
 )
@@ -137,7 +144,9 @@ def validate_yaml_info_header(payload: Any) -> list[str]:
             assert isinstance(date, str)
             datetime.fromisoformat(date)
         except ValueError:
-            errors.append("info -> date: expected date in UTC timestamp format")
+            errors.append(
+                "info -> date: expected date in UTC timestamp format"
+            )
     return errors
 
 
@@ -170,26 +179,36 @@ def validate_profile(profile_key: str, profile_value: dict) -> list[str]:
     errors: list[str] = []
 
     if not isinstance(profile_value, dict):
-        errors.append(f"{path_prefix}: expected mapping with profile configuration")
+        errors.append(
+            f"{path_prefix}: expected mapping with profile configuration"
+        )
         return errors
 
     for field_name in ("id", "name"):
         field_value = profile_value.get(field_name)
         if not isinstance(field_value, str) or not field_value.strip():
-            errors.append(f"{path_prefix} -> {field_name}: expected non-empty string")
+            errors.append(
+                f"{path_prefix} -> {field_name}: expected non-empty string"
+            )
 
     for stage in ("pre", "post"):
         if stage in profile_value:
             section = profile_value[stage]
             if not isinstance(section, dict):
-                errors.append(f"{path_prefix} -> {stage}: expected mapping of sections")
+                errors.append(
+                    f"{path_prefix} -> {stage}: expected mapping of sections"
+                )
             else:
-                validate_sections(section, ["profiles", str(profile_key), stage], errors)
+                validate_sections(
+                    section, ["profiles", str(profile_key), stage], errors
+                )
 
     return errors
 
 
-def validate_sections(section: dict, path: list[str], errors: list[str]) -> None:
+def validate_sections(
+    section: dict, path: list[str], errors: list[str]
+) -> None:
     """Validate profile sections"""
 
     if not isinstance(section, dict):
@@ -217,17 +236,23 @@ def is_field_definition(value: dict[str, Any]) -> bool:
     return FIELD_DEFINITION_REQUIRED_KEYS.issubset(value.keys())
 
 
-def validate_field_definition(field: dict[str, Any], path: list[str], errors: list[str]) -> None:
+def validate_field_definition(
+    field: dict[str, Any], path: list[str], errors: list[str]
+) -> None:
     """Validate field definition"""
 
     for key in FIELD_DEFINITION_REQUIRED_KEYS:
         field_value = field.get(key)
         if not isinstance(field_value, str) or not field_value.strip():
-            errors.append(" -> ".join(path + [key]) + ": expected non-empty string")
+            errors.append(
+                " -> ".join(path + [key]) + ": expected non-empty string"
+            )
 
     options = field.get("options")
     if options is not None and not isinstance(options, list):
-        errors.append(" -> ".join(path + ["options"]) + ": expected list when provided")
+        errors.append(
+            " -> ".join(path + ["options"]) + ": expected list when provided"
+        )
 
 
 # pylint: disable=too-many-branches, too-many-locals, too-many-statements
@@ -249,33 +274,55 @@ def validate_sensors_payload(payload: Any) -> list[str]:
     else:
         for index, sensor in enumerate(sensors):
             if not isinstance(sensor, dict):
-                errors.append(f"sensors[{index}]: expected mapping with sensor definition")
+                errors.append(
+                    f"sensors[{index}]: expected mapping with sensor"
+                    " definition"
+                )
                 continue
 
             for field in SENSOR_REQUIRED_FIELDS:
                 value = sensor.get(field)
-                if value is None or (isinstance(value, str) and not value.strip()):
-                    errors.append(f"sensors[{index}] -> {field}: expected non-empty value")
+                if value is None or (
+                    isinstance(value, str) and not value.strip()
+                ):
+                    errors.append(
+                        f"sensors[{index}] -> {field}: expected non-empty"
+                        " value"
+                    )
 
             sensor_id = sensor.get("sensor_id")
             if isinstance(sensor_id, str):
                 if sensor_id in sensor_ids:
                     errors.append(
-                        f"sensors[{index}] -> sensor_id: duplicate sensor_id '{sensor_id}'"
+                        f"sensors[{index}] -> sensor_id: duplicate sensor_id"
+                        f" '{sensor_id}'"
                     )
                 else:
                     sensor_ids.add(sensor_id)
             else:
-                errors.append(f"sensors[{index}] -> sensor_id: expected string")
+                errors.append(
+                    f"sensors[{index}] -> sensor_id: expected string"
+                )
 
-            for numeric_field in ("phys_min", "phys_max", "volt_min", "volt_max"):
+            for numeric_field in (
+                "phys_min",
+                "phys_max",
+                "volt_min",
+                "volt_max",
+            ):
                 value = sensor.get(numeric_field)
                 if not isinstance(value, numbers.Real):
-                    errors.append(f"sensors[{index}] -> {numeric_field}: expected numeric value")
+                    errors.append(
+                        f"sensors[{index}] -> {numeric_field}: expected"
+                        " numeric value"
+                    )
 
             sensor_type = sensor.get("sensor_type")
             if sensor_type is not None and not isinstance(sensor_type, str):
-                errors.append(f"sensors[{index}] -> sensor_type: expected string when provided")
+                errors.append(
+                    f"sensors[{index}] -> sensor_type: expected string when"
+                    " provided"
+                )
 
     configs = payload.get("sensor_configurations")
     if configs is not None:
@@ -284,15 +331,17 @@ def validate_sensors_payload(payload: Any) -> list[str]:
         else:
             for cfg_index, config in enumerate(configs):
                 if not isinstance(config, dict):
-                    errors.append(f"sensor_configurations[{cfg_index}]: expected mapping")
+                    errors.append(
+                        f"sensor_configurations[{cfg_index}]: expected mapping"
+                    )
                     continue
 
                 for key in ("configuration_id", "configuration_name"):
                     value = config.get(key)
                     if not isinstance(value, str) or not value.strip():
                         errors.append(
-                            f"sensor_configurations[{cfg_index}] -> {key}: expected"
-                            " non-empty string"
+                            f"sensor_configurations[{cfg_index}] -> {key}:"
+                            " expected non-empty string"
                         )
 
                 channels = config.get("channels")
@@ -300,36 +349,40 @@ def validate_sensors_payload(payload: Any) -> list[str]:
                     continue
                 if not isinstance(channels, dict) or not channels:
                     errors.append(
-                        f"sensor_configurations[{cfg_index}] -> channels: expected"
-                        " mapping of channel definitions"
+                        f"sensor_configurations[{cfg_index}] -> channels:"
+                        " expected mapping of channel definitions"
                     )
                     continue
 
                 for channel_key, channel_value in channels.items():
                     if not isinstance(channel_value, dict):
                         errors.append(
-                            f"sensor_configurations[{cfg_index}] -> channels ->"
-                            f" {channel_key}: expected mapping with channel definition"
+                            f"sensor_configurations[{cfg_index}] -> channels"
+                            f" -> {channel_key}: expected mapping with channel"
+                            " definition"
                         )
                         continue
 
                     sensor_id = channel_value.get("sensor_id")
                     if not isinstance(sensor_id, str) or not sensor_id.strip():
                         errors.append(
-                            f"sensor_configurations[{cfg_index}] -> channels ->"
-                            f" {channel_key} -> sensor_id: expected non-empty string"
+                            f"sensor_configurations[{cfg_index}] -> channels"
+                            f" -> {channel_key} -> sensor_id: expected"
+                            " non-empty string"
                         )
                     elif sensor_ids and sensor_id not in sensor_ids:
                         errors.append(
-                            f"sensor_configurations[{cfg_index}] -> channels ->"
-                            f" {channel_key} -> sensor_id: unknown sensor_id"
-                            f" '{sensor_id}'"
+                            f"sensor_configurations[{cfg_index}] -> channels"
+                            f" -> {channel_key} -> sensor_id: unknown"
+                            f" sensor_id '{sensor_id}'"
                         )
 
     default_configuration_id = payload.get("default_configuration_id")
     if default_configuration_id is not None:
         if not isinstance(default_configuration_id, str):
-            errors.append("default_configuration_id: expected str when provided")
+            errors.append(
+                "default_configuration_id: expected str when provided"
+            )
 
     return errors
 
@@ -365,7 +418,9 @@ def validate_dataspace_payload(payload: Any) -> list[str]:
             ]:
                 value = connection.get(key)
                 if not is_valid_string(value):
-                    errors.append(f"connection -> {key}: expected non-empty string")
+                    errors.append(
+                        f"connection -> {key}: expected non-empty string"
+                    )
 
     return errors
 
@@ -378,7 +433,9 @@ def store_config_file(
     config_path.mkdir(parents=True, exist_ok=True)
 
     target_path = config_path / filename
-    backup_path = move_file_to_backup(target_path) if target_path.exists() else None
+    backup_path = (
+        move_file_to_backup(target_path) if target_path.exists() else None
+    )
 
     target_path.write_bytes(content)
     return backup_path, target_path
@@ -405,7 +462,9 @@ def build_backup_path(backup_dir: Path, filename: str, timestamp: str) -> Path:
 
     counter = 1
     while backup_path.exists():
-        backup_path = backup_dir / f"{base_name}__{timestamp}_{counter}{suffix}"
+        backup_path = (
+            backup_dir / f"{base_name}__{timestamp}_{counter}{suffix}"
+        )
         counter += 1
 
     return backup_path
@@ -425,7 +484,9 @@ def split_base_and_suffix(filename: str) -> tuple[str, str]:
     return base, suffix
 
 
-def parse_info_header_from_file(config_file: Path) -> ConfigFileInfoHeader | None:
+def parse_info_header_from_file(
+    config_file: Path,
+) -> ConfigFileInfoHeader | None:
     """Get config file header information from config file"""
 
     if not config_file.suffix == ".yaml":

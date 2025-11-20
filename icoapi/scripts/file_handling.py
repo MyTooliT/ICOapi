@@ -24,33 +24,48 @@ def load_env_file():
 
     # First try: local development
     env_loaded = load_dotenv(
-        os.path.join(os.path.abspath(os.path.join(os.getcwd(), os.pardir)), "config", ".env"),
+        os.path.join(
+            os.path.abspath(os.path.join(os.getcwd(), os.pardir)),
+            "config",
+            ".env",
+        ),
         verbose=True,
     )
     if not env_loaded:
         # Second try: configs directory
         logger.warning(
-            "Environment variables not found in local directory. Trying to load from app data: %s",
+            "Environment variables not found in local directory. Trying to"
+            " load from app data: %s",
             get_config_dir(),
         )
-        env_loaded = load_dotenv(os.path.join(get_config_dir(), ".env"), verbose=True)
+        env_loaded = load_dotenv(
+            os.path.join(get_config_dir(), ".env"), verbose=True
+        )
     if not env_loaded and is_bundled():
         # Third try: we should be in the bundled state
         bundle_dir = sys._MEIPASS  # pylint: disable=protected-access
         logger.warning(
-            "Environment variables not found in local directory. Trying to load from app data: %s",
+            "Environment variables not found in local directory. Trying to"
+            " load from app data: %s",
             bundle_dir,
         )
-        env_loaded = load_dotenv(os.path.join(bundle_dir, "config", ".env"), verbose=True)
+        env_loaded = load_dotenv(
+            os.path.join(bundle_dir, "config", ".env"), verbose=True
+        )
     if not env_loaded:
         # Fourth try: load default configuration from package data
         package_data = files("icoapi").joinpath("config")
         logger.warning(
-            "Environment variables not found in app data. Trying to load from package data: %s",
+            "Environment variables not found in app data. Trying to load from"
+            " package data: %s",
             package_data,
         )
         env_loaded = load_dotenv(
-            stream=(package_data.joinpath("default.env").open("r", encoding="utf-8"))
+            stream=(
+                package_data.joinpath("default.env").open(
+                    "r", encoding="utf-8"
+                )
+            )
         )
     if not env_loaded:
         logger.critical("Environment variables not found")
@@ -89,19 +104,25 @@ def get_config_dir() -> str:
 def get_dataspace_file_path() -> str:
     """Get dataspace configuration path"""
 
-    return os.path.join(get_config_dir(), CONFIG_FILE_DEFINITIONS.DATASPACE.filename)
+    return os.path.join(
+        get_config_dir(), CONFIG_FILE_DEFINITIONS.DATASPACE.filename
+    )
 
 
 def get_sensors_file_path() -> str:
     """Get path to sensor configuration file"""
 
-    return os.path.join(get_config_dir(), CONFIG_FILE_DEFINITIONS.SENSORS.filename)
+    return os.path.join(
+        get_config_dir(), CONFIG_FILE_DEFINITIONS.SENSORS.filename
+    )
 
 
 def get_metadata_file_path() -> str:
     """Get path of metadata configuration"""
 
-    return os.path.join(get_config_dir(), CONFIG_FILE_DEFINITIONS.METADATA.filename)
+    return os.path.join(
+        get_config_dir(), CONFIG_FILE_DEFINITIONS.METADATA.filename
+    )
 
 
 def copy_config_files_if_not_exists(src_path: str, dest_path: str):
@@ -151,7 +172,9 @@ def is_dangerous_filename(filename: str) -> Tuple[bool, str | None]:
     return False, None
 
 
-def get_disk_space_in_gb(path_or_drive: str | os.PathLike = "/") -> DiskCapacity:
+def get_disk_space_in_gb(
+    path_or_drive: str | os.PathLike = "/",
+) -> DiskCapacity:
     """Get disk space in gibibyte"""
 
     try:
