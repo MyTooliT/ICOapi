@@ -3,6 +3,7 @@
 # -- Imports ------------------------------------------------------------------
 
 from asyncio import TaskGroup, wait_for
+from json import loads
 from logging import getLogger
 
 from httpx_ws import aconnect_ws
@@ -48,7 +49,7 @@ class TestGeneral:
                 try:
                     while True:
                         message = await wait_for(state_ws.receive_text(), timeout=1.0)
-                        messages.append(message)
+                        messages.append(loads(message))
                 except TimeoutError:
                     pass
 
@@ -61,6 +62,11 @@ class TestGeneral:
         assert len(messages) >= 1
 
         logger.debug("Retrieved %d messages", len(stream_data_task.result()))
+        for message_number, message in enumerate(messages, start=1):
+            assert "message" in message
+            assert message["message"] == "state"
+            assert "data" in message
+            logger.debug("Message %d: %s", message_number, message)
 
     def test_reset_can(self, reset_can_prefix, client) -> None:
         """Test endpoint ``reset-can``"""
