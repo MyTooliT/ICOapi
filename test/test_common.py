@@ -42,7 +42,7 @@ class TestGeneral:
         state = f"{ws_url}{state_prefix}"
         logger = getLogger(__name__)
 
-        async def connect_to_websocket():
+        async def get_websocket_messages():
             messages = []
             logger.debug("Try to connect to WebSocket URL: %s", state)
             async with aconnect_ws(state, async_client) as state_ws:
@@ -56,7 +56,7 @@ class TestGeneral:
                 return messages
 
         async with TaskGroup() as task_group:
-            stream_data_task = task_group.create_task(connect_to_websocket())
+            stream_data_task = task_group.create_task(get_websocket_messages())
 
         messages = stream_data_task.result()
         assert len(messages) >= 1
