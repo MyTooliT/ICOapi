@@ -2,9 +2,9 @@
 
 # -- Imports ------------------------------------------------------------------
 
-from asyncio import sleep, TaskGroup, wait_for
-from asyncio.exceptions import CancelledError
+from asyncio import TaskGroup, wait_for
 from logging import getLogger
+from typing import Any
 
 from netaddr import EUI
 from httpx import AsyncClient
@@ -14,19 +14,38 @@ from pytest import mark
 # -- Functions ----------------------------------------------------------------
 
 
-async def get_websocket_messages(ws: AsyncWebSocketSession):
-    """Retrieve messages from WebSocket"""
+async def get_websocket_messages(
+    ws: AsyncWebSocketSession, message_count: int
+) -> list[dict[Any, Any]]:
+    """Retrieve JSON messages from WebSocket
+
+    Args:
+
+        ws:
+
+            The WebSocket session that should be used to retrieve messages
+
+        message_count:
+
+            The number of messages that should be retrieved by this function
+
+    Returns:
+
+        The JSON messages retrieved from the WebSocket
+
+    Raises:
+
+        TimeoutError if the time between two sent messages is larger than 20 s
+
+    """
 
     logger = getLogger(__name__)
 
-    messages = []
-    try:
-        while True:
-            message = await wait_for(ws.receive_json(), timeout=20.0)
-            messages.append(message)
-            logger.debug("Retrieved WebSocket message: %s", message)
-    except (CancelledError, TimeoutError):
-        pass
+    messages: list[dict[Any, Any]] = []
+    while len(messages) < message_count:
+        message = await wait_for(ws.receive_json(), timeout=20.0)
+        messages.append(message)
+        logger.debug("Retrieved WebSocket message: %s", message)
 
     return messages
 
@@ -54,7 +73,6 @@ async def connect_and_disconnect_sensor_node(
     logger.debug("Disconnect from sensor node")
     await async_client.put(f"{sth_prefix}/disconnect")
     await ws_state.send_json(get_state)
-    await sleep(1)  # Wait until new state message is written to socket
 
 
 # -- Tests --------------------------------------------------------------------
@@ -94,20 +112,20 @@ class TestGeneral:
 
         ws: AsyncWebSocketSession
         async with aconnect_ws(state, async_client) as ws:
+            expected_number_messages = 3
             async with TaskGroup() as task_group:
                 messages_task = task_group.create_task(
-                    get_websocket_messages(ws)
+                    get_websocket_messages(ws, expected_number_messages)
                 )
-                connection_task = task_group.create_task(
+                task_group.create_task(
                     connect_and_disconnect_sensor_node(
                         sth_prefix, async_client, ws, mac_address
                     )
                 )
-                await connection_task
-                messages_task.cancel()
+                await messages_task
 
         messages = messages_task.result()
-        assert len(messages) >= 2
+        assert len(messages) == expected_number_messages
 
         logger.debug("Retrieved %d messages", len(messages))
         for message_number, message in enumerate(messages, start=1):
