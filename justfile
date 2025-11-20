@@ -1,3 +1,9 @@
+# -- Variables -----------------------------------------------------------------
+
+package := "icoapi"
+
+# -- Recipes -------------------------------------------------------------------
+
 # Run checks and test
 all: check test
 
@@ -18,5 +24,5 @@ test: check
 
 # Run API server
 run:
-	uv run python icoapi/api.py
+	uv run python {{package}}/api.py
 
