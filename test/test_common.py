@@ -55,7 +55,7 @@ class TestGeneral:
                     )
                     messages.append(loads(message))
                     logger.debug("Retrieved WebSocket message: %s", message)
-            except CancelledError, TimeoutError:
+            except (CancelledError, TimeoutError):
                 pass
 
             return messages
