@@ -1,6 +1,6 @@
 # ICOapi
 
-A REST and WebSocket API using the Python FastAPI library. You can find the official documentation [here](https://fastapi.tiangolo.com/).
+A REST and WebSocket API using the Python [FastAPI library](https://fastapi.tiangolo.com/).
 
 We currently support all major operating systems (Linux, macOS, Windows) which can run Python 3.12 and use a CAN interface properly
 
