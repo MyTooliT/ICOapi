@@ -245,7 +245,7 @@ is present in this API and thus in the client and ICOdaq software packages.
 
 ### Data Structure
 
-Withing the ``sensors.yaml`` file, two separate areas exist. One contains the
+Within the ``sensors.yaml`` file, two separate areas exist. One contains the
 sensor information and one the configurations which reference the sensors.
 Additionally, a field for the default configuration exists. The file then looks
 like this:
