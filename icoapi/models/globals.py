@@ -373,6 +373,6 @@ class GeneralMessenger:
 
 
 def get_messenger():
-    """Get general messenger singleton"""
+    """Get general messenger"""
 
     return GeneralMessenger()
