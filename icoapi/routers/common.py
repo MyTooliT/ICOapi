@@ -17,7 +17,7 @@ from icoapi.models.globals import (
     get_trident_feature,
 )
 from icoapi.models.models import Feature, SocketMessage, SystemStateModel
-from icoapi.scripts.file_handling import get_disk_space_in_gb
+from icoapi.scripts.file_handling import get_disk_space_in_gib
 
 router = APIRouter(tags=["General"])
 
@@ -35,7 +35,7 @@ def state(
 
     return SystemStateModel(
         can_ready=ICOsystemSingleton.has_instance(),
-        disk_capacity=get_disk_space_in_gb(),
+        disk_capacity=get_disk_space_in_gib(),
         measurement_status=measurement_state.get_status(),
         cloud=cloud,
     )

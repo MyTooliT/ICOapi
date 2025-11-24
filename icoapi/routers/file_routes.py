@@ -38,7 +38,7 @@ from icoapi.scripts.errors import (
     HTTP_404_FILE_NOT_FOUND_SPEC,
 )
 from icoapi.scripts.file_handling import (
-    get_disk_space_in_gb,
+    get_disk_space_in_gib,
     get_drive_or_root_path,
     get_measurement_dir,
     get_suffixed_filename,
@@ -60,7 +60,7 @@ async def list_files_and_capacity(
     """Get file list and storage capacity information"""
 
     try:
-        capacity = get_disk_space_in_gb(get_drive_or_root_path())
+        capacity = get_disk_space_in_gib(get_drive_or_root_path())
         files_info: list[MeasurementFileDetails] = []
         cloud_files: list[TridentBucketObject] = []
         if storage is not None:

@@ -172,7 +172,7 @@ def is_dangerous_filename(filename: str) -> Tuple[bool, str | None]:
     return False, None
 
 
-def get_disk_space_in_gb(
+def get_disk_space_in_gib(
     path_or_drive: str | os.PathLike = "/",
 ) -> DiskCapacity:
     """Get disk space in gibibyte"""

@@ -20,7 +20,7 @@ from icoapi.models.trident import StorageClient
 from icoapi.scripts.data_handling import read_and_parse_trident_config
 from icoapi.scripts.file_handling import (
     get_dataspace_file_path,
-    get_disk_space_in_gb,
+    get_disk_space_in_gib,
 )
 
 logger = logging.getLogger(__name__)
@@ -343,7 +343,7 @@ class GeneralMessenger:
                     message="state",
                     data=SystemStateModel(
                         can_ready=ICOsystemSingleton.has_instance(),
-                        disk_capacity=get_disk_space_in_gb(),
+                        disk_capacity=get_disk_space_in_gib(),
                         cloud=cloud,
                         measurement_status=state.get_status(),
                     ),
