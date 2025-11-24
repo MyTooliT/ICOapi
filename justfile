@@ -8,7 +8,9 @@ set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
 package := "icoapi"
 location := "localhost:33215/api/v1"
 http_url := "http://" + location
+ws_url := "ws://" + location
 mac_address := "08-6B-D7-01-DE-81"
+name := "Test-STH"
 
 # -- Recipes -------------------------------------------------------------------
 
@@ -51,5 +53,50 @@ connect:
 	http PUT "{{http_url}}/sth/connect" "mac_address={{mac_address}}"
 
 # Disconnect from sensor node
+[group('http')]
 disconnect:
 	http PUT "{{http_url}}/sth/disconnect"
+
+# Get sensor configuration
+[group('http')]
+sensor:
+	http GET "{{http_url}}/sensor"
+
+# Start measurement
+[group('http')]
+start-measurement: connect
+	http POST "{{http_url}}/measurement/start" \
+	  "name={{name}}" \
+	  "mac_address={{mac_address}}" \
+	  time=100 \
+	  first[channel_number]:=1 \
+	  first[sensor_id]=acc100g_01 \
+	  second[channel_number]:=0 \
+	  second[sensor_id]="" \
+	  third[channel_number]:=0 \
+	  third[sensor_id]="" \
+	  ift_requested:=false \
+	  ift_channel="" \
+	  ift_window_width:=0 \
+	  adc[prescaler]:=2 \
+	  adc[acquisition_time]:=8 \
+	  adc[oversampling_rate]:=64 \
+	  adc[reference_voltage]:=3.3 \
+	  meta[version]="" \
+	  meta[profile]="" \
+	  meta[parameters]:={}
+
+# Check measurement status
+[group('http')]
+status:
+	http GET "{{http_url}}/measurement"
+
+# Connect to measurement socket
+[group('http')]
+stream:
+	http "{{ws_url}}/measurement/stream"
+
+# Stop current measurement
+[group('http')]
+stop-measurement:
+	http POST "{{http_url}}/measurement/stop"
