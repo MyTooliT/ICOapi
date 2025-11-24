@@ -432,7 +432,7 @@ The application is set up to log _everything_. This is how the logging is set up
 1. Make sure that all the checks and tests work correctly locally
 
    ```sh
-   make
+   just
    ```
 
 2. Make sure all [workflows of the CI system work correctly](https://github.com/MyTooliT/Cleaned-ICOapi/actions)
