@@ -30,8 +30,12 @@ check: setup
 # Run tests
 [group('test')]
 [default]
-test: check
-	uv run pytest
+test *options: check
+	uv run pytest {{options}}
+
+# Run hardware-independent tests
+[group('test')]
+test-no-hardware: (test "-m 'not hardware'")
 
 # Run API server
 [group('run')]
