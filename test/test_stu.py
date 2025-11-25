@@ -3,6 +3,7 @@
 # -- Imports ------------------------------------------------------------------
 
 from netaddr import EUI
+from pytest import mark
 
 # -- Tests --------------------------------------------------------------------
 
@@ -10,6 +11,7 @@ from netaddr import EUI
 class TestSTU:
     """STU endpoint test methods"""
 
+    @mark.hardware
     def test_root(self, stu_prefix, client) -> None:
         """Test endpoint ``/``"""
 
@@ -24,6 +26,7 @@ class TestSTU:
         assert EUI(mac_address) == mac_address
         assert sth_response["name"] == "STU 1"
 
+    @mark.hardware
     def test_reset(self, stu_prefix, client) -> None:
         """Test endpoint ``/reset``"""
 
@@ -32,6 +35,7 @@ class TestSTU:
         assert response.status_code == 200
         assert response.json() is None
 
+    @mark.hardware
     def test_connected(self, stu_prefix, client) -> None:
         """Test endpoint ``/connected``"""
 

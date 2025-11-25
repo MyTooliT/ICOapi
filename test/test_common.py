@@ -101,6 +101,7 @@ class TestGeneral:
         assert measurement_status["running"] is False
 
     @mark.anyio
+    @mark.hardware
     async def test_state_websocket(
         self, state_prefix, sth_prefix, test_sensor_node, async_client
     ) -> None:
@@ -142,6 +143,7 @@ class TestGeneral:
             assert message["data"]["can_ready"] is True
             logger.debug("Message %d: %s", message_number, message)
 
+    @mark.hardware
     def test_reset_can(self, reset_can_prefix, client) -> None:
         """Test endpoint ``reset-can``"""
 

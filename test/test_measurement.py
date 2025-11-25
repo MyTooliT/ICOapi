@@ -1,5 +1,9 @@
 """Tests for measurement endpoint"""
 
+# -- Imports ------------------------------------------------------------------
+
+from pytest import mark
+
 # -- Classes ------------------------------------------------------------------
 
 
@@ -25,6 +29,7 @@ class TestMeasurement:
         ):
             assert key in body
 
+    @mark.hardware
     def test_start(
         self, measurement_prefix, measurement_configuration, client
     ) -> None:
@@ -71,6 +76,7 @@ class TestMeasurement:
             }]
         }
 
+    @mark.hardware
     def test_stream(
         self,
         measurement,  # pylint: disable=unused-argument

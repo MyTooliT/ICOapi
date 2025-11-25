@@ -3,6 +3,7 @@
 # -- Imports ------------------------------------------------------------------
 
 from netaddr import EUI
+from pytest import mark
 
 # -- Tests --------------------------------------------------------------------
 
@@ -10,6 +11,7 @@ from netaddr import EUI
 class TestSTH:
     """STH endpoint test methods"""
 
+    @mark.hardware
     def test_root(self, sth_prefix, client) -> None:
         """Test endpoint ``/``"""
 
@@ -29,6 +31,7 @@ class TestSTH:
         assert len(sensor_device["name"]) <= 8
         assert 0 >= sensor_device["rssi"] >= -90
 
+    @mark.hardware
     def test_connect_disconnect(
         self, sth_prefix, test_sensor_node, client
     ) -> None:
@@ -57,6 +60,7 @@ class TestSTH:
 
         assert response.status_code == 404
 
+    @mark.hardware
     def test_rename(self, sth_prefix, connect, client) -> None:
         """Test endpoint ``/rename``"""
 
@@ -81,6 +85,7 @@ class TestSTH:
         assert response.json()["old_name"] == name
         assert response.json()["name"] == old_name
 
+    @mark.hardware
     def test_read_adc(
         self,
         sth_prefix,
@@ -104,6 +109,7 @@ class TestSTH:
         assert "reference_voltage" in adc_configuration
         assert isinstance(adc_configuration["reference_voltage"], float)
 
+    @mark.hardware
     def test_write_adc(
         self,
         sth_prefix,

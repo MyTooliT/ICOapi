@@ -86,7 +86,12 @@ ignore-paths = [
   "icoapi/models/trident",
 ]
 
-[tool.pytest.ini_options]
+[tool.pytest]
+markers = [
+    """hardware: marks tests as depending on ICOtronic hardware \
+       (deselect with '-m "not hardware"')""",
+    "hardware",
+]
 testpaths = [
   "test"
 ]
