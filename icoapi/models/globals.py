@@ -6,6 +6,7 @@ from typing import List
 from starlette.websockets import WebSocket
 
 from icostate import CANInitError, ICOsystem
+from icostate.state import State
 
 from icoapi.models.models import (
     Feature,
@@ -77,7 +78,8 @@ class ICOsystemSingleton:
                     "Trying to disconnect CAN connection with ID <%s>",
                     id(cls._instance),
                 )
-                await cls._instance.disconnect_stu()
+                if cls._instance.state == State.STU_CONNECTED:
+                    await cls._instance.disconnect_stu()
                 await get_messenger().push_messenger_update()
                 logger.debug(
                     "Closing ICOsystem instance with ID <%s>",
