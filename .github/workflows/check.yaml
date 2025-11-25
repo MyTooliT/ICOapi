@@ -17,24 +17,6 @@ jobs:
         python-version:
           - '3.12'
           - '3.13'
-          - '3.14'
-        exclude:
-
-          # No easy option (that I know) to install HDF5 on Windows
-          - os:
-              name: windows
-            python-version: '3.14'
-
-          # Fails: “ValueError: invalid literal for int() with base 10: '1.dev'”
-          - os:
-              name: ubuntu
-            python-version: '3.14'
-
-          # Pytest fails with “RuntimeError: Blosc2 library not found”
-          # On my local machine everything works fine 🤷
-          - os:
-              name: macos
-            python-version: '3.14'
 
     runs-on: ${{ matrix.os.name }}-latest
     name: ${{ matrix.os.icon }} Python ${{ matrix.python-version }}
@@ -48,17 +30,6 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-
-    # We install HDF5 in case an official binary build of PyTables is not
-    # available for the current Python version yet
-
-    - name: Install HDF5 on Linux
-      if: runner.os == 'Linux'
-      run: sudo apt install libhdf5-dev libblosc-dev libbz2-dev liblzo2-dev
-
-    - name: Install HDF5 on macOS
-      if: runner.os == 'macOS'
-      run: brew install hdf5 c-blosc2 lzo bzip2
 
     - name: Install uv
       uses: astral-sh/setup-uv@v6
