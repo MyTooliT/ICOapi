@@ -35,7 +35,6 @@ class TestSTU:
         assert response.status_code == 200
         assert response.json() is None
 
-    @mark.hardware
     def test_connected(self, stu_prefix, client) -> None:
         """Test endpoint ``/connected``"""
 

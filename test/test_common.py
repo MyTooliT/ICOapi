@@ -143,7 +143,6 @@ class TestGeneral:
             assert message["data"]["can_ready"] is True
             logger.debug("Message %d: %s", message_number, message)
 
-    @mark.hardware
     def test_reset_can(self, reset_can_prefix, client) -> None:
         """Test endpoint ``reset-can``"""
 
