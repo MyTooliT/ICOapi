@@ -3,6 +3,32 @@
 from fastapi import HTTPException
 from starlette import status
 
+HTTP_400_INCORRECT_STATE_EXCEPTION = HTTPException(
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="Incorrect request for current ICOtronic system state.",
+)
+HTTP_400_INCORRECT_STATE_SPEC = {
+    "description": "Incorrect request for current ICOtronic system state.",
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+                "required": ["detail", "status_code"],
+            },
+            "example": {
+                "detail": (
+                    "Incorrect request for current ICOtronic system state."
+                ),
+                "status_code": 400,
+            },
+        }
+    },
+}
+
 HTTP_404_STH_UNREACHABLE_EXCEPTION = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND,
     detail=(

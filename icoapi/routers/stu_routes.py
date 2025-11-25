@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends
 from icostate import ICOsystem
+from icostate.error import IncorrectStateError
 from icotronic.can.error import ErrorResponseError, NoResponseError
 
 from icoapi.models.models import STUDeviceResponseModel
@@ -12,6 +13,7 @@ from icoapi.models.globals import (
 )
 from icoapi.scripts.stu_scripts import reset_stu, get_stu
 from icoapi.scripts.errors import (
+    HTTP_400_INCORRECT_STATE_EXCEPTION,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
     HTTP_502_CAN_NO_RESPONSE_SPEC,
 )
@@ -49,9 +51,12 @@ async def stu_reset(
 ) -> None:
     """Reset STU"""
 
-    if await reset_stu(system):
-        await measurement_state.reset()
-        return None
+    try:
+        if await reset_stu(system):
+            await measurement_state.reset()
+            return None
+    except IncorrectStateError as error:
+        raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
 
     raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
 

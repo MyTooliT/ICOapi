@@ -35,6 +35,18 @@ class TestSTU:
         assert response.status_code == 200
         assert response.json() is None
 
+    @mark.hardware
+    def test_reset_incorrect_state(
+        self,
+        stu_prefix,
+        connect,  # pylint: disable=unused-argument
+        client,
+    ) -> None:
+        """Test endpoint ``/reset`` in incorrect state (connected)"""
+
+        response = client.put(f"{stu_prefix}/reset")
+        assert response.status_code == 400
+
     def test_connected(self, stu_prefix, client) -> None:
         """Test endpoint ``/connected``"""
 
