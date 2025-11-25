@@ -238,9 +238,14 @@ def get_sensor_config_data() -> (
 
     file_path = get_sensors_file_path()
     try:
+        logger.info("Read sensor data from configuration file: %s", file_path)
         return read_and_parse_sensor_data(file_path)
 
     except FileNotFoundError:
+        logger.info(
+            "Sensor configuration file not found using default configuration "
+            "instead"
+        )
         sensor_default = get_sensor_defaults()
         configuration_defaults = get_sensor_configuration_defaults()
         write_sensor_defaults(
