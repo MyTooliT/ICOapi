@@ -19,13 +19,21 @@ jobs:
           - '3.13'
           - '3.14'
         exclude:
+
           # No easy option (that I know) to install HDF5 on Windows
           - os:
               name: windows
             python-version: '3.14'
+
+          # Fails: “ValueError: invalid literal for int() with base 10: '1.dev'”
           - os:
               name: ubuntu
-          # Fails: “ValueError: invalid literal for int() with base 10: '1.dev'”
+            python-version: '3.14'
+
+          # Pytest fails with “RuntimeError: Blosc2 library not found”
+          # On my local machine everything works fine 🤷
+          - os:
+              name: macos
             python-version: '3.14'
 
     runs-on: ${{ matrix.os.name }}-latest
