@@ -110,6 +110,12 @@ class TestGeneral:
         logger = getLogger(__name__)
         mac_address = test_sensor_node["mac_address"]
 
+        # Connect to and disconnect from sensor node. Currently this will not
+        # change the message reported by the `state` WebSocket significantly,
+        # which makes this test probably less useful than it should be.
+        # However, changing the state (for example by starting a measurement)
+        # seems to be too much work (to me 😅) for testing the WebSocket for
+        # now.
         ws: AsyncWebSocketSession
         async with aconnect_ws(state, async_client) as ws:
             expected_number_messages = 3
