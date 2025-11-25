@@ -166,7 +166,11 @@ def get_sensor_configuration_defaults() -> list[dict]:
 
 def get_voltage_from_raw(v_ref: float) -> float:
     """Get the conversion factor from bit value to voltage"""
-    return v_ref / 2**16
+
+    # 0xffff = 2**16 - 1 is maximum possible value of 16 bit ADC
+    # If we would use 2**16 instead, then the maximum ADC value would not map
+    # to the maximum voltage level: 0xffff/2^16 ≠ 1
+    return v_ref / 0xFFFF
 
 
 def get_sensors() -> list[Sensor]:
