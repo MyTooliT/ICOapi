@@ -17,6 +17,12 @@ jobs:
         python-version:
           - '3.12'
           - '3.13'
+          - '3.14'
+        exclude:
+          # No easy option to install PyTables deps on Windows that I know of
+          - os:
+              name: windows
+            python-version: '3.14'
 
     runs-on: ${{ matrix.os.name }}-latest
     name: ${{ matrix.os.icon }} Python ${{ matrix.python-version }}
@@ -38,6 +44,35 @@ jobs:
 
     - name: Install just
       uses: taiki-e/install-action@just
+
+    # We install PyTables dependencies, if we use Python 3.14 for testing, since
+    # there is no binary package (wheel) available for the package yet.
+    # Unfortunately there seems to be a problem finding the Blosc library
+    # at runtime. As a workaround we add a link to the shared library file.
+
+    - name: Install PyTables dependencies on Linux (Python 3.14)
+      if: ${{ runner.os == 'Linux' && matrix.python-version == '3.14' }}
+      run: | # See also: https://github.com/PyTables/PyTables/issues/1262
+        sudo apt install libhdf5-dev libblosc2-dev libbz2-dev liblzo2-dev
+        uv venv
+        uv pip install git+https://github.com/PyTables/PyTables.git@6c7b53a
+        uv pip install -e .[dev,test]
+        sed -r --in-place 's/check: setup/check:/' justfile
+        sed -r --in-place 's/(uv run)/\1 --no-sync/' justfile
+        printf "LD_LIBRARY_PATH: %s\n" "${LD_LIBRARY_PATH}"
+        library_directory="$(pkg-config blosc2 --variable sharedlibdir)"
+        printf "Library Directory: %s\n" "${library_directory}"
+        library_link="${LD_LIBRARY_PATH}/libblosc2.so.6"
+        ln -s "${library_directory}/libblosc2.so" "${library_link}"
+
+    - name: Install PyTables dependencies on macOS (Python 3.14)
+      if: ${{ runner.os == 'macOS' && matrix.python-version == '3.14' }}
+      run: |
+        brew install c-blosc2 bzip2 hdf5
+        mkdir -p "$PWD/.venv/lib/python3.14/site-packages/tables/"
+        ln -s \
+          "$(pkg-config blosc2 --variable sharedlibdir)"/libblosc2.dylib \
+          "$PWD/.venv/lib/python3.14/site-packages/tables/libblosc2.dylib"
 
     - name: Check and test code base
       run: just test-no-hardware
