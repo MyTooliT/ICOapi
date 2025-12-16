@@ -48,7 +48,9 @@ class TestSTH:
         assert response.status_code == 200
         assert response.json() is None
 
-        client.put(f"{sth_prefix}/disconnect")
+        response = client.put(f"{sth_prefix}/disconnect")
+        assert response.status_code == 200
+        assert response.json() is None
 
         # =======================
         # = Test Error Response =
