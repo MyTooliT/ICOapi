@@ -14,6 +14,7 @@ from icoapi.models.globals import (
 from icoapi.scripts.stu_scripts import reset_stu, get_stu
 from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_EXCEPTION,
+    HTTP_400_INCORRECT_STATE_SPEC,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
     HTTP_502_CAN_NO_RESPONSE_SPEC,
 )
@@ -42,6 +43,7 @@ async def stu(
         200: {
             "description": "Indicates the STU has been reset.",
         },
+        400: HTTP_400_INCORRECT_STATE_SPEC,
         502: HTTP_502_CAN_NO_RESPONSE_SPEC,
     },
 )
