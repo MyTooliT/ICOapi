@@ -88,14 +88,14 @@ class TestSTH:
         assert response.json()["name"] == old_name
 
     @mark.hardware
-    def test_read_adc(
+    def test_read_adc_connected(
         self,
         sth_prefix,
         client,
         connect,
         # pylint: disable=unused-argument
     ) -> None:
-        """Test endpoint ``/read-adc``"""
+        """Test endpoint ``/read-adc`` when connected to sensor node"""
 
         response = client.get(f"{sth_prefix}/read-adc")
         assert response.status_code == 200
@@ -110,6 +110,17 @@ class TestSTH:
             assert isinstance(adc_configuration[attribute], int)
         assert "reference_voltage" in adc_configuration
         assert isinstance(adc_configuration["reference_voltage"], float)
+
+    @mark.hardware
+    def test_read_adc_disconnected(
+        self,
+        sth_prefix,
+        client,
+    ) -> None:
+        """Test endpoint ``/read-adc`` when not connected to sensor node"""
+
+        response = client.get(f"{sth_prefix}/read-adc")
+        assert response.status_code == 404
 
     @mark.hardware
     def test_write_adc(
