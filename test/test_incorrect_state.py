@@ -35,4 +35,6 @@ class TestIncorrectState:
         )
         assert response.status_code == 400
 
-        client.put(f"{sth_prefix}/disconnect")
+        response = client.put(f"{sth_prefix}/disconnect")
+
+        assert response.status_code == 200
