@@ -473,16 +473,9 @@ The application is set up to log _everything_. This is how the logging is set up
 2. Make sure all [workflows of the CI system work correctly](https://github.com/MyTooliT/Cleaned-ICOapi/actions)
 
 3. Release a new version on [PyPI](https://pypi.org/project/icoapi/):
-   1. Increase version number
-   2. Add git tag containing version number
-   3. Push changes
 
    ```sh
-   poetry version <VERSION>
-   export icoapi_version="$(poetry version -s)"
-   git commit -a -m "Release: Release version $icoapi_version"
-   git tag "$icoapi_version"
-   git push && git push --tags
+   just release <VERSION>
    ```
 
 4. Open the [release notes](https://github.com/MyTooliT/Cleaned-ICOapi/tree/main/doc/release) for the latest version and [create a new release](https://github.com/MyTooliT/Cleaned-ICOapi/releases/new)
