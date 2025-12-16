@@ -11,23 +11,24 @@ When the API is running, it hosts an OpenAPI compliant documentation under `/doc
 This API is designed to interact with the ICOtronic system and thus only reasonably works with this system connected.
 
 To get a complete experience, even for development, you need:
+
 - A CAN interface (usually either PCAN-USB or the RevPi CAN Module)
 - The proper drivers
 
 ## Linux
 
 On Linux, the API (rather: the underlying CAN library) requires:
+
 - The proper driver for your CAN device (PCAN-USB if used)
 - The CAN port set up as described in [this guide](https://mytoolit.github.io/ICOtronic/#introduction:section:pcan-driver:linux)
-  - Including the setup for ``systemd-networkd``!
-
+  - Including the setup for `systemd-networkd`!
 
 # Installation for Development
 
-This repository can be setup manually, installed as a system service on Linux-based systems or deployed using Docker on 
+This repository can be setup manually, installed as a system service on Linux-based systems or deployed using Docker on
 Linux-based systems.
 
-If none of the versions for deploying properly (see chapter [Run](#run)) work for you, you can always "deploy" by 
+If none of the versions for deploying properly (see chapter [Run](#run)) work for you, you can always "deploy" by
 cloning this repository and running the Python script manually.
 
 ## Prerequisites
@@ -40,11 +41,11 @@ cloning this repository and running the Python script manually.
 
 Clone the repository and navigate into it to set up your virtual environment:
 
-``git clone ... && cd ...``
+`git clone ... && cd ...`
 
-``python -m venv .venv``
+`python -m venv .venv`
 
-``source ./.venv/bin/activate`` on Linux or ``.\.venv\Scripts\activate`` on Windows
+`source ./.venv/bin/activate` on Linux or `.\.venv\Scripts\activate` on Windows
 
 Then run the following command to get up and running:
 
@@ -104,9 +105,6 @@ docker run --network=host icoapi
 - the [documentation of the ICOtronic library](https://mytoolit.github.io/ICOtronic/#docker-on-linux), and
 - the article [“SocketCAN mit Docker unter Linux”](https://chemnitzer.linux-tage.de/2021/de/programm/beitrag/210/).
 
-
-
-
 # Environment Variables
 
 The application expects a `.env` file in one of three locations, each one being
@@ -130,18 +128,17 @@ def load_env_file():
         raise EnvironmentError(".env not found")
 ```
 
-1) For local development: the `.env` file is under `/config/.env`
-2) For normal usage, the file is in the `user_data_dir`
-3) When no environment variable file was found, we check the bundle directory
-from the pyinstaller for the bundled file
+1. For local development: the `.env` file is under `/config/.env`
+2. For normal usage, the file is in the `user_data_dir`
+3. When no environment variable file was found, we check the bundle directory
+   from the pyinstaller for the bundled file
 
 This means that the `.env` file is bundled at compile-time and if the user has
-not ever run the software or deleted the `user_data_dir` we can take it as a 
+not ever run the software or deleted the `user_data_dir` we can take it as a
 fallback.
 
-
 > All variables prefixed with `VITE_` indicate that there is a counterpart in the client side environment variables. This
-is to show that changes here most likely need to be propagated to the client (and electron wrapper, for that matter).
+> is to show that changes here most likely need to be propagated to the client (and electron wrapper, for that matter).
 
 ## Client/API Connection Settings
 
@@ -173,7 +170,7 @@ These settings determine where the measurement and configuration files are store
 VITE_APPLICATION_FOLDER=ICOdaq
 ```
 
-`VITE_APPLICATION_FOLDER` expects a single folder name and locates that folder under a certain path. 
+`VITE_APPLICATION_FOLDER` expects a single folder name and locates that folder under a certain path.
 We use the `user_data_dir()` from the package `platformdirs` to simplify this. The system always logs which folder is used for storage.
 
 ## Logging Settings
@@ -189,31 +186,34 @@ LOG_NAME_WITHOUT_EXTENSION=icodaq
 LOG_LEVEL_UVICORN=INFO
 ```
 
-``LOG_LEVEL`` is one of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+`LOG_LEVEL` is one of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
 
-``LOG_USE_JSON`` formats the logs in plain JSON if set to `1`
+`LOG_USE_JSON` formats the logs in plain JSON if set to `1`
+
 - useful for production logs
 
-``LOG_USE_COLOR`` formats the logs in color if set to `1`
+`LOG_USE_COLOR` formats the logs in color if set to `1`
+
 - useful for local development in a terminal
 
-``LOG_PATH`` overrides the default log location as an absolute path to a directory
+`LOG_PATH` overrides the default log location as an absolute path to a directory
+
 - You **need** to have permissions
 - The defaults are:
-  - Windows: ``AppData/Local/icodaq/logs``
-  - Linux/macOS: ``~/.local/share/icodaq/logs``
+  - Windows: `AppData/Local/icodaq/logs`
+  - Linux/macOS: `~/.local/share/icodaq/logs`
 
-``LOG_NAME_WITHOUT_EXTENSION`` sets the name of the logfile. Without any file extension.
+`LOG_NAME_WITHOUT_EXTENSION` sets the name of the logfile. Without any file extension.
 
-``LOG_MAX_BYETS`` and `LOG_BACKUP_COUNT` determine the maximum size and backup number of the logs.
+`LOG_MAX_BYETS` and `LOG_BACKUP_COUNT` determine the maximum size and backup number of the logs.
 
-``LOG_LEVEL_UVICORN`` controls the log level for the uvicorn webserver logging.
+`LOG_LEVEL_UVICORN` controls the log level for the uvicorn webserver logging.
 
 # Configuration Files
 
 The API currently works with 3 configuration files in the `.yaml` format.
 
-When the API is run, it checks for the availability of these files in the 
+When the API is run, it checks for the availability of these files in the
 `<user_data_dir> / config`. If the files are not there, the defaults from the
 compile time are used.
 
@@ -229,7 +229,7 @@ info:
   schema_name: sensors_schema
   schema_version: 0.0.1
   config_name: General Purpose Sensor File
-  config_date: '2025-10-07T13:52:40+0200'
+  config_date: "2025-10-07T13:52:40+0200"
   config_version: 0.0.1
 ```
 
@@ -237,7 +237,7 @@ The above section is exemplary for a sensor configuration file.
 
 ## Configuration File 1: Sensors
 
-The internal library starts the measurement based on selected channels. It is 
+The internal library starts the measurement based on selected channels. It is
 up to the user to know which channels are connected to which sensors currently.
 
 To help this selection and make using the system easier, a layer of abstraction
@@ -245,28 +245,27 @@ is present in this API and thus in the client and ICOdaq software packages.
 
 ### Data Structure
 
-Within the ``sensors.yaml`` file, two separate areas exist. One contains the
+Within the `sensors.yaml` file, two separate areas exist. One contains the
 sensor information and one the configurations which reference the sensors.
 Additionally, a field for the default configuration exists. The file then looks
 like this:
 
 ```yaml
-info:
-  ...
+info: ...
 sensors:
-- ...
-- ...
+  - ...
+  - ...
 
 sensor_configurations:
-- ...
-- ...
+  - ...
+  - ...
 
-default_configuration_id: 
+default_configuration_id:
 ```
 
 #### Sensor Data Structure
 
-The sensors (which are written to the ``*.hdf5`` file when used) are defined as:
+The sensors (which are written to the `*.hdf5` file when used) are defined as:
 
 ```yaml
 - name: Acceleration 100g
@@ -284,7 +283,7 @@ The sensors (which are written to the ``*.hdf5`` file when used) are defined as:
 
 This example defines the mainly used +-100g acceleration sensor in the X axis.
 
-Note that the field ``sensor_id`` is what the API uses to identify the sensor for usage.
+Note that the field `sensor_id` is what the API uses to identify the sensor for usage.
 
 #### Sensor Configuration Data Structure
 
@@ -297,38 +296,39 @@ The data is structured as follows:
 - configuration_id: singleboard_GYRO
   configuration_name: GYRO
   channels:
-    1:  { sensor_id: acc100g_01 }
-    6:  { sensor_id: photo_01 }
-    8:  { sensor_id: gyro_01 }
+    1: { sensor_id: acc100g_01 }
+    6: { sensor_id: photo_01 }
+    8: { sensor_id: gyro_01 }
     10: { sensor_id: vbat_01 }
 ```
 
-The ``configuration_id`` is what the client-side `.env` file can set to load as a default for tools.
+The `configuration_id` is what the client-side `.env` file can set to load as a default for tools.
 
-The ``configuration_name`` is displayed as the client.
+The `configuration_name` is displayed as the client.
 
-The mapping of sensors follows the schema of ``<channel>: { sensor_id: <sensor_id> }``.
+The mapping of sensors follows the schema of `<channel>: { sensor_id: <sensor_id> }`.
 
-The ``default_configuration_id`` has one of the `configuration_id` set.
+The `default_configuration_id` has one of the `configuration_id` set.
 
 ## Config File 2: Metadata
 
-To support the usage of arbitrary metadata when creating measurements, a 
-configuration system has been set up. This system starts as an Excel file in 
-which all metadata fields are defined. This file is then parsed into a YAML 
+To support the usage of arbitrary metadata when creating measurements, a
+configuration system has been set up. This system starts as an Excel file in
+which all metadata fields are defined. This file is then parsed into a YAML
 file, from which it can be used further.
 
 The complete metadata logic can be found in the ICOweb repository.
 
 The metadata is split into two parts:
-- the metadata entered __before__ a measurement starts (pre_meta)
-- the metadata entered __after__ the measurement has been ended (post_meta)
 
-This ensures that common metadata like machine tool, process or cutting 
-parameters are set beforehand while keeping the option to require data after 
+- the metadata entered **before** a measurement starts (pre_meta)
+- the metadata entered **after** the measurement has been ended (post_meta)
+
+This ensures that common metadata like machine tool, process or cutting
+parameters are set beforehand while keeping the option to require data after
 the fact, such as pictures or tool breakage reports.
 
-The pre-meta is sent with the measurement instructions while the post-meta is 
+The pre-meta is sent with the measurement instructions while the post-meta is
 communicated via the open measurement WebSocket.
 
 ## Configuration File 3: Dataspace
@@ -336,7 +336,7 @@ communicated via the open measurement WebSocket.
 This file sets the dataspace connection settings if required. It simply holds
 all the relevant information as:
 
-````yaml
+```yaml
 connection:
   enabled: False
   username: myUser
@@ -346,14 +346,14 @@ connection:
   protocol: https
   domain: trident.example.com
   base_path: api/v1
-````
+```
 
 All relevant fields are strings without any `/` before or after the value. This
 means that for the given example a complete endpoint would be:
 
 `https://trident.example.com/api/v1/<endpoint>`
 
-And the relevant storage would be in the folder `default` of the bucket 
+And the relevant storage would be in the folder `default` of the bucket
 `common`.
 
 # Measurement Value Conversion / Storage
@@ -363,10 +363,10 @@ we go through two conversion steps:
 
 ## Step 1: 16-bit ADC Value to Voltage
 
-The streamed ``uint16`` is a direct linear map from 
+The streamed `uint16` is a direct linear map from
 
-- an ADC value of $0$ up to ${2^{16} - 1}$ to 
-- a voltage value from $0$ up to $V_{ref}$ Volt. 
+- an ADC value of $0$ up to ${2^{16} - 1}$ to
+- a voltage value from $0$ up to $V_{ref}$ Volt.
 
 This means we can reverse the conversion by inverting the linear map.
 
@@ -393,15 +393,15 @@ For the same reference voltage the maximum value of $2^{16} - 1$ would translate
 
 ```math
 k_1 · (2^{16} - 1) + d_1 = \frac{3.3 V}{2^{16}-1} · (2^{16} - 1) + 0 = \frac{3.3 V·(2^{16}-1)}{2^{16}-1} = 3.3V
-``` 
+```
 
 ## Step 2: Voltage to Physical Value
 
 Each used sensor has a datasheet and associated linear coefficients to get from voltage output to the measured physical values.
 
-- We will define $k_2$ and $d_2$ as the linear coefficients of going from voltage to physical measurement. 
-- We use $p_{min}$/$p_{max}$ do denote the minimum/maximum physical value (e.g. $℃$, multiples of $g_0$, Watt) and $U_{min}$/$U_{max}$ to denote the minimum/maximum voltage value. 
-- Please note, that we assumed $U_{min}$ is $0~V$ and $U_{max}$ is $V_{ref}$ in step 1. If that is not the case, the calculation of step 1 is false. The calculation in step 2 does (at least in theory) also take negative minimum voltage values in account. 
+- We will define $k_2$ and $d_2$ as the linear coefficients of going from voltage to physical measurement.
+- We use $p_{min}$/$p_{max}$ do denote the minimum/maximum physical value (e.g. $℃$, multiples of $g_0$, Watt) and $U_{min}$/$U_{max}$ to denote the minimum/maximum voltage value.
+- Please note, that we assumed $U_{min}$ is $0~V$ and $U_{max}$ is $V_{ref}$ in step 1. If that is not the case, the calculation of step 1 is false. The calculation in step 2 does (at least in theory) also take negative minimum voltage values in account.
 
 ```math
 k_2 = \frac{p_{max} - p_{min}}{U_{max} - U_{min}}\\
@@ -419,11 +419,11 @@ d_2 = 100 · g_0 - \frac{200 · g_0}{3.3V} · 3.3V = 100 · g_0\\
 
 ## Choosing Sensor Configuration
 
-The API now accepts a ``sensor_id`` which can be used to choose a unique sensor for the conversion and has the current IFT channel-sensor-layout as defaults.
+The API now accepts a `sensor_id` which can be used to choose a unique sensor for the conversion and has the current IFT channel-sensor-layout as defaults.
 
 # Test
 
-**Note:** Running the tests (successfully) requires that 
+**Note:** Running the tests (successfully) requires that
 
 - you connected a STU to your test system and
 - at least one sensor device (e.g. STH) is available.
@@ -452,7 +452,7 @@ The application is set up to log _everything_. This is how the logging is set up
 ### Levels
 
 | Action                            | Log Level            | Description (taken from [Python docs](https://docs.python.org/3/library/logging.html#logging-levels)) |
-|-----------------------------------|----------------------|-------------------------------------------------------------------------------------------------------|
+| --------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------- |
 | Starting a process / intention    | `DEBUG`              | Detailed information for diagnosing problems. Mostly useful for developers.                           |
 | Successfully completed action     | `INFO`               | For confirming that things are working as expected.                                                   |
 | Recoverable error / edge case     | `WARNING`            | Indicates something unexpected happened or could cause problems later.                                |
@@ -472,7 +472,7 @@ The application is set up to log _everything_. This is how the logging is set up
 
 2. Make sure all [workflows of the CI system work correctly](https://github.com/MyTooliT/Cleaned-ICOapi/actions)
 
-4. Release a new version on [PyPI](https://pypi.org/project/icoapi/):
+3. Release a new version on [PyPI](https://pypi.org/project/icoapi/):
    1. Increase version number
    2. Add git tag containing version number
    3. Push changes
@@ -485,7 +485,7 @@ The application is set up to log _everything_. This is how the logging is set up
    git push && git push --tags
    ```
 
-5. Open the [release notes](https://github.com/MyTooliT/Cleaned-ICOapi/tree/main/doc/release) for the latest version and [create a new release](https://github.com/MyTooliT/Cleaned-ICOapi/releases/new)
+4. Open the [release notes](https://github.com/MyTooliT/Cleaned-ICOapi/tree/main/doc/release) for the latest version and [create a new release](https://github.com/MyTooliT/Cleaned-ICOapi/releases/new)
    1. Paste them into the main text of the release web page
    2. Insert the version number into the tag field
    3. For the release title use “Version <VERSION>”, where `<VERSION>` specifies the version number (e.g. “Version 0.2”)
@@ -498,7 +498,6 @@ The application is set up to log _everything_. This is how the logging is set up
    ```
 
    to create the release notes.
-
 
 # Example Requests
 
@@ -514,12 +513,12 @@ Example output:
 
 ```json
 [
-    {
-        "device_number": 0,
-        "mac_address": "08-6B-D7-01-DE-81",
-        "name": "Test-STH",
-        "rssi": -44
-    }
+  {
+    "device_number": 0,
+    "mac_address": "08-6B-D7-01-DE-81",
+    "name": "Test-STH",
+    "rssi": -44
+  }
 ]
 ```
 
