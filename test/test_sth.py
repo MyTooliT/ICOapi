@@ -140,3 +140,5 @@ class TestSTH:
             f"{sth_prefix}/write-adc",
             json=adc_configuration,
         )
+
+        assert response.status_code == 200
