@@ -11,7 +11,19 @@ class TestIncorrectState:
     """STH endpoint test methods"""
 
     @mark.hardware
-    def test_disconnect(self, sth_prefix, client) -> None:
+    def test_stu_reset_incorrect_state(
+        self,
+        stu_prefix,
+        connect,  # pylint: disable=unused-argument
+        client,
+    ) -> None:
+        """Test endpoint ``/reset`` in incorrect state (connected)"""
+
+        response = client.put(f"{stu_prefix}/reset")
+        assert response.status_code == 400
+
+    @mark.hardware
+    def test_sth_disconnect(self, sth_prefix, client) -> None:
         """Test response to ``STH/disconnect`` in incorrect state"""
 
         # Disconnect only possible after connection to sensor node
@@ -21,7 +33,7 @@ class TestIncorrectState:
         assert response.status_code == 400
 
     @mark.hardware
-    def test_connect(self, sth_prefix, test_sensor_node, client) -> None:
+    def test_sth_connect(self, sth_prefix, test_sensor_node, client) -> None:
         """Test response to ``STH/connect`` in incorrect state"""
 
         mac_address = test_sensor_node["mac_address"]
