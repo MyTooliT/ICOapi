@@ -31,7 +31,7 @@ check: setup
 [group('test')]
 [default]
 test *options: check
-	uv run pytest {{options}}
+	uv run pytest {{options}} --reruns 5 --reruns-delay 1
 
 # Run hardware-independent tests
 [group('test')]

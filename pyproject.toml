@@ -47,6 +47,7 @@ test = [
   "httpx>=0.28.1",
   "httpx-ws>=0.8.2",
   "pytest",
+  "pytest-rerunfailures>=16.1",
   "pytest-sugar>=1.1.1",
 ]
 
