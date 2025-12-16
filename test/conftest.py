@@ -22,56 +22,56 @@ def anyio_backend():
     return "asyncio"
 
 
-@fixture
+@fixture(scope="session")
 def measurement_prefix():
     """Prefix for measurement endpoints"""
 
     return "measurement"
 
 
-@fixture
+@fixture(scope="session")
 def reset_can_prefix():
     """Prefix for CAN reset endpoint"""
 
     return "reset-can"
 
 
-@fixture
+@fixture(scope="session")
 def sensor_prefix():
     """Prefix for sensor endpoints"""
 
     return "sensor"
 
 
-@fixture
+@fixture(scope="session")
 def sensorreset_prefix():
     """Prefix for sensor reset endpoints"""
 
     return "sensorreset"
 
 
-@fixture
+@fixture(scope="session")
 def state_prefix():
     """Prefix for state endpoint"""
 
     return "state"
 
 
-@fixture
+@fixture(scope="session")
 def sth_prefix():
     """Prefix for STH endpoint"""
 
     return "sth"
 
 
-@fixture
+@fixture(scope="session")
 def stu_prefix():
     """Prefix for STU endpoint"""
 
     return "stu"
 
 
-@fixture
+@fixture(scope="session")
 def sensor_name():
     """Name of sensor used for testing"""
 
@@ -100,7 +100,7 @@ async def async_client():
         yield async_client
 
 
-@fixture
+@fixture(scope="session")
 def test_sensor_node(sth_prefix, client):
     """Get test sensor node information"""
 

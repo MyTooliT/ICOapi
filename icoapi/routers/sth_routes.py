@@ -4,8 +4,11 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends
 from icotronic.can.error import NoResponseError
 from icostate import ICOsystem
+from icostate.error import IncorrectStateError
 
 from icoapi.scripts.errors import (
+    HTTP_400_INCORRECT_STATE_EXCEPTION,
+    HTTP_400_INCORRECT_STATE_SPEC,
     HTTP_404_STH_UNREACHABLE_EXCEPTION,
     HTTP_404_STH_UNREACHABLE_SPEC,
     HTTP_502_CAN_NO_RESPONSE_SPEC,
@@ -116,6 +119,7 @@ async def sth(
     "/connect",
     responses={
         200: {"description": "Connection was successful."},
+        400: HTTP_400_INCORRECT_STATE_SPEC,
         404: HTTP_404_STH_UNREACHABLE_SPEC,
         502: HTTP_502_CAN_NO_RESPONSE_SPEC,
     },
@@ -129,6 +133,8 @@ async def sth_connect(
     try:
         await connect_sth_device_by_mac(system, mac_address)
         return None
+    except IncorrectStateError as error:
+        raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
@@ -139,6 +145,7 @@ async def sth_connect(
     "/disconnect",
     responses={
         200: {"description": "Disconnect was successful."},
+        400: HTTP_400_INCORRECT_STATE_SPEC,
         502: HTTP_502_CAN_NO_RESPONSE_SPEC,
     },
 )
@@ -148,6 +155,8 @@ async def sth_disconnect(system: ICOsystem = Depends(get_system)) -> None:
     try:
         await disconnect_sth_devices(system)
         return None
+    except IncorrectStateError as error:
+        raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
     except NoResponseError as error:
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
@@ -156,6 +165,7 @@ async def sth_disconnect(system: ICOsystem = Depends(get_system)) -> None:
     "/rename",
     responses={
         200: {"description": "Connection was successful."},
+        400: HTTP_400_INCORRECT_STATE_SPEC,
         404: HTTP_404_STH_UNREACHABLE_SPEC,
         502: HTTP_502_CAN_NO_RESPONSE_SPEC,
     },
@@ -169,6 +179,8 @@ async def sth_rename(
         return await rename_sth_device(
             system, device_info.mac_address, device_info.new_name
         )
+    except IncorrectStateError as error:
+        raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
