@@ -81,8 +81,8 @@ async def connect_and_disconnect_sensor_node(
 class TestGeneral:
     """General endpoint test methods"""
 
-    def test_state(self, state_prefix, client) -> None:
-        """Test endpoint ``/state``"""
+    def test_state_disconnected(self, state_prefix, client) -> None:
+        """Test endpoint ``/state`` while disconnected from sensor node"""
 
         response = client.get(state_prefix)
 
@@ -99,6 +99,21 @@ class TestGeneral:
         for attribute in ("instructions", "name", "start_time", "tool_name"):
             assert measurement_status[attribute] is None
         assert measurement_status["running"] is False
+
+    def test_state_measurement(
+        self, state_prefix, measurement, client
+    ) -> None:
+        """Test endpoint ``/state`` while measurement is running"""
+
+        response = client.get(state_prefix)
+
+        assert response.status_code == 200
+
+        body = response.json()
+        assert body["can_ready"] is True
+
+        measurement_status = body["measurement_status"]
+        assert measurement_status["running"] is True
 
     @mark.anyio
     @mark.hardware
