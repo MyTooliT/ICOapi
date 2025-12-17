@@ -180,17 +180,13 @@ def sensor_id(sensor_name, client):
 
 
 @fixture
-def measurement_configuration(connect, sensor_id):
+def measurement_configuration(
+    test_sensor_node_adc_configuration, connect, sensor_id
+):
     """Get test measurement configuration"""
 
     node = connect
 
-    adc_config = {
-        "prescaler": 2,
-        "acquisition_time": 8,
-        "oversampling_rate": 64,
-        "reference_voltage": 3.3,
-    }
     sensor = {
         "channel_number": 1,
         "sensor_id": sensor_id,
@@ -210,7 +206,7 @@ def measurement_configuration(connect, sensor_id):
         "ift_requested": False,
         "ift_channel": "",
         "ift_window_width": 0,
-        "adc": adc_config,
+        "adc": test_sensor_node_adc_configuration,
         "meta": {"version": "", "profile": "", "parameters": {}},
     }
 
