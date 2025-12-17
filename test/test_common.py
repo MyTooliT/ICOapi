@@ -3,6 +3,7 @@
 # -- Imports ------------------------------------------------------------------
 
 from asyncio import TaskGroup, wait_for
+from datetime import datetime, timedelta
 from logging import getLogger
 from typing import Any
 
@@ -101,7 +102,11 @@ class TestGeneral:
         assert measurement_status["running"] is False
 
     def test_state_measurement(
-        self, state_prefix, measurement, client
+        self,
+        state_prefix,
+        test_sensor_node,
+        measurement,  # pylint: disable=unused-argument
+        client,
     ) -> None:
         """Test endpoint ``/state`` while measurement is running"""
 
@@ -114,6 +119,17 @@ class TestGeneral:
 
         measurement_status = body["measurement_status"]
         assert measurement_status["running"] is True
+        assert isinstance(measurement_status["name"], str)
+        assert len(measurement_status["name"]) > 0
+
+        assert isinstance(measurement_status["start_time"], str)
+        start_time = datetime.fromisoformat(measurement_status["start_time"])
+        current_time = datetime.now()
+        assert (
+            current_time - timedelta(seconds=30) <= start_time <= current_time
+        )
+
+        assert measurement_status["tool_name"] == test_sensor_node["name"]
 
     @mark.anyio
     @mark.hardware
