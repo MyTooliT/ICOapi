@@ -123,14 +123,14 @@ class TestSTH:
         assert response.status_code == 404
 
     @mark.hardware
-    def test_write_adc(
+    def test_write_adc_connected(
         self,
         sth_prefix,
         connect,
         client,
         # pylint: disable=unused-argument
     ) -> None:
-        """Test endpoint ``/write-adc``"""
+        """Test endpoint ``/write-adc`` when connected to sensor node"""
 
         response = client.get(f"{sth_prefix}/read-adc")
         assert response.status_code == 200
@@ -142,3 +142,18 @@ class TestSTH:
         )
 
         assert response.status_code == 200
+
+    @mark.hardware
+    def test_write_adc_disconnected(
+        self,
+        sth_prefix,
+        test_sensor_node_adc_configuration,
+        client,
+    ) -> None:
+        """Test endpoint ``/write-adc`` when not connected to sensor node"""
+
+        response = client.put(
+            f"{sth_prefix}/write-adc",
+            json=test_sensor_node_adc_configuration,
+        )
+        assert response.status_code == 404

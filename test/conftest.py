@@ -124,6 +124,27 @@ def test_sensor_node(sth_prefix, client):
     yield node
 
 
+@fixture(scope="session")
+def test_sensor_node_adc_configuration(sth_prefix, test_sensor_node, client):
+    """Get ADC configuration of test sensor node"""
+
+    assert (
+        client.put(
+            f"{sth_prefix}/connect",
+            json={"mac_address": test_sensor_node["mac_address"]},
+        ).status_code
+        == 200
+    )
+
+    response = client.get(f"{sth_prefix}/read-adc")
+    assert response.status_code == 200
+    adc_configuration = response.json()
+
+    client.put(f"{sth_prefix}/disconnect")
+
+    return adc_configuration
+
+
 @fixture
 def connect(sth_prefix, test_sensor_node, client):
     """Connect sensor node"""
