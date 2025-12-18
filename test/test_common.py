@@ -101,6 +101,7 @@ class TestGeneral:
             assert measurement_status[attribute] is None
         assert measurement_status["running"] is False
 
+    @mark.hardware
     def test_state_measurement(
         self,
         state_prefix,
