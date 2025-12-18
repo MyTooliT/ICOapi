@@ -44,10 +44,10 @@ dev = [
   "types-requests",
 ]
 test = [
+  "anyio>=4.12.0",
   "httpx>=0.28.1",
   "httpx-ws>=0.8.2",
-  "pytest>=9",
-  "pytest-asyncio>=1.3",
+  "pytest>=9.0.2",
   "pytest-rerunfailures>=16.1",
   "pytest-sugar>=1.1.1",
 ]
@@ -89,7 +89,7 @@ ignore-paths = [
 ]
 
 [tool.pytest]
-asyncio_mode = "auto"
+anyio_mode = "auto"
 markers = [
     """hardware: marks tests as depending on ICOtronic hardware \
        (deselect with '-m "not hardware"')""",
