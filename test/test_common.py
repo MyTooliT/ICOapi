@@ -76,6 +76,40 @@ async def connect_and_disconnect_sensor_node(
     await ws_state.send_json(get_state)
 
 
+def check_state_measurement_data(data, sensor_node_info: dict[str, Any]):
+    """Check if the given state data for a running measurement is correct"""
+
+    assert data["can_ready"] is True
+
+    measurement_status = data["measurement_status"]
+    assert measurement_status["running"] is True
+    assert isinstance(measurement_status["name"], str)
+    assert len(measurement_status["name"]) > 0
+
+    assert isinstance(measurement_status["start_time"], str)
+    start_time = datetime.fromisoformat(measurement_status["start_time"])
+    current_time = datetime.now()
+    assert current_time - timedelta(seconds=30) <= start_time <= current_time
+
+    assert measurement_status["tool_name"] == sensor_node_info["name"]
+    instructions = measurement_status["instructions"]
+    assert isinstance(instructions, dict)
+    assert instructions["name"] == sensor_node_info["name"]
+    assert instructions["mac_address"] == sensor_node_info["mac_address"]
+    assert instructions["time"] > 0
+
+    first_channel = instructions["first"]
+    assert isinstance(first_channel, dict)
+    assert first_channel["channel_number"] == 1
+    assert isinstance(first_channel["sensor_id"], str)
+
+    for number in ("second", "third"):
+        channel = instructions[number]
+        assert isinstance(channel, dict)
+        assert channel["channel_number"] == 0
+        assert channel["sensor_id"] is None
+
+
 # -- Tests --------------------------------------------------------------------
 
 
@@ -116,54 +150,18 @@ class TestGeneral:
         assert response.status_code == 200
 
         body = response.json()
-        assert body["can_ready"] is True
-
-        measurement_status = body["measurement_status"]
-        assert measurement_status["running"] is True
-        assert isinstance(measurement_status["name"], str)
-        assert len(measurement_status["name"]) > 0
-
-        assert isinstance(measurement_status["start_time"], str)
-        start_time = datetime.fromisoformat(measurement_status["start_time"])
-        current_time = datetime.now()
-        assert (
-            current_time - timedelta(seconds=30) <= start_time <= current_time
-        )
-
-        assert measurement_status["tool_name"] == test_sensor_node["name"]
-        instructions = measurement_status["instructions"]
-        assert isinstance(instructions, dict)
-        assert instructions["name"] == test_sensor_node["name"]
-        assert instructions["mac_address"] == test_sensor_node["mac_address"]
-        assert instructions["time"] > 0
-
-        first_channel = instructions["first"]
-        assert isinstance(first_channel, dict)
-        assert first_channel["channel_number"] == 1
-        assert isinstance(first_channel["sensor_id"], str)
-
-        for number in ("second", "third"):
-            channel = instructions[number]
-            assert isinstance(channel, dict)
-            assert channel["channel_number"] == 0
-            assert channel["sensor_id"] is None
+        check_state_measurement_data(body, test_sensor_node)
 
     @mark.hardware
-    async def test_state_websocket(
+    async def test_state_websocket_connect(
         self, state_prefix, sth_prefix, test_sensor_node, async_client
     ) -> None:
-        """Test WebSocket endpoint ``state``"""
+        """Check WebSocket endpoint ``state`` while connecting/disconnecting"""
 
         state = str(async_client.base_url).replace("http", "ws") + state_prefix
         logger = getLogger(__name__)
         mac_address = test_sensor_node["mac_address"]
 
-        # Connect to and disconnect from sensor node. Currently this will not
-        # change the message reported by the `state` WebSocket significantly,
-        # which makes this test probably less useful than it should be.
-        # However, changing the state (for example by starting a measurement)
-        # seems to be too much work (to me 😅) for testing the WebSocket for
-        # now.
         ws: AsyncWebSocketSession
         async with aconnect_ws(state, async_client) as ws:
             expected_number_messages = 3
@@ -189,6 +187,31 @@ class TestGeneral:
             assert "can_ready" in message["data"]
             assert message["data"]["can_ready"] is True
             logger.debug("Message %d: %s", message_number, message)
+
+    @mark.hardware
+    async def test_state_websocket_measurement(
+        self,
+        state_prefix,
+        test_sensor_node,
+        measurement,  # pylint: disable=unused-argument
+        async_client,
+    ) -> None:
+        """Check WebSocket endpoint ``state`` while measurement is active"""
+
+        state = str(async_client.base_url).replace("http", "ws") + state_prefix
+
+        ws: AsyncWebSocketSession
+        async with aconnect_ws(state, async_client) as ws:
+            expected_number_messages = 1
+            async with TaskGroup() as task_group:
+                messages_task = task_group.create_task(
+                    get_websocket_messages(ws, expected_number_messages)
+                )
+                await messages_task
+
+        messages = messages_task.result()
+        assert len(messages) == expected_number_messages
+        check_state_measurement_data(messages.pop()["data"], test_sensor_node)
 
     def test_reset_can(self, reset_can_prefix, client) -> None:
         """Test endpoint ``reset-can``"""
