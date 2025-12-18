@@ -132,7 +132,6 @@ class TestGeneral:
 
         assert measurement_status["tool_name"] == test_sensor_node["name"]
 
-    @mark.anyio
     @mark.hardware
     async def test_state_websocket(
         self, state_prefix, sth_prefix, test_sensor_node, async_client
