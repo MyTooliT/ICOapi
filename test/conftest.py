@@ -16,13 +16,6 @@ from icoapi.api import app
 
 
 @fixture(scope="session")
-def anyio_backend():
-    """Set default async backend"""
-
-    return "asyncio"
-
-
-@fixture(scope="session")
 def measurement_prefix():
     """Prefix for measurement endpoints"""
 
