@@ -131,6 +131,22 @@ class TestGeneral:
         )
 
         assert measurement_status["tool_name"] == test_sensor_node["name"]
+        instructions = measurement_status["instructions"]
+        assert isinstance(instructions, dict)
+        assert instructions["name"] == test_sensor_node["name"]
+        assert instructions["mac_address"] == test_sensor_node["mac_address"]
+        assert instructions["time"] > 0
+
+        first_channel = instructions["first"]
+        assert isinstance(first_channel, dict)
+        assert first_channel["channel_number"] == 1
+        assert isinstance(first_channel["sensor_id"], str)
+
+        for number in ("second", "third"):
+            channel = instructions[number]
+            assert isinstance(channel, dict)
+            assert channel["channel_number"] == 0
+            assert channel["sensor_id"] is None
 
     @mark.hardware
     async def test_state_websocket(
