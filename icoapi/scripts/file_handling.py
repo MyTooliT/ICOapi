@@ -136,7 +136,10 @@ def copy_config_files_if_not_exists(src_path: str, dest_path: str):
         if os.path.isfile(os.path.join(dest_path, f)):
             logger.info("Config file %s already exists in %s", f, dest_path)
         else:
-            shutil.copy(os.path.join(src_path, f), os.path.join(dest_path, f))
+            if f.endswith(".env"):
+                shutil.copy(os.path.join(src_path, f), os.path.join(dest_path, ".env"))
+            else:
+                shutil.copy(os.path.join(src_path, f), os.path.join(dest_path, f))
             logger.info("Copied config file %s to %s", f, dest_path)
 
 
