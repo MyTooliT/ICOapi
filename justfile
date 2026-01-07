@@ -11,6 +11,7 @@ http_url := "http://" + location
 ws_url := "ws://" + location
 mac_address := "08-6B-D7-01-DE-81"
 name := "Test-STH"
+measurement_name := "Test Measurement"
 
 # -- Recipes -------------------------------------------------------------------
 
@@ -94,7 +95,7 @@ sensor:
 [group('http')]
 start-measurement: connect
 	http POST "{{http_url}}/measurement/start" \
-	  "name={{name}}" \
+	  "name={{measurement_name}}" \
 	  "mac_address={{mac_address}}" \
 	  time=100 \
 	  first[channel_number]:=1 \
