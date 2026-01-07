@@ -108,6 +108,30 @@ HTTP_502_CAN_NO_RESPONSE_SPEC = {
     },
 }
 
+HTTP_504_MEASUREMENT_TIMEOUT_EXCEPTION = HTTPException(
+    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+    detail="Failed to stop measurement within timeout.",
+)
+HTTP_504_MEASUREMENT_TIMEOUT_SPEC = {
+    "description": "Failed to stop measurement within timeout.",
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+                "required": ["detail", "status_code"],
+            },
+            "example": {
+                "detail": "Failed to stop measurement within timeout.",
+                "status_code": 504,
+            },
+        }
+    },
+}
+
 HTTP_400_INVALID_YAML_EXCEPTION = HTTPException(
     status_code=status.HTTP_400_BAD_REQUEST,
     detail="Failed to parse YAML payload.",

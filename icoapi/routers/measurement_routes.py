@@ -21,6 +21,11 @@ from icoapi.models.globals import (
     MeasurementState,
     ICOsystem,
 )
+from icoapi.scripts.errors import (
+    HTTP_504_MEASUREMENT_TIMEOUT_EXCEPTION,
+    HTTP_504_MEASUREMENT_TIMEOUT_SPEC,
+)
+
 from icoapi.scripts.measurement import run_measurement
 
 router = APIRouter(prefix="/measurement", tags=["Measurement"])
@@ -85,14 +90,32 @@ async def start_measurement(
     )
 
 
-@router.post("/stop")
+@router.post(
+    "/stop",
+    responses={
+        200: {"description": "Measurement stopped successfully."},
+        504: HTTP_504_MEASUREMENT_TIMEOUT_SPEC,
+    },
+)
 async def stop_measurement(
     measurement_state: MeasurementState = Depends(get_measurement_state),
 ):
     """Stop measurement"""
 
+    async def wait_until_measurement_is_stopped():
+        while measurement_state.running:
+            await asyncio.sleep(0.1)
+
     logger.info("Received stop request.")
     measurement_state.stop_flag = True
+
+    timeout = 10
+    try:
+        await asyncio.wait_for(
+            wait_until_measurement_is_stopped(), timeout=timeout
+        )
+    except TimeoutError as error:
+        raise HTTP_504_MEASUREMENT_TIMEOUT_EXCEPTION from error
 
 
 @router.post("/post_meta")
