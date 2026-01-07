@@ -2,6 +2,9 @@
 
 # -- Imports ------------------------------------------------------------------
 
+from datetime import datetime
+from time import time
+
 from pytest import mark
 
 # -- Classes ------------------------------------------------------------------
@@ -30,6 +33,38 @@ class TestMeasurement:
             "tool_name",
         ):
             assert key in body
+
+    @mark.hardware
+    def test_measurement_status_measuring(
+        self,
+        measurement_prefix,
+        test_sensor_node,
+        measurement,
+        client,
+    ) -> None:
+        """Test endpoint ``/`` while measurement takes place"""
+
+        measurement_status = measurement_prefix
+        measurement_configuration = measurement
+
+        response = client.get(measurement_status)
+        assert response.status_code == 200
+
+        body = response.json()
+
+        assert body["instructions"] is not None
+        instructions = body["instructions"]
+        for key in measurement_configuration:
+            assert instructions[key] == measurement_configuration[key]
+        assert body["running"] is True
+        assert body["name"].startswith(measurement_configuration["name"])
+        assert body["tool_name"] == test_sensor_node["name"]
+
+        assert isinstance(body["start_time"], str)
+        start_time = body["start_time"]
+        timestamp = datetime.fromisoformat(start_time).timestamp()
+        current_timestamp = time()
+        assert current_timestamp - 10 <= timestamp <= current_timestamp
 
     @mark.hardware
     def test_measurement_start_no_input(
