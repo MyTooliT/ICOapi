@@ -10,7 +10,9 @@ from pytest import mark
 class TestMeasurement:
     """Measurement endpoint test methods"""
 
-    def test_disconnected(self, measurement_prefix, client) -> None:
+    def test_measurement_status_disconnected(
+        self, measurement_prefix, client
+    ) -> None:
         """Test endpoint ``/`` in disconnected state"""
 
         measurement_status = measurement_prefix
@@ -30,7 +32,7 @@ class TestMeasurement:
             assert key in body
 
     @mark.hardware
-    def test_start_no_input(
+    def test_measurement_start_no_input(
         self,
         measurement_prefix,
         connect,  # pylint: disable=unused-argument
@@ -51,7 +53,7 @@ class TestMeasurement:
         }
 
     @mark.hardware
-    def test_start(
+    def test_measurement_start_correct_input(
         self, measurement_prefix, measurement_configuration, client
     ) -> None:
         """Test endpoint ``/start`` with correct data"""
@@ -83,7 +85,7 @@ class TestMeasurement:
         assert response.json() is None
 
     @mark.hardware
-    def test_stream(
+    def test_measurement_stream(
         self,
         measurement,  # pylint: disable=unused-argument
         measurement_prefix,
