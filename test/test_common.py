@@ -113,8 +113,8 @@ def check_state_measurement_data(data, sensor_node_info: dict[str, Any]):
 # -- Tests --------------------------------------------------------------------
 
 
-class TestGeneral:
-    """General endpoint test methods"""
+class TestCommon:
+    """Common endpoint test methods"""
 
     def test_state_disconnected(self, state_prefix, client) -> None:
         """Test endpoint ``/state`` while disconnected from sensor node"""
