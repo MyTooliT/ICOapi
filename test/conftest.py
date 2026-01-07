@@ -197,7 +197,7 @@ def measurement_configuration(
     }
 
     configuration = {
-        "name": node["name"],
+        "name": "Test Measurement",
         "mac_address": node["mac_address"],
         "time": 10,
         "first": sensor,
@@ -224,6 +224,6 @@ def measurement(measurement_prefix, measurement_configuration, client):
 
     assert response.status_code == 200
 
-    yield
+    yield measurement_configuration
 
     response = client.post(stop)

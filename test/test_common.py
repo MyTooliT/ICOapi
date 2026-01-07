@@ -76,7 +76,9 @@ async def connect_and_disconnect_sensor_node(
     await ws_state.send_json(get_state)
 
 
-def check_state_measurement_data(data, sensor_node_info: dict[str, Any]):
+def check_state_measurement_data(
+    data, sensor_node_info: dict[str, Any], measurement_name: str
+):
     """Check if the given state data for a running measurement is correct"""
 
     assert data["can_ready"] is True
@@ -94,7 +96,7 @@ def check_state_measurement_data(data, sensor_node_info: dict[str, Any]):
     assert measurement_status["tool_name"] == sensor_node_info["name"]
     instructions = measurement_status["instructions"]
     assert isinstance(instructions, dict)
-    assert instructions["name"] == sensor_node_info["name"]
+    assert instructions["name"] == measurement_name
     assert instructions["mac_address"] == sensor_node_info["mac_address"]
     assert instructions["time"] > 0
 
@@ -140,7 +142,7 @@ class TestCommon:
         self,
         state_prefix,
         test_sensor_node,
-        measurement,  # pylint: disable=unused-argument
+        measurement,
         client,
     ) -> None:
         """Test endpoint ``/state`` while measurement is running"""
@@ -150,7 +152,9 @@ class TestCommon:
         assert response.status_code == 200
 
         body = response.json()
-        check_state_measurement_data(body, test_sensor_node)
+        check_state_measurement_data(
+            body, test_sensor_node, measurement["name"]
+        )
 
     @mark.hardware
     async def test_state_websocket_connect(
@@ -193,7 +197,7 @@ class TestCommon:
         self,
         state_prefix,
         test_sensor_node,
-        measurement,  # pylint: disable=unused-argument
+        measurement,
         async_client,
     ) -> None:
         """Check WebSocket endpoint ``state`` while measurement is active"""
@@ -211,7 +215,9 @@ class TestCommon:
 
         messages = messages_task.result()
         assert len(messages) == expected_number_messages
-        check_state_measurement_data(messages.pop()["data"], test_sensor_node)
+        check_state_measurement_data(
+            messages.pop()["data"], test_sensor_node, measurement["name"]
+        )
 
     def test_reset_can(self, reset_can_prefix, client) -> None:
         """Test endpoint ``reset-can``"""
