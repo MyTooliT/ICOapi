@@ -112,9 +112,9 @@ class MeasurementInstructions:
     Data model for measurement WS
 
     Attributes:
-        name (str): Custom name
+        name (str): Custom name for measurement
         mac_address (str): MAC address
-        time (int): Measurement time
+        time (int): Measurement time in seconds
         first (MeasurementInstructionChannel): First measurement channel number
         second (MeasurementInstructionChannel): Second measurement channel number
         third (MeasurementInstructionChannel): Third measurement channel number
