@@ -10,8 +10,8 @@ from pytest import mark
 class TestMeasurement:
     """Measurement endpoint test methods"""
 
-    def test_root(self, measurement_prefix, client) -> None:
-        """Test endpoint ``/``"""
+    def test_disconnected(self, measurement_prefix, client) -> None:
+        """Test endpoint ``/`` in disconnected state"""
 
         measurement_status = measurement_prefix
 
@@ -30,10 +30,31 @@ class TestMeasurement:
             assert key in body
 
     @mark.hardware
+    def test_start_no_input(
+        self,
+        measurement_prefix,
+        connect,  # pylint: disable=unused-argument
+        client,
+    ) -> None:
+        """Test endpoint ``/start`` without specifying required input data"""
+
+        start = f"{measurement_prefix}/start"
+        response = client.post(start)
+        assert response.status_code == 422
+        assert response.json() == {
+            "detail": [{
+                "input": None,
+                "loc": ["body"],
+                "msg": "Field required",
+                "type": "missing",
+            }]
+        }
+
+    @mark.hardware
     def test_start(
         self, measurement_prefix, measurement_configuration, client
     ) -> None:
-        """Test endpoint ``/start``"""
+        """Test endpoint ``/start`` with correct data"""
 
         measurement_status = measurement_prefix
         start = f"{measurement_prefix}/start"
@@ -60,21 +81,6 @@ class TestMeasurement:
         response = client.post(stop)
         assert response.status_code == 200
         assert response.json() is None
-
-        # =======================
-        # = Test Error Response =
-        # =======================
-
-        response = client.post(start)
-        assert response.status_code == 422
-        assert response.json() == {
-            "detail": [{
-                "input": None,
-                "loc": ["body"],
-                "msg": "Field required",
-                "type": "missing",
-            }]
-        }
 
     @mark.hardware
     def test_stream(
