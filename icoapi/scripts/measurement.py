@@ -79,6 +79,7 @@ async def setup_adc(
     )
 
     try:
+        logger.debug("Set ADC configuration: %s", adc_config)
         await system.set_adc_configuration(adc_config)
     except NoResponseError:
         logger.warning(
