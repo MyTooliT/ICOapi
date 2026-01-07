@@ -41,6 +41,10 @@ def load_env_file():
         env_loaded = load_dotenv(
             os.path.join(get_config_dir(), ".env"), verbose=True
         )
+        if not env_loaded:
+            env_loaded = load_dotenv(
+                os.path.join(get_config_dir(), "default.env"), verbose=True
+            )
     if not env_loaded and is_bundled():
         # Third try: we should be in the bundled state
         bundle_dir = sys._MEIPASS  # pylint: disable=protected-access
