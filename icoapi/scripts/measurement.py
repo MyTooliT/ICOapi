@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 async def setup_adc(
     system: ICOsystem, instructions: MeasurementInstructions
-) -> int:
+) -> float:
     """
     Write ADC configuration to the holder.
 
