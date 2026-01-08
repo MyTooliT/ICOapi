@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import pandas
 from pydantic import BaseModel, model_validator
 
-from icostate import SensorNodeInfo
+from icostate import ADCConfiguration, SensorNodeInfo
 
 
 class STHDeviceResponseModel(BaseModel):
@@ -68,6 +68,42 @@ class ADCValues:
     acquisition_time: Optional[int]
     oversampling_rate: Optional[int]
     reference_voltage: Optional[float]
+
+    def to_adc_configuration(self) -> ADCConfiguration:
+        """Get the ADC configuration of this object
+
+        Returns:
+
+            The ADC configuration that corresponds to the current
+
+        Examples:
+
+            Get ADC configuration to calculate default sample rate
+
+            >>> adc_values = ADCValues(prescaler=None,
+            ...                        acquisition_time=None,
+            ...                        oversampling_rate=None,
+            ...                        reference_voltage=None)
+            >>> round(adc_values.to_adc_configuration().sample_rate())
+            9524
+
+            Get sample rate for custom ADC values
+
+            >>> adc_values = ADCValues(prescaler=2,
+            ...                        acquisition_time=8,
+            ...                        oversampling_rate=256,
+            ...                        reference_voltage=None)
+            >>> round(adc_values.to_adc_configuration().sample_rate())
+            2381
+
+        """
+
+        return ADCConfiguration(
+            prescaler=self.prescaler,
+            acquisition_time=self.acquisition_time,
+            oversampling_rate=self.oversampling_rate,
+            reference_voltage=self.reference_voltage,
+        )
 
 
 @dataclass
@@ -444,3 +480,9 @@ class ConfigRestoreRequest(BaseModel):
 
     filename: str
     backup_filename: str
+
+
+if __name__ == "__main__":
+    from doctest import testmod
+
+    testmod()

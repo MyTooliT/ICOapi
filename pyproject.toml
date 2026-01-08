@@ -89,7 +89,10 @@ ignore-paths = [
 ]
 
 [tool.pytest]
-addopts = [ "--verbose" ]
+addopts = [
+  "--doctest-modules",
+  "--verbose",
+]
 anyio_mode = "auto"
 markers = [
     """hardware: marks tests as depending on ICOtronic hardware \

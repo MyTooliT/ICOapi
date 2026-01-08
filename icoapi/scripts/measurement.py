@@ -8,7 +8,6 @@ from pathlib import Path
 
 from icolyzer import iftlibrary
 from icostate import ICOsystem
-from icotronic.can.adc import ADCConfiguration
 from icotronic.can.error import NoResponseError
 from icotronic.can.error import UnsupportedFeatureException
 from icotronic.can.sensor import SensorConfiguration
@@ -53,14 +52,7 @@ async def setup_adc(
 
     assert isinstance(instructions.adc, ADCValues)
 
-    adc_values = instructions.adc
-
-    adc_config = ADCConfiguration(
-        prescaler=adc_values.prescaler,
-        acquisition_time=adc_values.acquisition_time,
-        oversampling_rate=adc_values.oversampling_rate,
-        reference_voltage=adc_values.reference_voltage,
-    )
+    adc_config = instructions.adc.to_adc_configuration()
 
     try:
         logger.debug("Set ADC configuration: %s", adc_config)
@@ -165,28 +157,7 @@ async def send_ift_values(
 
     assert isinstance(instructions.adc, ADCValues)
 
-    freq = ADCConfiguration(
-        prescaler=(
-            instructions.adc.prescaler
-            if instructions.adc.prescaler is not None
-            else 2
-        ),
-        acquisition_time=(
-            instructions.adc.acquisition_time
-            if instructions.adc.acquisition_time is not None
-            else 8
-        ),
-        oversampling_rate=(
-            instructions.adc.oversampling_rate
-            if instructions.adc.oversampling_rate is not None
-            else 64
-        ),
-        reference_voltage=(
-            instructions.adc.reference_voltage
-            if instructions.adc.reference_voltage is not None
-            else 3.3
-        ),
-    ).sample_rate()
+    freq = instructions.adc.to_adc_configuration().sample_rate()
 
     ift_values = maybe_get_ift_value(
         values,
