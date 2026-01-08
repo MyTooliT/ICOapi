@@ -386,9 +386,7 @@ async def run_measurement(
         instructions.second.channel_number,
         instructions.third.channel_number,
     )
-    streaming_configuration: StreamingConfiguration = StreamingConfiguration(
-        **{key: bool(value) for key, value in sensor_configuration.items()}
-    )
+    streaming_configuration = sensor_configuration.streaming_configuration()
 
     # Write sensor configuration to the holder if possible / necessary.
     await write_sensor_config_if_required(system, sensor_configuration)
