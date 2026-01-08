@@ -48,7 +48,7 @@ async def setup_adc(
 
     :param network: CAN Network instance from API
     :param instructions: client instructions
-    :return: None
+    :return: sample rate
     """
 
     assert isinstance(instructions.adc, ADCValues)
