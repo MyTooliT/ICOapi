@@ -68,7 +68,7 @@ async def start_measurement(
         try:
             measurement_state.tool_name = await system.sensor_node.get_name()
             logger.debug("Tool found - name: %s", measurement_state.tool_name)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except AttributeError:
             measurement_state.tool_name = "noname"
             logger.error("Tool not found!")
         measurement_state.instructions = instructions
