@@ -52,28 +52,26 @@ async def setup_adc(
     """
 
     assert isinstance(instructions.adc, ADCValues)
-    assert isinstance(instructions.adc.prescaler, int)
-    assert isinstance(instructions.adc.acquisition_time, int)
-    assert isinstance(instructions.adc.oversampling_rate, int)
-    assert isinstance(instructions.adc.reference_voltage, float)
 
     adc_config = ADCConfiguration(
         prescaler=(
-            instructions.adc.prescaler if instructions.adc.prescaler else 2
+            instructions.adc.prescaler
+            if instructions.adc.prescaler is not None
+            else 2
         ),
         acquisition_time=(
             instructions.adc.acquisition_time
-            if instructions.adc.acquisition_time
+            if instructions.adc.acquisition_time is not None
             else 8
         ),
         oversampling_rate=(
             instructions.adc.oversampling_rate
-            if instructions.adc.oversampling_rate
+            if instructions.adc.oversampling_rate is not None
             else 64
         ),
         reference_voltage=(
             instructions.adc.reference_voltage
-            if instructions.adc.reference_voltage
+            if instructions.adc.reference_voltage is not None
             else 3.3
         ),
     )
