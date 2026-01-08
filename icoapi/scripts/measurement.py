@@ -152,7 +152,7 @@ def maybe_get_ift_value(
     :param samples: list of samples for calculation
     :param sample_frequency: sample frequency of the sample list
     :param window_length: window for sliding calculation
-    :return: IFT value list or None if not calculatable
+    :return: IFT value list or None if not calculable
     """
     if (
         (len(samples) <= 0.6 * sample_frequency)
