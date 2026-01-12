@@ -2,8 +2,35 @@
 
 # -- Imports ------------------------------------------------------------------
 
+from fastapi.testclient import TestClient
 from netaddr import EUI
 from pytest import mark
+
+# -- Functions ----------------------------------------------------------------
+
+
+def rename_sth(sth_prefix: str, mac_address: str, client: TestClient):
+    """Rename STH"""
+
+    response = client.put(
+        f"{sth_prefix}/rename",
+        json={"mac_address": mac_address, "new_name": "Hello"},
+    )
+    assert response.status_code == 200
+
+    assert isinstance(response.json(), dict)
+    old_name = response.json()["old_name"]
+    name = response.json()["name"]
+    assert name == "Hello"
+
+    response = client.put(
+        str(f"{sth_prefix}/rename"),
+        json={"mac_address": mac_address, "new_name": old_name},
+    )
+    assert isinstance(response.json(), dict)
+    assert response.json()["old_name"] == name
+    assert response.json()["name"] == old_name
+
 
 # -- Tests --------------------------------------------------------------------
 
@@ -63,29 +90,22 @@ class TestSTH:
         assert response.status_code == 404
 
     @mark.hardware
-    def test_rename(self, sth_prefix, connect, client) -> None:
-        """Test endpoint ``/rename``"""
+    def test_rename_disconnected(
+        self, sth_prefix, test_sensor_node, client
+    ) -> None:
+        """Test endpoint ``/rename`` while disconnected from STH"""
+
+        mac_address = test_sensor_node["mac_address"]
+        rename_sth(sth_prefix, mac_address, client)
+
+    @mark.hardware
+    def test_rename_connected(self, sth_prefix, connect, client) -> None:
+        """Test endpoint ``/rename`` while connected to STH"""
 
         sensor_node = connect
         mac_address = sensor_node["mac_address"]
 
-        response = client.put(
-            f"{sth_prefix}/rename",
-            json={"mac_address": mac_address, "new_name": "Hello"},
-        )
-        assert response.status_code == 200
-        assert isinstance(response.json(), dict)
-        old_name = response.json()["old_name"]
-        name = response.json()["name"]
-        assert name == "Hello"
-
-        response = client.put(
-            str(f"{sth_prefix}/rename"),
-            json={"mac_address": mac_address, "new_name": old_name},
-        )
-        assert isinstance(response.json(), dict)
-        assert response.json()["old_name"] == name
-        assert response.json()["name"] == old_name
+        rename_sth(sth_prefix, mac_address, client)
 
     @mark.hardware
     def test_read_adc_connected(

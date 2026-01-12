@@ -40,9 +40,7 @@ async def rename_sth_device(
 ) -> STHRenameResponseModel:
     """Rename a STH device based on its Node name"""
 
-    old_name = system.sensor_node_attributes.name
-
-    await system.rename(mac_address=mac_address, new_name=new_name)
+    old_name = await system.rename(mac_address=mac_address, new_name=new_name)
 
     return STHRenameResponseModel(
         name=new_name, mac_address=mac_address.format(), old_name=old_name
