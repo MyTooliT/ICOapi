@@ -452,46 +452,23 @@ async def run_measurement(
                     ],
                 )
 
-                if streaming_configuration.first:
-                    if (
-                        not streaming_configuration.second
-                        and not streaming_configuration.third
-                    ):
-                        logger.info(
-                            "Running in single channel mode with sensor %s.",
-                            sensor_configuration.first,
-                        )
+                enabled_channels = streaming_configuration.enabled_channels()
 
-                    elif (
-                        streaming_configuration.second
-                        and not streaming_configuration.third
-                    ):
-                        logger.info(
-                            "Running in dual channel mode with channels 1 "
-                            "(Sensor %s) and 2 (Sensor %s).",
-                            sensor_configuration.first,
-                            sensor_configuration.second,
+                logger.info(
+                    "Running in %s mode with sensor mapping: %s",
+                    (
+                        "single"
+                        if enabled_channels == 1
+                        else ("dual" if enabled_channels == 2 else "tripple")
+                    ),
+                    ", ".join([
+                        f"Channel {channel} -> Sensor {sensor}"
+                        for channel, sensor in enumerate(
+                            sensor_configuration.values(), start=1
                         )
-
-                    elif (
-                        not streaming_configuration.second
-                        and streaming_configuration.third
-                    ):
-                        logger.info(
-                            "Running in dual channel mode with channels 1 "
-                            "(Sensor %s) and 3 (Sensor %s).",
-                            sensor_configuration.first,
-                            sensor_configuration.third,
-                        )
-
-                    else:
-                        logger.info(
-                            "Running in triple channel mode with sensors %s,"
-                            " %s and %s.",
-                            sensor_configuration.first,
-                            sensor_configuration.second,
-                            sensor_configuration.third,
-                        )
+                        if sensor != 0
+                    ]),
+                )
 
                 async for data, _ in stream:
 
