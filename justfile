@@ -86,6 +86,12 @@ connect:
 disconnect:
 	http PUT "{{http_url}}/sth/disconnect"
 
+# Rename sensor node
+[group('http')]
+rename:
+	http PUT "{{http_url}}/sth/rename" "mac_address={{mac_address}}" \
+		"new_name={{name}}"
+
 # Get sensor configuration
 [group('http')]
 sensor:
