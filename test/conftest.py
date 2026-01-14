@@ -180,7 +180,7 @@ def sensor_id(sensor_name, client):
 
 
 @fixture
-def measurement_configuration(
+def measurement_instructions(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
     """Get test measurement configuration"""
@@ -217,16 +217,16 @@ def measurement_configuration(
 
 
 @fixture
-def measurement(measurement_prefix, measurement_configuration, client):
+def measurement(measurement_prefix, measurement_instructions, client):
     """Fixture for running measurement"""
 
     start = f"{measurement_prefix}/start"
     stop = f"{measurement_prefix}/stop"
 
-    response = client.post(start, json=measurement_configuration)
+    response = client.post(start, json=measurement_instructions)
 
     assert response.status_code == 200
 
-    yield measurement_configuration
+    yield measurement_instructions
 
     response = client.post(stop)

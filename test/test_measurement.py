@@ -45,7 +45,7 @@ class TestMeasurement:
         """Test endpoint ``/`` while measurement takes place"""
 
         measurement_status = measurement_prefix
-        measurement_configuration = measurement
+        measurement_instructions = measurement
 
         response = client.get(measurement_status)
         assert response.status_code == 200
@@ -54,10 +54,10 @@ class TestMeasurement:
 
         assert body["instructions"] is not None
         instructions = body["instructions"]
-        for key in measurement_configuration:
-            assert instructions[key] == measurement_configuration[key]
+        for key in measurement_instructions:
+            assert instructions[key] == measurement_instructions[key]
         assert body["running"] is True
-        assert body["name"].startswith(measurement_configuration["name"])
+        assert body["name"].startswith(measurement_instructions["name"])
         assert body["tool_name"] == test_sensor_node["name"]
 
         assert isinstance(body["start_time"], str)
@@ -89,7 +89,7 @@ class TestMeasurement:
 
     @mark.hardware
     def test_measurement_start_correct_input(
-        self, measurement_prefix, measurement_configuration, client
+        self, measurement_prefix, measurement_instructions, client
     ) -> None:
         """Test endpoint ``/start`` with correct data"""
 
@@ -101,7 +101,7 @@ class TestMeasurement:
         # = Test Normal Response =
         # ========================
 
-        response = client.post(start, json=measurement_configuration)
+        response = client.post(start, json=measurement_instructions)
         assert response.status_code == 200
 
         assert (
@@ -112,8 +112,8 @@ class TestMeasurement:
         assert response.status_code == 200
         body = response.json()
         instructions = body["instructions"]
-        assert instructions["adc"] == measurement_configuration["adc"]
-        assert instructions["first"] == measurement_configuration["first"]
+        assert instructions["adc"] == measurement_instructions["adc"]
+        assert instructions["first"] == measurement_instructions["first"]
 
         response = client.post(stop)
         assert response.status_code == 200
