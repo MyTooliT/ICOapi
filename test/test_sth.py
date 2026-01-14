@@ -39,7 +39,7 @@ class TestSTH:
     """STH endpoint test methods"""
 
     @mark.hardware
-    def test_root(self, sth_prefix, client) -> None:
+    def test_sth_list_sensor_nodes(self, sth_prefix, client) -> None:
         """Test endpoint ``/``"""
 
         response = client.get(sth_prefix)
