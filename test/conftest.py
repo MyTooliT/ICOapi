@@ -187,8 +187,11 @@ def measurement_configuration(
 
     node = connect
 
-    sensor = {
-        "channel_number": 1,
+    first = {
+        # Use a different sensor channel number for the first measurement
+        # channel to make sure we execute the code for changing the sensor
+        # configuration.
+        "channel_number": 2,
         "sensor_id": sensor_id,
     }
     disabled = {
@@ -200,7 +203,7 @@ def measurement_configuration(
         "name": "Test Measurement",
         "mac_address": node["mac_address"],
         "time": 10,
-        "first": sensor,
+        "first": first,
         "second": disabled,
         "third": disabled,
         "ift_requested": False,
