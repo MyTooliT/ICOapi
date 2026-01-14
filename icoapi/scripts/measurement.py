@@ -606,9 +606,6 @@ async def run_measurement(
         raise asyncio.CancelledError from e
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error("Unhandled measurement error - stacktrace below")
-        logger.error(e)
     finally:
         clients = len(measurement_state.clients)
         for client in measurement_state.clients:
