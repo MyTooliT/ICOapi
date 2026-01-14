@@ -79,7 +79,7 @@ async def connect_and_disconnect_sensor_node(
 def check_state_measurement_data(
     data,
     sensor_node_info: dict[str, Any],
-    measurement_configuration: dict[str, Any],
+    measurement_instructions: dict[str, Any],
 ):
     """Check if the given state data for a running measurement is correct"""
 
@@ -98,7 +98,7 @@ def check_state_measurement_data(
     assert measurement_status["tool_name"] == sensor_node_info["name"]
     instructions = measurement_status["instructions"]
     assert isinstance(instructions, dict)
-    assert instructions["name"] == measurement_configuration["name"]
+    assert instructions["name"] == measurement_instructions["name"]
     assert instructions["mac_address"] == sensor_node_info["mac_address"]
     assert instructions["time"] > 0
 
@@ -106,7 +106,7 @@ def check_state_measurement_data(
     assert isinstance(first_channel, dict)
     assert (
         first_channel["channel_number"]
-        == measurement_configuration["first"]["channel_number"]
+        == measurement_instructions["first"]["channel_number"]
     )
     assert isinstance(first_channel["sensor_id"], str)
 
