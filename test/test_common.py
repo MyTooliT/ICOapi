@@ -79,7 +79,7 @@ async def connect_and_disconnect_sensor_node(
 def check_state_measurement_data(
     data,
     sensor_node_info: dict[str, Any],
-    measurement_instructions: dict[str, Any],
+    measurement_instructions_simple: dict[str, Any],
 ):
     """Check if the given state data for a running measurement is correct"""
 
@@ -98,7 +98,7 @@ def check_state_measurement_data(
     assert measurement_status["tool_name"] == sensor_node_info["name"]
     instructions = measurement_status["instructions"]
     assert isinstance(instructions, dict)
-    assert instructions["name"] == measurement_instructions["name"]
+    assert instructions["name"] == measurement_instructions_simple["name"]
     assert instructions["mac_address"] == sensor_node_info["mac_address"]
     assert instructions["time"] > 0
 
@@ -106,7 +106,7 @@ def check_state_measurement_data(
     assert isinstance(first_channel, dict)
     assert (
         first_channel["channel_number"]
-        == measurement_instructions["first"]["channel_number"]
+        == measurement_instructions_simple["first"]["channel_number"]
     )
     assert isinstance(first_channel["sensor_id"], str)
 
@@ -147,7 +147,7 @@ class TestCommon:
         self,
         state_prefix,
         test_sensor_node,
-        measurement,
+        measurement_simple,
         client,
     ) -> None:
         """Test endpoint ``/state`` while measurement is running"""
@@ -157,7 +157,9 @@ class TestCommon:
         assert response.status_code == 200
 
         body = response.json()
-        check_state_measurement_data(body, test_sensor_node, measurement)
+        check_state_measurement_data(
+            body, test_sensor_node, measurement_simple
+        )
 
     @mark.hardware
     async def test_state_websocket_connect(
@@ -200,7 +202,7 @@ class TestCommon:
         self,
         state_prefix,
         test_sensor_node,
-        measurement,
+        measurement_simple,
         async_client,
     ) -> None:
         """Check WebSocket endpoint ``state`` while measurement is active"""
@@ -219,7 +221,7 @@ class TestCommon:
         messages = messages_task.result()
         assert len(messages) == expected_number_messages
         check_state_measurement_data(
-            messages.pop()["data"], test_sensor_node, measurement
+            messages.pop()["data"], test_sensor_node, measurement_simple
         )
 
     def test_reset_can(self, reset_can_prefix, client) -> None:
