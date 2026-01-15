@@ -2,6 +2,8 @@
 
 # -- Imports ------------------------------------------------------------------
 
+from typing import Any
+
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from httpx_ws.transport import ASGIWebSocketTransport
@@ -9,6 +11,51 @@ from netaddr import EUI
 from pytest import fixture
 
 from icoapi.api import app
+
+# -- Functions ----------------------------------------------------------------
+
+# pylint: disable=too-many-arguments, too-many-positional-arguments
+
+
+def create_measurement_instructions(
+    mac_address: str,
+    adc_configuration: dict[str, float | int],
+    first: dict[str, Any] | None = None,
+    second: dict[str, Any] | None = None,
+    third: dict[str, Any] | None = None,
+    ift_requested: bool = False,
+    ift_channel: str = "",
+) -> dict[str, Any]:
+    """Create measurement instructions based on given arguments"""
+
+    disabled = {
+        "channel_number": 0,
+        "sensor_id": None,
+    }
+
+    if first is None:
+        first = disabled
+    if second is None:
+        second = disabled
+    if third is None:
+        third = disabled
+
+    return {
+        "name": "Test Measurement",
+        "mac_address": mac_address,
+        "time": 10,
+        "first": first,
+        "second": second,
+        "third": third,
+        "ift_requested": ift_requested,
+        "ift_channel": ift_channel,
+        "ift_window_width": 50,
+        "adc": adc_configuration,
+        "meta": {"version": "", "profile": "", "parameters": {}},
+    }
+
+
+# pylint: enable=too-many-arguments, too-many-positional-arguments
 
 # -- Fixtures -----------------------------------------------------------------
 
@@ -194,26 +241,14 @@ def measurement_instructions_simple(
         "channel_number": 2,
         "sensor_id": sensor_id,
     }
-    disabled = {
-        "channel_number": 0,
-        "sensor_id": None,
-    }
 
-    configuration = {
-        "name": "Test Measurement",
-        "mac_address": node["mac_address"],
-        "time": 10,
-        "first": first,
-        "second": disabled,
-        "third": disabled,
-        "ift_requested": False,
-        "ift_channel": "",
-        "ift_window_width": 0,
-        "adc": test_sensor_node_adc_configuration,
-        "meta": {"version": "", "profile": "", "parameters": {}},
-    }
+    instructions = create_measurement_instructions(
+        mac_address=node["mac_address"],
+        adc_configuration=test_sensor_node_adc_configuration,
+        first=first,
+    )
 
-    return configuration
+    return instructions
 
 
 @fixture
