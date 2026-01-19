@@ -363,7 +363,7 @@ async def measurement_preparations(
     """
     This function sets up all system settings.
 
-    THIS FUNCTION THROWS EXCEPTIONS ON FAILURE.
+    This function throws exceptions on failure.
 
     :param system: CAN Network instance from API
     :param instructions: Measurement instructions from client
