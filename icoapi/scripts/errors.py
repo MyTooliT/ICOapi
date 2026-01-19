@@ -29,6 +29,32 @@ HTTP_400_INCORRECT_STATE_SPEC = {
     },
 }
 
+HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION = HTTPException(
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="Unsupported STH sensor configuration.",
+)
+HTTP_400_UNSUPPOERTED_FEATURE_SPEC = {
+    "description": "Unsupported STH sensor configuration.",
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+                "required": ["detail", "status_code"],
+            },
+            "example": {
+                "detail": (
+                    "Unsupported STH sensor configuration."
+                ),
+                "status_code": 400,
+            },
+        }
+    },
+}
+
 HTTP_404_STH_UNREACHABLE_EXCEPTION = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND,
     detail=(
@@ -127,6 +153,30 @@ HTTP_504_MEASUREMENT_TIMEOUT_SPEC = {
             "example": {
                 "detail": "Failed to stop measurement within timeout.",
                 "status_code": 504,
+            },
+        }
+    },
+}
+
+HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION = HTTPException(
+    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+    detail="Invalid ADC configuration.",
+)
+HTTP_422_INVALID_ADC_CONFIGURATION_SPEC = {
+    "description": "Invalid ADC configuration.",
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+                "required": ["detail", "status_code"],
+            },
+            "example": {
+                "detail": "Invalid ADC configuration.",
+                "status_code": 422,
             },
         }
     },

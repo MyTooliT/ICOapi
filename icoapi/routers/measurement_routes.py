@@ -6,6 +6,8 @@ import logging
 
 import pathvalidate
 from fastapi import APIRouter, Depends
+from icotronic.can import NoResponseError
+from icotronic.can.error import UnsupportedFeatureException
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from icoapi.models.models import (
@@ -22,11 +24,13 @@ from icoapi.models.globals import (
     ICOsystem,
 )
 from icoapi.scripts.errors import (
+    HTTP_400_INCORRECT_STATE_EXCEPTION, HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION,
+    HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION, HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
     HTTP_504_MEASUREMENT_TIMEOUT_EXCEPTION,
     HTTP_504_MEASUREMENT_TIMEOUT_SPEC,
 )
 
-from icoapi.scripts.measurement import run_measurement
+from icoapi.scripts.measurement import measurement_preparations, run_measurement
 
 router = APIRouter(prefix="/measurement", tags=["Measurement"])
 
@@ -42,51 +46,68 @@ async def start_measurement(
 ):
     """Start measurement"""
 
-    message: str = "Measurement is already running."
+    try:
+        await measurement_preparations(system, instructions)
+    except UnsupportedFeatureException:
+        raise HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION
+    except ValueError:
+        raise HTTP_400_INCORRECT_STATE_EXCEPTION
+    except NoResponseError:
+        raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
+    except AssertionError:
+        raise HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION
+
+    if measurement_state.running:
+        raise HTTP_400_INCORRECT_STATE_EXCEPTION
+
+    start = datetime.datetime.now()
+    filename = start.strftime("%Y-%m-%d_%H-%M-%S")
+
+    if instructions.name:
+        replaced = (
+            instructions.name.replace("ä", "ae")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
+            .replace("Ä", "Ae")
+            .replace("Ö", "Oe")
+            .replace("Ü", "Ue")
+        )
+        sanitized = pathvalidate.sanitize_filename(replaced)
+        filename = sanitized + "__" + filename
+
+    if instructions.meta:
+        measurement_state.pre_meta = instructions.meta
+
     measurement_state.stop_flag = False
+    measurement_state.name = filename
+    measurement_state.wait_for_post_meta = instructions.wait_for_post_meta
+    measurement_state.start_time = start.isoformat()
+    measurement_state.instructions = instructions
 
-    if not measurement_state.running:
-        start = datetime.datetime.now()
-        filename = start.strftime("%Y-%m-%d_%H-%M-%S")
-        if instructions.name:
-            replaced = (
-                instructions.name.replace("ä", "ae")
-                .replace("ö", "oe")
-                .replace("ü", "ue")
-                .replace("Ä", "Ae")
-                .replace("Ö", "Oe")
-                .replace("Ü", "Ue")
-            )
-            sanitized = pathvalidate.sanitize_filename(replaced)
-            filename = sanitized + "__" + filename
-        if instructions.meta:
-            measurement_state.pre_meta = instructions.meta
-        measurement_state.running = True
-        measurement_state.name = filename
-        measurement_state.wait_for_post_meta = instructions.wait_for_post_meta
-        measurement_state.start_time = start.isoformat()
-        try:
-            measurement_state.tool_name = await system.sensor_node.get_name()
-            logger.debug("Tool found - name: %s", measurement_state.tool_name)
-        except AttributeError:
-            measurement_state.tool_name = "noname"
-            logger.error("Tool not found!")
-        measurement_state.instructions = instructions
-        measurement_state.task = asyncio.create_task(
-            run_measurement(
-                system, instructions, measurement_state, general_messenger
-            )
-        )
-        logger.info(
-            "Created measurement task with tool <%s> and timeout of %s",
-            measurement_state.tool_name,
-            instructions.time,
-        )
+    try:
+        measurement_state.tool_name = await system.sensor_node.get_name()
+        logger.debug("Tool found - name: %s", measurement_state.tool_name)
+    except AttributeError:
+        measurement_state.tool_name = "noname"
+        logger.error("Tool not found!")
 
-        message = "Measurement started successfully."
+
+    measurement_state.task = asyncio.create_task(
+        run_measurement(
+            system, instructions, measurement_state, general_messenger
+        )
+    )
+    logger.info(
+        "Created measurement task with tool <%s> and timeout of %s",
+        measurement_state.tool_name,
+        instructions.time,
+    )
+
+    measurement_state.running = True
 
     return ControlResponse(
-        message=message, data=measurement_state.get_status()
+        message="Measurement started successfully.",
+        data=measurement_state.get_status()
     )
 
 

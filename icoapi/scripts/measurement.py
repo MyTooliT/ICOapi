@@ -41,31 +41,23 @@ logger = logging.getLogger(__name__)
 
 async def setup_adc(
     system: ICOsystem, instructions: MeasurementInstructions
-) -> float:
+) -> None:
     """
     Write ADC configuration to the holder.
 
-    :param network: CAN Network instance from API
+    :param system: CAN Network instance from API
     :param instructions: client instructions
-    :return: sample rate
     """
 
     assert isinstance(instructions.adc, ADCValues)
 
     adc_config = instructions.adc.to_adc_configuration()
 
-    try:
-        logger.debug("Set ADC configuration: %s", adc_config)
-        await system.set_adc_configuration(adc_config)
-    except NoResponseError:
-        logger.warning(
-            "No response from CAN bus - ADC configuration not written"
-        )
+    await system.set_adc_configuration(adc_config)
+    logger.debug("Set ADC configuration: %s", adc_config)
 
     sample_rate = adc_config.sample_rate()
     logger.info("Sample Rate: %s Hz", sample_rate)
-
-    return sample_rate
 
 
 async def write_sensor_config_if_required(
@@ -365,16 +357,32 @@ def get_sendable_data_and_apply_conversion(
 # pylint: disable=too-many-branches, too-many-locals, too-many-statements
 
 
-async def run_measurement(
-    system: ICOsystem,
-    instructions: MeasurementInstructions,
-    measurement_state: MeasurementState,
-    general_messenger: GeneralMessenger,
+async def measurement_preparations(
+        system: ICOsystem,
+        instructions: MeasurementInstructions,
 ) -> None:
-    """Run measurement"""
+    """
+    This function sets up all system settings.
+
+    THIS FUNCTION THROWS EXCEPTIONS ON FAILURE.
+
+    :param system: CAN Network instance from API
+    :param instructions: Measurement instructions from client
+
+    :raises UnsupportedFeatureException:
+        If the sensor node does not support the requested sensor configuration
+    :raises ValueError:
+        If the system is not in the correct state
+    :raises NoResponseError:
+        If the CAN system did not respond
+    :raises AssertionError:
+        If the ADC configuration is not valid
+    """
+    if system.state != system.state.SENSOR_NODE_CONNECTED:
+        raise ValueError("System state not in SENSOR_NODE_CONNECTED state")
 
     # Write ADC configuration to the holder
-    sample_rate = await setup_adc(system, instructions)
+    await setup_adc(system, instructions)
 
     # Create a SensorConfiguration and a StreamingConfiguration object
     # `SensorConfiguration` sets which sensor channels map to the measurement
@@ -386,10 +394,28 @@ async def run_measurement(
         instructions.second.channel_number,
         instructions.third.channel_number,
     )
-    streaming_configuration = sensor_configuration.streaming_configuration()
 
     # Write sensor configuration to the holder if possible / necessary.
     await write_sensor_config_if_required(system, sensor_configuration)
+
+
+async def run_measurement(
+    system: ICOsystem,
+    instructions: MeasurementInstructions,
+    measurement_state: MeasurementState,
+    general_messenger: GeneralMessenger,
+) -> None:
+    """Run measurement"""
+
+    adc = await system.get_adc_configuration()
+    sample_rate = adc.sample_rate()
+
+    sensor_configuration = SensorConfiguration(
+        instructions.first.channel_number,
+        instructions.second.channel_number,
+        instructions.third.channel_number,
+    )
+    streaming_configuration = sensor_configuration.streaming_configuration()
 
     # NOTE: The array data.values only contains the activated channels. This
     # means we need to compute the index at which each channel is located.
