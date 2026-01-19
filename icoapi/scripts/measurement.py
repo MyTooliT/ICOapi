@@ -8,7 +8,6 @@ from pathlib import Path
 
 from icolyzer import iftlibrary
 from icostate import ICOsystem
-from icotronic.can.error import NoResponseError
 from icotronic.can.error import UnsupportedFeatureException
 from icotronic.can.sensor import SensorConfiguration
 from icotronic.can.streaming import (

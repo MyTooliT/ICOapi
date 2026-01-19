@@ -91,7 +91,6 @@ async def start_measurement(
         measurement_state.tool_name = "noname"
         logger.error("Tool not found!")
 
-
     measurement_state.task = asyncio.create_task(
         run_measurement(
             system, instructions, measurement_state, general_messenger
