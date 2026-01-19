@@ -48,14 +48,14 @@ async def start_measurement(
 
     try:
         await measurement_preparations(system, instructions)
-    except UnsupportedFeatureException:
-        raise HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION
-    except ValueError:
-        raise HTTP_400_INCORRECT_STATE_EXCEPTION
-    except NoResponseError:
-        raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION
-    except AssertionError:
-        raise HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION
+    except UnsupportedFeatureException as exc:
+        raise HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION from exc
+    except ValueError as exc:
+        raise HTTP_400_INCORRECT_STATE_EXCEPTION from exc
+    except NoResponseError as exc:
+        raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from exc
+    except AssertionError as exc:
+        raise HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION from exc
 
     if measurement_state.running:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION
