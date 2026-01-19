@@ -6,6 +6,7 @@ import logging
 
 import pathvalidate
 from fastapi import APIRouter, Depends
+from icostate.error import IncorrectStateError
 from icotronic.can import NoResponseError
 from icotronic.can.error import UnsupportedFeatureException
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -24,13 +25,18 @@ from icoapi.models.globals import (
     ICOsystem,
 )
 from icoapi.scripts.errors import (
-    HTTP_400_INCORRECT_STATE_EXCEPTION, HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION,
-    HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION, HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
+    HTTP_400_INCORRECT_STATE_EXCEPTION,
+    HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION,
+    HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION,
+    HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
     HTTP_504_MEASUREMENT_TIMEOUT_EXCEPTION,
     HTTP_504_MEASUREMENT_TIMEOUT_SPEC,
 )
 
-from icoapi.scripts.measurement import measurement_preparations, run_measurement
+from icoapi.scripts.measurement import (
+    measurement_preparations,
+    run_measurement,
+)
 
 router = APIRouter(prefix="/measurement", tags=["Measurement"])
 
@@ -50,7 +56,7 @@ async def start_measurement(
         await measurement_preparations(system, instructions)
     except UnsupportedFeatureException as exc:
         raise HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION from exc
-    except ValueError as exc:
+    except IncorrectStateError as exc:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION from exc
     except NoResponseError as exc:
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from exc
@@ -106,7 +112,7 @@ async def start_measurement(
 
     return ControlResponse(
         message="Measurement started successfully.",
-        data=measurement_state.get_status()
+        data=measurement_state.get_status(),
     )
 
 

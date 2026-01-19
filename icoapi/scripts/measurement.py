@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 from icolyzer import iftlibrary
-from icostate import ICOsystem
+from icostate import ICOsystem, State
 from icotronic.can.error import UnsupportedFeatureException
 from icotronic.can.sensor import SensorConfiguration
 from icotronic.can.streaming import (
@@ -357,8 +357,8 @@ def get_sendable_data_and_apply_conversion(
 
 
 async def measurement_preparations(
-        system: ICOsystem,
-        instructions: MeasurementInstructions,
+    system: ICOsystem,
+    instructions: MeasurementInstructions,
 ) -> None:
     """
     This function sets up all system settings.
@@ -370,15 +370,17 @@ async def measurement_preparations(
 
     :raises UnsupportedFeatureException:
         If the sensor node does not support the requested sensor configuration
-    :raises ValueError:
+    :raises IncorrectStateError:
         If the system is not in the correct state
     :raises NoResponseError:
         If the CAN system did not respond
     :raises AssertionError:
         If the ADC configuration is not valid
     """
-    if system.state != system.state.SENSOR_NODE_CONNECTED:
-        raise ValueError("System state not in SENSOR_NODE_CONNECTED state")
+
+    system.check_in_state(
+        {State.SENSOR_NODE_CONNECTED}, "Measurement preparations"
+    )
 
     # Write ADC configuration to the holder
     await setup_adc(system, instructions)
