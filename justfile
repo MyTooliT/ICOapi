@@ -2,6 +2,8 @@
 
 # Use latest version of PowerShell on Windows
 set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
+# Load `.env` file data for environment variables
+set dotenv-load := true
 
 # -- Variables -----------------------------------------------------------------
 
@@ -9,7 +11,7 @@ package := "icoapi"
 location := "localhost:33215/api/v1"
 http_url := "http://" + location
 ws_url := "ws://" + location
-mac_address := "08-6B-D7-01-DE-81"
+mac_address := env("TEST_SENSOR_NODE_EUI", "08-6B-D7-01-DE-81")
 name := "Test-STH"
 measurement_name := "Test Measurement"
 
