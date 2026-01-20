@@ -5,6 +5,8 @@ import sys
 from typing import Tuple
 import shutil
 import re
+from importlib.resources import files
+
 
 from dotenv import load_dotenv
 from platformdirs import user_data_dir
@@ -26,6 +28,11 @@ def load_env_file():
         bundle_dir = sys._MEIPASS
         logger.warning(f"Environment variables not found in local directory. Trying to load from app data: {bundle_dir}")
         env_loaded = load_dotenv(os.path.join(bundle_dir, "config", ".env"), verbose=True)
+    if not env_loaded:
+        # Fourth try: load default configuration from package data
+        package_data = files('icoapi').joinpath("config")
+        logger.warning(f"Environment variables not found in app data. Trying to load from package data: %s", package_data)
+        env_loaded = load_dotenv(stream=(package_data.joinpath("default.env").open('r', encoding='utf-8')))
     if not env_loaded:
         logger.critical(f"Environment variables not found")
         raise EnvironmentError(".env not found")

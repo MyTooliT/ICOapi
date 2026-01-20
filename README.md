@@ -50,11 +50,7 @@ Then run the following command to get up and running:
 poetry lock && poetry install --all-extras
 ```
 
-Once you have that, get a baseline `.env` and run the API:
-
-```shell
-cp example.env .env
-```
+Once you have that run the API:
 
 ```shell
 poetry run python3 icoapi/api.py
@@ -75,13 +71,7 @@ INSTALL_DIR="/etc/icoapi"
 SERVICE_PATH="/etc/systemd/system"
 ```
 
-Please note that the install script expects that the root folder of the repository contains an `.env` configuration file. You can use `example.env` as starting point:
-
-```sh
-cp example.env .env
-```
-
-After you created the configuration file, run the script to install normally:
+Run the script to install normally:
 
 ```sh
 ./install.sh
