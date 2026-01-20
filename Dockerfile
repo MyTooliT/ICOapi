@@ -15,6 +15,6 @@ ENV VITE_API_PORT=33215
 EXPOSE 33215
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-ENTRYPOINT ["docker-entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/usr/local/bin/docker-entrypoint.sh"]
 
 CMD ["uv", "run", "icoapi"]
