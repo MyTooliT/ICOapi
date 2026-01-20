@@ -25,9 +25,10 @@ def load_env_file():
     # First try: local development
     env_loaded = load_dotenv(
         os.path.join(
-            os.path.abspath(os.path.join(os.getcwd(), os.pardir)),
+            os.path.abspath(os.path.join(os.getcwd())),
+            "icoapi",
             "config",
-            ".env",
+            "default.env",
         ),
         verbose=True,
     )
@@ -72,8 +73,7 @@ def load_env_file():
             )
         )
     if not env_loaded:
-        logger.critical("Environment variables not found")
-        raise EnvironmentError(".env not found")
+        logger.info("Environment variables not found - using builtins.")
 
 
 def is_bundled():

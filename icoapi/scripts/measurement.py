@@ -532,7 +532,7 @@ async def run_measurement(
 
                     if counter >= (
                         sample_rate
-                        // int(os.getenv("WEBSOCKET_UPDATE_RATE", "60"))
+                        // int(os.getenv("WEBSOCKET_UPDATE_RATE", "300"))
                     ):
                         for client in measurement_state.clients:
                             try:

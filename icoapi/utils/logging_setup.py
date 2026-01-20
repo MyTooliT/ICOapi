@@ -19,28 +19,24 @@ from icoapi.scripts.file_handling import load_env_file
 log_watchers: List[WebSocket] = []
 log_queue: asyncio.Queue[str] = asyncio.Queue()
 
-load_env_file()
-
-log_level = os.getenv("LOG_LEVEL")
-LOG_LEVEL = "" if log_level is None else log_level.upper()
+LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
 LOG_USE_JSON = os.getenv("LOG_USE_JSON", "0") == "1"
 LOG_USE_COLOR = os.getenv("LOG_USE_COLOR", "0") == "1"
 LOG_MAX_BYTES = int(os.getenv("LOG_MAX_BYTES", str(5 * 1024 * 1024)))
-LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "10"))
 LOG_NAME_WITHOUT_EXTENSION = os.getenv("LOG_NAME_WITHOUT_EXTENSION", "icodaq")
 LOG_NAME = f"{LOG_NAME_WITHOUT_EXTENSION}.log"
 LOG_LEVEL_UVICORN = os.getenv("LOG_LEVEL_UVICORN", "INFO")
+LOG_FOLDER = os.getenv("VITE_APPLICATION_FOLDER", "ICOdaq")
 
 
 def get_default_log_path() -> str:
     """Get default log path"""
 
-    app_folder = os.getenv("VITE_BACKEND_MEASUREMENT_DIR", "ICOdaq")
-    file_name = "icodaq.log"
-    base = user_data_dir(app_folder, appauthor=False)
+    base = user_data_dir(LOG_FOLDER, appauthor=False)
     log_dir = os.path.join(base, "logs")
     os.makedirs(log_dir, exist_ok=True)
-    return os.path.join(log_dir, file_name)
+    return os.path.join(log_dir, LOG_NAME)
 
 
 LOG_PATH = os.getenv("LOG_PATH", get_default_log_path())
