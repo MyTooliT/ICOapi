@@ -107,35 +107,15 @@ docker run --network=host icoapi
 
 # Environment Variables
 
-The application expects a `.env` file in one of three locations, each one being
-the fallback for the location before. The respective function is written as:
+The application has sensible defaults for all environment variables.
 
-```python
-def load_env_file():
-    # First try: local development
-    env_loaded = load_dotenv(os.path.join(os.getcwd(), "config", ".env"), verbose=True)
-    if not env_loaded:
-        # Second try: configs directory
-        logger.warning(f"Environment variables not found in local directory. Trying to load from app data: {get_config_dir()}")
-        env_loaded = load_dotenv(os.path.join(get_config_dir(), ".env"), verbose=True)
-    if not env_loaded and is_bundled():
-        # Third try: we should be in the bundled state
-        bundle_dir = sys._MEIPASS
-        logger.warning(f"Environment variables not found in local directory. Trying to load from app data: {bundle_dir}")
-        env_loaded = load_dotenv(os.path.join(bundle_dir, "config", ".env"), verbose=True)
-    if not env_loaded:
-        logger.critical(f"Environment variables not found")
-        raise EnvironmentError(".env not found")
-```
+Should you want to change those not via arguments but via files, you have three
+chances to do so:
 
-1. For local development: the `.env` file is under `/config/.env`
+1. For local development: the `.env` file should be in the project root
 2. For normal usage, the file is in the `user_data_dir`
 3. When no environment variable file was found, we check the bundle directory
    from the pyinstaller for the bundled file
-
-This means that the `.env` file is bundled at compile-time and if the user has
-not ever run the software or deleted the `user_data_dir` we can take it as a
-fallback.
 
 > All variables prefixed with `VITE_` indicate that there is a counterpart in the client side environment variables. This
 > is to show that changes here most likely need to be propagated to the client (and electron wrapper, for that matter).
@@ -159,7 +139,7 @@ which decided between SSL or not, and how many times per second the WebSocket sh
 
 ```
 VITE_API_WS_PROTOCOL=ws
-WEBSOCKET_UPDATE_RATE=60
+WEBSOCKET_UPDATE_RATE=300
 ```
 
 ## File Storage Settings

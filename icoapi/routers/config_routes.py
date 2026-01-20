@@ -20,7 +20,6 @@ from icoapi.models.models import (
     ConfigRestoreRequest,
 )
 from icoapi.scripts.config_helper import (
-    ALLOWED_ENV_CONTENT_TYPES,
     ALLOWED_YAML_CONTENT_TYPES,
     CONFIG_BACKUP_DIRNAME,
     CONFIG_FILE_DEFINITIONS,
@@ -313,51 +312,6 @@ async def upload_dataspace_file(
     await setup_trident()
 
     return header
-
-
-@router.get(
-    "/env",
-    responses={
-        200: {"description": "File was found and returned."},
-        404: HTTP_404_FILE_NOT_FOUND_SPEC,
-    },
-)
-async def get_env_file(
-    config_dir: str = Depends(get_config_dir),
-) -> FileResponse:
-    """Get environment configuration file information"""
-
-    return file_response(
-        config_dir, CONFIG_FILE_DEFINITIONS.ENV.filename, "text/plain"
-    )
-
-
-@router.post(
-    "/env",
-    responses={
-        200: {"description": "Environment file uploaded successfully."},
-        415: HTTP_415_UNSUPPORTED_YAML_MEDIA_TYPE_SPEC,
-        500: HTTP_500_CONFIG_WRITE_SPEC,
-    },
-)
-async def upload_env_file(
-    file: UploadFile = File(..., description="Environment variables file"),
-    config_dir: str = Depends(get_config_dir),
-):
-    """Update environment configuration file"""
-
-    if (
-        file.content_type
-        and file.content_type.lower() not in ALLOWED_ENV_CONTENT_TYPES
-    ):
-        raise HTTP_415_UNSUPPORTED_YAML_MEDIA_TYPE_EXCEPTION
-
-    raw_content = await file.read()
-    if raw_content is None:
-        raw_content = b""
-
-    store_config(raw_content, config_dir, CONFIG_FILE_DEFINITIONS.ENV.filename)
-    return {"detail": "Environment file uploaded successfully."}
 
 
 @router.get(
