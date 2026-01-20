@@ -10,7 +10,7 @@ from pytest import mark
 
 
 def rename_sth(sth_prefix: str, mac_address: str, client: TestClient):
-    """Rename STH"""
+    """Test sensor node renaming by changing name"""
 
     response = client.put(
         f"{sth_prefix}/rename",
