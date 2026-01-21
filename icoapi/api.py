@@ -72,11 +72,8 @@ app.include_router(prefix="/api/v1", router=config_routes.router)
 
 
 logger = logging.getLogger(__name__)
-default_origins = "http://localhost:5173," \
-                + "http://127.0.0.1:5173," \
-                + "http://localhost:8081," \
-                + "http://127.0.0.1:8081"
-origins = getenv("VITE_API_ORIGINS", default_origins).split(",")
+DEFAULT_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,"
+origins = getenv("VITE_API_ORIGINS", DEFAULT_ORIGINS).split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -85,6 +82,7 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
 
 def main():
     """API entry point"""
