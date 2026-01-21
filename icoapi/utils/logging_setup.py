@@ -13,9 +13,13 @@ import orjson
 from colorlog import ColoredFormatter
 from fastapi import WebSocket
 from platformdirs import user_data_dir
+from icoapi.scripts.file_handling import load_env_file
+
 
 log_watchers: List[WebSocket] = []
 log_queue: asyncio.Queue[str] = asyncio.Queue()
+
+load_env_file()
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
 LOG_USE_JSON = os.getenv("LOG_USE_JSON", "0") == "1"

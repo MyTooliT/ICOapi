@@ -28,6 +28,7 @@ def load_env_file():
             ".env",
         ),
         verbose=True,
+        override=True,
     )
     if not env_loaded:
         # Second try: configs directory
