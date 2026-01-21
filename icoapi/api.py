@@ -8,7 +8,6 @@ from os import getenv
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from icoapi.routers import (
     config_routes,
@@ -72,6 +71,7 @@ app.include_router(prefix="/api/v1", router=config_routes.router)
 
 
 logger = logging.getLogger(__name__)
+
 
 def main():
     """API entry point"""

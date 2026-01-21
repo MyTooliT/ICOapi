@@ -449,7 +449,7 @@ def build_backup_path(backup_dir: Path, filename: str, timestamp: str) -> Path:
     counter = 1
     while backup_path.exists():
         backup_path = (
-                backup_dir / f"{base_name}__{timestamp}_{counter}{suffix}"
+            backup_dir / f"{base_name}__{timestamp}_{counter}{suffix}"
         )
         counter += 1
 
