@@ -7,7 +7,6 @@ import sys
 from typing import Tuple
 import shutil
 import re
-from importlib.resources import files
 
 
 from dotenv import load_dotenv
@@ -25,11 +24,11 @@ def load_env_file():
     # First try: local development
     env_loaded = load_dotenv(
         os.path.join(
-            os.path.abspath(os.path.join(os.getcwd(), os.pardir)),
-            "config",
+            os.path.abspath(os.path.join(os.getcwd())),
             ".env",
         ),
         verbose=True,
+        override=True,
     )
     if not env_loaded:
         # Second try: configs directory
@@ -41,10 +40,6 @@ def load_env_file():
         env_loaded = load_dotenv(
             os.path.join(get_config_dir(), ".env"), verbose=True
         )
-        if not env_loaded:
-            env_loaded = load_dotenv(
-                os.path.join(get_config_dir(), "default.env"), verbose=True
-            )
     if not env_loaded and is_bundled():
         # Third try: we should be in the bundled state
         bundle_dir = sys._MEIPASS  # pylint: disable=protected-access
@@ -57,23 +52,7 @@ def load_env_file():
             os.path.join(bundle_dir, "config", ".env"), verbose=True
         )
     if not env_loaded:
-        # Fourth try: load default configuration from package data
-        package_data = files("icoapi").joinpath("config")
-        logger.warning(
-            "Environment variables not found in app data. Trying to load from"
-            " package data: %s",
-            package_data,
-        )
-        env_loaded = load_dotenv(
-            stream=(
-                package_data.joinpath("default.env").open(
-                    "r", encoding="utf-8"
-                )
-            )
-        )
-    if not env_loaded:
-        logger.critical("Environment variables not found")
-        raise EnvironmentError(".env not found")
+        logger.info("Environment variables not found - using builtins.")
 
 
 def is_bundled():
@@ -136,10 +115,7 @@ def copy_config_files_if_not_exists(src_path: str, dest_path: str):
         if os.path.isfile(os.path.join(dest_path, f)):
             logger.info("Config file %s already exists in %s", f, dest_path)
         else:
-            if f.endswith(".env"):
-                shutil.copy(os.path.join(src_path, f), os.path.join(dest_path, ".env"))
-            else:
-                shutil.copy(os.path.join(src_path, f), os.path.join(dest_path, f))
+            shutil.copy(os.path.join(src_path, f), os.path.join(dest_path, f))
             logger.info("Copied config file %s to %s", f, dest_path)
 
 

@@ -19,11 +19,6 @@ ALLOWED_YAML_CONTENT_TYPES = {
     "text/plain",
 }
 
-ALLOWED_ENV_CONTENT_TYPES = {
-    "text/plain",
-    "application/octet-stream",
-}
-
 FIELD_DEFINITION_REQUIRED_KEYS = {"id", "label", "datatype", "type"}
 SENSOR_REQUIRED_FIELDS = {
     "name",
@@ -59,7 +54,6 @@ class ConfigFileDescription:
 class ConfigFileDefinition:
     """Configuration file definition"""
 
-    ENV: ConfigFileDescription
     METADATA: ConfigFileDescription
     SENSORS: ConfigFileDescription
     DATASPACE: ConfigFileDescription
@@ -68,14 +62,6 @@ class ConfigFileDefinition:
 # pylint: enable=invalid-name
 
 CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
-    ENV=ConfigFileDescription(
-        endpoint="env",
-        title="Environment Configuration",
-        description=(
-            "Configuration file containing environment configurations."
-        ),
-        filename=".env",
-    ),
     METADATA=ConfigFileDescription(
         endpoint="meta",
         title="Metadata Configuration",
@@ -207,7 +193,7 @@ def validate_profile(profile_key: str, profile_value: dict) -> list[str]:
 
 
 def validate_sections(
-    section: dict, path: list[str], errors: list[str]
+        section: dict, path: list[str], errors: list[str]
 ) -> None:
     """Validate profile sections"""
 
@@ -237,7 +223,7 @@ def is_field_definition(value: dict[str, Any]) -> bool:
 
 
 def validate_field_definition(
-    field: dict[str, Any], path: list[str], errors: list[str]
+        field: dict[str, Any], path: list[str], errors: list[str]
 ) -> None:
     """Validate field definition"""
 
@@ -283,7 +269,7 @@ def validate_sensors_payload(payload: Any) -> list[str]:
             for field in SENSOR_REQUIRED_FIELDS:
                 value = sensor.get(field)
                 if value is None or (
-                    isinstance(value, str) and not value.strip()
+                        isinstance(value, str) and not value.strip()
                 ):
                     errors.append(
                         f"sensors[{index}] -> {field}: expected non-empty"
@@ -305,10 +291,10 @@ def validate_sensors_payload(payload: Any) -> list[str]:
                 )
 
             for numeric_field in (
-                "phys_min",
-                "phys_max",
-                "volt_min",
-                "volt_max",
+                    "phys_min",
+                    "phys_max",
+                    "volt_min",
+                    "volt_max",
             ):
                 value = sensor.get(numeric_field)
                 if not isinstance(value, numbers.Real):
@@ -426,7 +412,7 @@ def validate_dataspace_payload(payload: Any) -> list[str]:
 
 
 def store_config_file(
-    content: bytes, config_dir: PathLike, filename: str
+        content: bytes, config_dir: PathLike, filename: str
 ) -> Tuple[Optional[Path], Path]:
     """Store configuration file"""
     config_path = Path(config_dir)
@@ -485,7 +471,7 @@ def split_base_and_suffix(filename: str) -> tuple[str, str]:
 
 
 def parse_info_header_from_file(
-    config_file: Path,
+        config_file: Path,
 ) -> ConfigFileInfoHeader | None:
     """Get config file header information from config file"""
 
@@ -512,7 +498,7 @@ def parse_info_header_from_file(
 
 
 def list_config_backups(
-    config_dir: PathLike, filename: str
+        config_dir: PathLike, filename: str
 ) -> list[tuple[str, str, ConfigFileInfoHeader | None]]:
     """List configuration backups"""
 
@@ -533,7 +519,7 @@ def list_config_backups(
         if entry_suffix != suffix or not entry_base.startswith(prefix):
             continue
 
-        remainder = entry_base[len(prefix) :]
+        remainder = entry_base[len(prefix):]
         timestamp_piece, _, _ = remainder.partition("_")
         if not timestamp_piece:
             continue
@@ -571,7 +557,7 @@ def is_backup_file_for(filename: str, backup_filename: str) -> bool:
     if not backup_base.startswith(prefix):
         return False
 
-    remainder = backup_base[len(prefix) :]
+    remainder = backup_base[len(prefix):]
     timestamp_piece, _, _ = remainder.partition("_")
     if not timestamp_piece:
         return False
