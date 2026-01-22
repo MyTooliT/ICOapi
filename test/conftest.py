@@ -2,6 +2,7 @@
 
 # -- Imports ------------------------------------------------------------------
 
+from re import match
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -56,6 +57,40 @@ def create_measurement_instructions(
 
 
 # pylint: enable=too-many-arguments, too-many-positional-arguments
+
+
+def generate_measurement_fixture(fixture_name: str, instructions: str) -> str:
+    """Create fixture for running measurement"""
+
+    if not all([
+        isinstance(fixture_name, str),
+        isinstance(instructions, str),
+        (0 < len(fixture_name) < 30),
+        (0 < len(instructions) < 40),
+        match(r"^[a-zA-Z_]+$", fixture_name),
+        match(r"^[a-zA-Z_]+$", instructions),
+    ]):
+        raise ValueError("Please do not try to generate/run arbitrary code 🥺")
+
+    code = f"""
+@fixture
+def {fixture_name}(
+    measurement_prefix, {instructions}, client
+):
+    start = f"{{measurement_prefix}}/start"
+    stop = f"{{measurement_prefix}}/stop"
+
+    response = client.post(start, json={instructions})
+
+    assert response.status_code == 200
+
+    yield {instructions}
+
+    response = client.post(stop)
+"""
+
+    return code
+
 
 # -- Fixtures -----------------------------------------------------------------
 
@@ -252,18 +287,44 @@ def measurement_instructions_simple(
 
 
 @fixture
-def measurement_simple(
-    measurement_prefix, measurement_instructions_simple, client
+def measurement_instructions_ift_value(
+    test_sensor_node_adc_configuration, connect, sensor_id
 ):
-    """Fixture for running measurement"""
+    """Get test measurement configuration"""
 
-    start = f"{measurement_prefix}/start"
-    stop = f"{measurement_prefix}/stop"
+    node = connect
 
-    response = client.post(start, json=measurement_instructions_simple)
+    second = {
+        "channel_number": 1,
+        "sensor_id": sensor_id,
+    }
 
-    assert response.status_code == 200
+    instructions = create_measurement_instructions(
+        mac_address=node["mac_address"],
+        adc_configuration=test_sensor_node_adc_configuration,
+        first=second,
+        ift_requested=True,
+        ift_channel=1,
+    )
 
-    yield measurement_instructions_simple
+    return instructions
 
-    response = client.post(stop)
+
+# pylint: disable=exec-used
+
+# If you think that creating the fixture by using exec is horrible, I do
+# agree ☹️. If you find a solution to specify the argument of the fixture
+# dynamically, then please fix the code and submit a pull request.
+
+exec(
+    generate_measurement_fixture(
+        "measurement_simple", "measurement_instructions_simple"
+    )
+)
+exec(
+    generate_measurement_fixture(
+        "measurement_ift_value", "measurement_instructions_ift_value"
+    )
+)
+
+# pylint: enable=exec-used
