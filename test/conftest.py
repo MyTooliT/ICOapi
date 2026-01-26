@@ -15,48 +15,35 @@ from icoapi.api import app
 
 # -- Functions ----------------------------------------------------------------
 
-# pylint: disable=too-many-arguments, too-many-positional-arguments
-
 
 def create_measurement_instructions(
-    mac_address: str,
-    adc_configuration: dict[str, float | int],
-    first: dict[str, Any] | None = None,
-    second: dict[str, Any] | None = None,
-    third: dict[str, Any] | None = None,
-    ift_requested: bool = False,
-    ift_channel: str = "",
+    mac_address: str, **instructions
 ) -> dict[str, Any]:
     """Create measurement instructions based on given arguments"""
+
+    def set_default(name: str, value: Any) -> None:
+        """Set instruction name to default value, if not already set before"""
+        if instructions.get(name, None) is None:
+            instructions[name] = value
 
     disabled = {
         "channel_number": 0,
         "sensor_id": None,
     }
 
-    if first is None:
-        first = disabled
-    if second is None:
-        second = disabled
-    if third is None:
-        third = disabled
+    for channel in ("first", "second", "third"):
+        set_default(channel, disabled)
 
-    return {
-        "name": "Test Measurement",
-        "mac_address": mac_address,
-        "time": 10,
-        "first": first,
-        "second": second,
-        "third": third,
-        "ift_requested": ift_requested,
-        "ift_channel": ift_channel,
-        "ift_window_width": 50,
-        "adc": adc_configuration,
-        "meta": {"version": "", "profile": "", "parameters": {}},
-    }
+    set_default("ift_requested", False)
+    set_default("ift_channel", "")
+    set_default("ift_window_width", 50)
+    set_default("meta", {"version": "", "profile": "", "parameters": {}})
+    set_default("name", "Test Measurement")
+    set_default("time", 10)
 
+    instructions["mac_address"] = mac_address
 
-# pylint: enable=too-many-arguments, too-many-positional-arguments
+    return instructions
 
 
 def generate_measurement_fixture(fixture_name: str, instructions: str) -> str:
@@ -279,7 +266,7 @@ def measurement_instructions_simple(
 
     instructions = create_measurement_instructions(
         mac_address=node["mac_address"],
-        adc_configuration=test_sensor_node_adc_configuration,
+        adc=test_sensor_node_adc_configuration,
         first=first,
     )
 
@@ -301,7 +288,7 @@ def measurement_instructions_ift_value(
 
     instructions = create_measurement_instructions(
         mac_address=node["mac_address"],
-        adc_configuration=test_sensor_node_adc_configuration,
+        adc=test_sensor_node_adc_configuration,
         first=second,
         ift_requested=True,
         ift_channel=1,
