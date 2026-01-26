@@ -206,17 +206,15 @@ class TestMeasurement:
         values = message["ift"]
 
         assert isinstance(values, list)
-        instructions = measurement_ift_value
-        getLogger().debug("Instructions: %s", instructions)
-        sample_rate = ADCConfiguration(**instructions["adc"]).sample_rate()
+        getLogger().debug("Instructions: %s", measurement_ift_value)
+        sample_rate = ADCConfiguration(
+            **measurement_ift_value["adc"]
+        ).sample_rate()
         getLogger().debug("Sample Rate: %.2f Hz", sample_rate)
         # For single channel the current code only uses every third value for
         # IFT value calculation
-        allowed_offset_number_values_in_seconds = 0.1
         approx_number_values = (
-            (instructions["time"] - allowed_offset_number_values_in_seconds)
-            * sample_rate
-            / 3
+            (measurement_ift_value["time"] - 0.1) * sample_rate / 3
         )
         assert len(values) >= approx_number_values
 

@@ -112,9 +112,9 @@ start-measurement: connect
 	  second[sensor_id]="" \
 	  third[channel_number]:=0 \
 	  third[sensor_id]="" \
-	  ift_requested:=false \
-	  ift_channel="" \
-	  ift_window_width:=0 \
+	  ift_requested:=true \
+	  ift_channel="first" \
+	  ift_window_width:=50 \
 	  adc[prescaler]:=2 \
 	  adc[acquisition_time]:=8 \
 	  adc[oversampling_rate]:=64 \
