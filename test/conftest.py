@@ -282,16 +282,17 @@ def measurement_instructions_ift_value(
     node = connect
 
     second = {
-        "channel_number": 1,
+        "channel_number": 2,
         "sensor_id": sensor_id,
     }
 
     instructions = create_measurement_instructions(
         mac_address=node["mac_address"],
         adc=test_sensor_node_adc_configuration,
-        first=second,
+        second=second,
+        time=5,
         ift_requested=True,
-        ift_channel=1,
+        ift_channel="second",
     )
 
     return instructions

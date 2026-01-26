@@ -3,8 +3,10 @@
 # -- Imports ------------------------------------------------------------------
 
 from datetime import datetime
+from logging import getLogger
 from time import time
 
+from icostate import ADCConfiguration
 from pytest import mark
 
 # -- Functions ----------------------------------------------------------------
@@ -174,3 +176,54 @@ class TestMeasurement:
             assert message["third"] is None
             assert 0 <= message["counter"] <= 255
             assert message["ift"] is None
+
+    @mark.hardware
+    def test_measurement_stream_ift_value(
+        self,
+        measurement_ift_value,  # pylint: disable=unused-argument
+        measurement_prefix,
+        client,
+    ) -> None:
+        """Check WebSocket streaming data"""
+
+        stream = get_measurement_websocket_endpoint(measurement_prefix, client)
+
+        data = None
+        with client.websocket_connect(stream) as websocket:
+            while data := websocket.receive_json():
+                message = data[0]
+                # IFT values are sent at end of measurement session
+                # We ignore data sent before
+                if message["ift"] is not None:
+                    break
+
+        getLogger().debug("IFT Value data: %s", data)
+
+        assert isinstance(data, list)
+        assert len(data) == 1
+        message = data[0]
+        assert message["ift"] is not None
+        values = message["ift"]
+
+        assert isinstance(values, list)
+        instructions = measurement_ift_value
+        getLogger().debug("Instructions: %s", instructions)
+        sample_rate = ADCConfiguration(**instructions["adc"]).sample_rate()
+        getLogger().debug("Sample Rate: %.2f Hz", sample_rate)
+        # For single channel the current code only uses every third value for
+        # IFT value calculation
+        allowed_offset_number_values_in_seconds = 0.1
+        approx_number_values = (
+            (instructions["time"] - allowed_offset_number_values_in_seconds)
+            * sample_rate
+            / 3
+        )
+        assert len(values) >= approx_number_values
+
+        timestamp_before = 0
+        for value in values:
+            timestamp = value["x"]
+            ift_value = value["y"]
+            assert timestamp_before <= timestamp
+            assert ift_value >= 0
+            timestamp_before = timestamp
