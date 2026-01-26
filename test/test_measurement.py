@@ -7,6 +7,27 @@ from time import time
 
 from pytest import mark
 
+# -- Functions ----------------------------------------------------------------
+
+
+def get_measurement_websocket_endpoint(
+    measurement_prefix,
+    client,
+) -> str:
+    """Get the endpoint for the measurement WebSocket"""
+
+    measurement_status = str(measurement_prefix)
+
+    response = client.get(measurement_status)
+    assert response.status_code == 200
+    assert response.json()["running"] is True
+
+    ws_url = str(client.base_url).replace("http", "ws")
+    stream = f"{ws_url}{measurement_prefix}/stream"
+
+    return stream
+
+
 # -- Classes ------------------------------------------------------------------
 
 
@@ -122,7 +143,7 @@ class TestMeasurement:
         assert response.json() is None
 
     @mark.hardware
-    def test_measurement_stream(
+    def test_measurement_stream_simple(
         self,
         measurement_simple,  # pylint: disable=unused-argument
         measurement_prefix,
@@ -130,14 +151,7 @@ class TestMeasurement:
     ) -> None:
         """Check WebSocket streaming data"""
 
-        measurement_status = str(measurement_prefix)
-
-        response = client.get(measurement_status)
-        assert response.status_code == 200
-        assert response.json()["running"] is True
-
-        ws_url = str(client.base_url).replace("http", "ws")
-        stream = f"{ws_url}{measurement_prefix}/stream"
+        stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
         with client.websocket_connect(stream) as websocket:
             data = websocket.receive_json()
