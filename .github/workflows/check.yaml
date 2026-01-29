@@ -23,6 +23,11 @@ jobs:
           - os:
               name: windows
             python-version: '3.14'
+          # Looks like the most recent (major) version of HDF broke the build
+          # See also: https://github.com/MyTooliT/ICOapi/issues/15
+          - os:
+              name: macos
+            python-version: '3.14'
 
     runs-on: ${{ matrix.os.name }}-latest
     name: ${{ matrix.os.icon }} Python ${{ matrix.python-version }}
