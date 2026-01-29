@@ -29,6 +29,13 @@ from icoapi.scripts.file_handling import (
 logger = logging.getLogger(__name__)
 
 
+class AccelerationDataNotFoundError(HTTPException):
+    """Exception raised when acceleration data is not found in HDF5 file"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.status_code = 500
+        self.detail = "Acceleration data not found in HDF5 file"
+
 def get_sensor_defaults() -> list[Sensor]:
     """Get list of default sensors"""
 
@@ -593,10 +600,7 @@ def get_file_data(
             )
             acceleration_meta = node_to_dict(acceleration_data)
         except NoSuchNodeError as error:
-            raise HTTPException(
-                status_code=500,
-                detail="Acceleration data not found in the file",
-            ) from error
+            raise AccelerationDataNotFoundError from error
         except AssertionError as error:
             raise HTTPException(
                 status_code=500, detail="Acceleration data is not a table"

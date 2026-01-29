@@ -27,7 +27,7 @@ from icoapi.models.models import (
     Sensor,
 )
 from icoapi.models.trident import RemoteObjectDetails, StorageClient
-from icoapi.scripts.data_handling import get_file_data
+from icoapi.scripts.data_handling import AccelerationDataNotFoundError, get_file_data
 from icoapi.scripts.errors import (
     HTTP_404_FILE_NOT_FOUND_EXCEPTION,
     HTTP_404_FILE_NOT_FOUND_SPEC,
@@ -287,10 +287,7 @@ async def overwrite_post_meta(
             node: Node = storage.hdf.get_node("/acceleration")
             del node.attrs["post_metadata"]
         except NoSuchNodeError as error:
-            raise HTTPException(
-                status_code=500,
-                detail="Acceleration data not found in the file",
-            ) from error
+            raise AccelerationDataNotFoundError from error
         write_metadata(MetadataPrefix.POST, metadata, storage)
 
 
@@ -318,8 +315,5 @@ async def overwrite_pre_meta(
             node: Node = storage.hdf.get_node("/acceleration")
             del node.attrs["pre_metadata"]
         except NoSuchNodeError as error:
-            raise HTTPException(
-                status_code=500,
-                detail="Acceleration data not found in the file",
-            ) from error
+            raise AccelerationDataNotFoundError from error
         write_metadata(MetadataPrefix.PRE, metadata, storage)
