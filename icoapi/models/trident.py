@@ -1,12 +1,12 @@
 # https://git.ift.tuwien.ac.at/lab/ift/infrastructure/trident-client/-/blob/main/main.py?ref_type=heads
+from dataclasses import dataclass, field
 import json
 import socket
 from http.client import HTTPException
+from typing import Any, Optional
 
 import requests
 import logging
-
-from icoapi.scripts.file_handling import tries_to_traverse_directory
 
 logger = logging.getLogger(__name__)
 
@@ -177,88 +177,105 @@ class TridentConnection:
         return self.request("DELETE", path, params=params)
 
 
+@dataclass
+class FileUploadDetails:
+    key: str
+    name: str
+    description: str
+    author: str
+    expiresInSeconds: int = 600
+    metadata: dict = field(default_factory=dict)
+
+
+@dataclass
+class RemoteObjectDetails:
+    id: int
+    bucket: str
+    objectname: str
+    name: str
+    description: Optional[str]
+    metadata: dict
+    created_at: str
+    s3_lastmodified: str
+    s3_size: int
+    origin: str
+    author: str
+    type: str
+    last_status: str
+    last_status_time: str
+    secrets_count: int
+    access_total_count: int
+    access_week_count: int
+    last_access_time: Optional[str]
+    active_offerings_count: int
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "RemoteObjectDetails":
+        return cls(**d)
+
+
+@dataclass
+class RemoteObjectListDetails:
+    files: list[RemoteObjectDetails]
+    total: int
+    page: int
+    size: int
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "RemoteObjectListDetails":
+        files = [RemoteObjectDetails.from_dict(x) for x in d.get("files", [])]
+        return cls(
+            files=files,
+            total=d["total"],
+            page=d["page"],
+            size=d["size"],
+        )
+
+
 class StorageClient:
     def __init__(
         self,
         service: str,
         username: str,
         password: str,
-        default_bucket: str,
         domain: str,
     ):
         self.connection = TridentConnection(
             service, username, password, domain
         )
-        self.default_bucket = default_bucket
 
     def get_client(self):
         return self.connection
 
-    def get_buckets(self):
-        return self.connection.get("/s3/buckets").json()
-
-    def get_bucket_objects(self, bucket: str | None = None):
+    def get_remote_objects(self) -> RemoteObjectListDetails:
         try:
-            response = self.connection.get(
-                f"/s3/list?bucket={bucket if bucket else self.default_bucket}"
-            )
+            response = self.connection.get("/management/files")
         except Exception:
-            logger.error("Error getting bucket objects.")
+            logger.error("Error getting remote objects.")
             raise HTTPException
 
         try:
-            return response.json()
+            return RemoteObjectListDetails.from_dict(response.json())
         except json.decoder.JSONDecodeError as e:
             if response.status_code == 200:
-                logger.info(
-                    "No objects found in bucket"
-                    f" <{bucket if bucket else self.default_bucket}>."
-                )
-                return []
+                logger.info("No remote objects found.")
+                return RemoteObjectListDetails([], 0, 0, 0)
             logger.error(f"Error with decoding JSON response: {e}")
-            return []
+            return RemoteObjectListDetails([], 0, 0, 0)
 
     def upload_file(
         self,
         file_path: str,
-        filename: str,
-        bucket: str | None = None,
-        folder: str | None = "default",
+        object_details: FileUploadDetails,
     ):
-        bucket = bucket if bucket else self.default_bucket
-        complete_filename_with_folder = filename
-        if folder is None:
-            logger.info(
-                f"Trying file <{filename}> to bucket <{bucket}> with no folder"
-                " specified."
-            )
-        elif folder == "":
-            logger.warning(
-                f"Trying file <{filename}> to bucket <{bucket}> with folder"
-                " incorrectly specified as empty string; assuming no folder."
-            )
-        elif tries_to_traverse_directory(folder):
-            logger.error(
-                f"Trying file <{filename}> to bucket <{bucket}> with folder"
-                f" <{folder}> trying to traverse directories!"
-            )
-        else:
-            complete_filename_with_folder = f"{folder}/{filename}"
-            logger.info(
-                f"Trying file <{filename}> to bucket <{bucket}> under folder"
-                f" <{folder}>."
-            )
-
-        presigned_url_response = self.connection.get(
-            "/s3/presigned-upload",
-            params={
-                "bucket": bucket,
-                "key": complete_filename_with_folder,
-                "expiresInSeconds": 600,
-            },
+        presigned_url_response = self.connection.post(
+            "/management/files",
+            data=object_details.__dict__,
         )
 
-        if presigned_url_response.status_code != 200:
+        print(presigned_url_response)
+
+        if not presigned_url_response.status_code // 100 == 2:
             logger.error(
                 "Error getting presigned URL for upload: code"
                 f" {presigned_url_response.status_code} with"
