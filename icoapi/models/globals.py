@@ -226,7 +226,6 @@ class TridentHandler:
             config.service,
             config.username,
             config.password,
-            config.default_bucket,
             config.domain,
         )
         await get_messenger().push_messenger_update()
