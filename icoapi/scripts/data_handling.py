@@ -36,6 +36,7 @@ class AccelerationDataNotFoundError(HTTPException):
         self.status_code = 500
         self.detail = "Acceleration data not found in HDF5 file"
 
+
 def get_sensor_defaults() -> list[Sensor]:
     """Get list of default sensors"""
 
