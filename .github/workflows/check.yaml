@@ -23,11 +23,6 @@ jobs:
           - os:
               name: windows
             python-version: '3.14'
-          # Looks like the most recent (major) version of HDF broke the build
-          # See also: https://github.com/MyTooliT/ICOapi/issues/15
-          - os:
-              name: macos
-            python-version: '3.14'
 
     runs-on: ${{ matrix.os.name }}-latest
     name: ${{ matrix.os.icon }} Python ${{ matrix.python-version }}
@@ -73,7 +68,7 @@ jobs:
     - name: Install PyTables dependencies on macOS (Python 3.14)
       if: ${{ runner.os == 'macOS' && matrix.python-version == '3.14' }}
       run: |
-        brew install c-blosc2 bzip2 hdf5
+        brew install c-blosc2 bzip2 hdf5@1.10
         mkdir -p "$PWD/.venv/lib/python3.14/site-packages/tables/"
         ln -s \
           "$(pkg-config blosc2 --variable sharedlibdir)"/libblosc2.dylib \
