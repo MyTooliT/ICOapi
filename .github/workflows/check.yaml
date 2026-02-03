@@ -67,7 +67,7 @@ jobs:
         printf "LD_LIBRARY_PATH: %s\n" "${LD_LIBRARY_PATH}"
         library_directory="$(pkg-config blosc2 --variable sharedlibdir)"
         printf "Library Directory: %s\n" "${library_directory}"
-        library_link="${LD_LIBRARY_PATH}/libblosc2.so.6"
+        library_link="${LD_LIBRARY_PATH}/libblosc2.so.7"
         ln -s "${library_directory}/libblosc2.so" "${library_link}"
 
     - name: Install PyTables dependencies on macOS (Python 3.14)
