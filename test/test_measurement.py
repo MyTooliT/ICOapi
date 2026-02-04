@@ -223,3 +223,27 @@ class TestMeasurement:
             assert timestamp_before <= timestamp
             assert ift_value >= 0
             timestamp_before = timestamp
+
+    @mark.hardware
+    def test_measurement_stream_three_values(
+        self,
+        measurement_three_values,  # pylint: disable=unused-argument
+        measurement_prefix,
+        client,
+    ) -> None:
+        """Check data for three channel stream with active IFT value"""
+
+        stream = get_measurement_websocket_endpoint(measurement_prefix, client)
+
+        with client.websocket_connect(stream) as websocket:
+            data = websocket.receive_json()
+            getLogger().info("Data: %s", data)
+            assert isinstance(data, list)
+            assert len(data) >= 1
+            message = data[0]
+            assert message["timestamp"] >= 0
+            assert -100 <= message["first"] <= 100
+            assert -100 <= message["second"] <= 100
+            assert -100 <= message["third"] <= 100
+            assert 0 <= message["counter"] <= 255
+            assert message["ift"] is None
