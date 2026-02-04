@@ -151,7 +151,7 @@ class TestMeasurement:
         measurement_prefix,
         client,
     ) -> None:
-        """Check WebSocket streaming data"""
+        """Check WebSocket streaming data for single channel stream"""
 
         stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
@@ -184,7 +184,7 @@ class TestMeasurement:
         measurement_prefix,
         client,
     ) -> None:
-        """Check WebSocket streaming data"""
+        """Check data for single channel stream with active IFT value"""
 
         stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
