@@ -252,7 +252,7 @@ def sensor_id(sensor_name, client):
 def measurement_instructions_simple(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
-    """Get test measurement configuration"""
+    """Single channel measurement instructions"""
 
     node = connect
 
@@ -277,7 +277,7 @@ def measurement_instructions_simple(
 def measurement_instructions_ift_value(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
-    """Get test measurement configuration"""
+    """Single channel measurement instructions with activated IFT value"""
 
     node = connect
 
