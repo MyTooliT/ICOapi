@@ -298,6 +298,34 @@ def measurement_instructions_ift_value(
     return instructions
 
 
+@fixture
+def measurement_instructions_three_values(
+    test_sensor_node_adc_configuration, connect, sensor_id
+):
+    """Tripple channel measurement instructions with activated IFT value"""
+
+    node = connect
+
+    def get_sensor(channel: int) -> dict[str, Any]:
+        return {
+            "channel_number": channel,
+            "sensor_id": sensor_id,
+        }
+
+    instructions = create_measurement_instructions(
+        mac_address=node["mac_address"],
+        adc=test_sensor_node_adc_configuration,
+        first=get_sensor(2),
+        second=get_sensor(1),
+        third=get_sensor(5),
+        time=5,
+        ift_requested=True,
+        ift_channel="third",
+    )
+
+    return instructions
+
+
 # pylint: disable=exec-used
 
 # If you think that creating the fixture by using exec is horrible, I do
@@ -312,6 +340,11 @@ exec(
 exec(
     generate_measurement_fixture(
         "measurement_ift_value", "measurement_instructions_ift_value"
+    )
+)
+exec(
+    generate_measurement_fixture(
+        "measurement_three_values", "measurement_instructions_three_values"
     )
 )
 
