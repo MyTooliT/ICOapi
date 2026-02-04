@@ -290,10 +290,9 @@ def find_sensor_by_id(
     for sensor in sensors:
         if sensor.sensor_id == sensor_id:
             logger.debug(
-                "Found sensor with ID %s: %s | k2: %s | d2: %s",
+                "Found sensor with ID %s: %s | d2: %s",
                 sensor.sensor_id,
                 sensor.name,
-                sensor.scaling_factor,
                 sensor.offset,
             )
             return sensor
@@ -328,10 +327,9 @@ def get_sensor_for_channel(
     if channel_instruction.channel_number in range(1, 11):
         sensor = sensors[channel_instruction.channel_number - 1]
         logger.info(
-            "Default sensor for channel %s: %s | k2: %s | d2: %s",
+            "Default sensor for channel %s: %s | d2: %s",
             channel_instruction.channel_number,
             sensor.name,
-            sensor.scaling_factor,
             sensor.offset,
         )
         return sensor
@@ -374,7 +372,6 @@ class SensorDescription(IsDescription):
     phys_max = Float32Col()  # Float for physical maximum
     volt_min = Float32Col()  # Float for voltage minimum
     volt_max = Float32Col()  # Float for voltage maximum
-    scaling_factor = Float32Col()  # Float for scaling factor
     offset = Float32Col()  # Float for offset
 
 
@@ -410,7 +407,6 @@ def add_sensor_data_to_storage(
         row["phys_max"] = sensor.phys_max
         row["volt_min"] = sensor.volt_min
         row["volt_max"] = sensor.volt_max
-        row["scaling_factor"] = sensor.scaling_factor
         row["offset"] = sensor.offset
         row.append()
         count += 1
