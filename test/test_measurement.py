@@ -192,6 +192,29 @@ class TestMeasurement:
             assert message["ift"] is None
 
     @mark.hardware
+    def test_measurement_stream_dataloss(
+        self,
+        measurement_single_channel,  # pylint: disable=unused-argument
+        measurement_prefix,
+        client,
+    ) -> None:
+        """Check data for message loss"""
+
+        stream = get_measurement_websocket_endpoint(measurement_prefix, client)
+
+        data = None
+        with client.websocket_connect(stream) as websocket:
+            while data := websocket.receive_json():
+                message = data[0]
+                # Dataloss values are sent at end of measurement session
+                # We ignore data sent before
+                if message["dataloss"] is not None:
+                    break
+
+        message = data[0]
+        assert message["dataloss"] < 0.1
+
+    @mark.hardware
     def test_measurement_stream_ift_value(
         self,
         measurement_ift_value,  # pylint: disable=unused-argument
