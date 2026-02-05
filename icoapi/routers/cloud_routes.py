@@ -1,5 +1,4 @@
 """Support for uploading data to cloud storage"""
-
 import logging
 import os
 
@@ -8,12 +7,12 @@ from fastapi.params import Depends, Annotated, Body
 from starlette.status import HTTP_502_BAD_GATEWAY
 
 from icoapi.models.globals import get_trident_client, setup_trident
-from icoapi.models.models import TridentBucketObject
 from icoapi.models.trident import (
     AuthorizationError,
-    HostNotFoundError,
-    StorageClient,
+    FileUploadDetails, HostNotFoundError,
+    RemoteObjectDetails, StorageClient,
 )
+from icoapi.scripts.data_handling import get_file_data
 from icoapi.scripts.file_handling import get_measurement_dir
 
 router = APIRouter(prefix="/cloud", tags=["Cloud Connection"])
@@ -35,9 +34,21 @@ async def upload_file(
             " available."
         )
     else:
+        full_path = os.path.join(measurement_dir, filename)
+        file_data = get_file_data(full_path)
+        metadata = file_data.acceleration_meta
+
+        upload_details = FileUploadDetails(
+            key=filename,
+            name=filename,
+            description="",
+            author="CIRP ICOdaq",
+            metadata=metadata.__dict__,
+        )
+
         try:
             client.upload_file(
-                os.path.join(measurement_dir, filename), filename
+                os.path.join(measurement_dir, filename), upload_details
             )
             logger.info("Successfully uploaded file <%s>", filename)
         except HTTPException as e:
@@ -76,7 +87,7 @@ async def authenticate(
 @router.get("")
 async def get_cloud_files(
     storage: Annotated[StorageClient, Depends(get_trident_client)],
-) -> list[TridentBucketObject]:
+) -> list[RemoteObjectDetails]:
     """Get files from cloud"""
 
     if storage is None:
@@ -88,8 +99,8 @@ async def get_cloud_files(
         return []
 
     try:
-        objects = storage.get_bucket_objects()
-        return [TridentBucketObject(**obj) for obj in objects]
+        objects = storage.get_remote_objects()
+        return objects.files
     except Exception as e:
         logger.error("Error getting cloud files.")
         raise HTTPException(status_code=HTTP_502_BAD_GATEWAY) from e

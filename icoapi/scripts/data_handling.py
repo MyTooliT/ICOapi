@@ -1,18 +1,21 @@
 """Code for handling sensor data"""
-
+import json
 import logging
 import os
 from os import PathLike, path
 from typing import List, Optional
+import pandas as pd
+import tables
 import yaml
+from fastapi import HTTPException
 
-from tables import Float32Col, IsDescription, StringCol
+from tables import Float32Col, IsDescription, NoSuchNodeError, StringCol
 from icotronic.measurement import StorageData
 
 from icoapi.models.models import (
-    MeasurementInstructionChannel,
+    HDF5NodeInfo, MeasurementInstructionChannel,
     MeasurementInstructions,
-    Sensor,
+    MetadataPrefix, ParsedHDF5FileContent, Sensor,
     PCBSensorConfiguration,
     TridentConfig,
 )
@@ -24,6 +27,14 @@ from icoapi.scripts.file_handling import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class AccelerationDataNotFoundError(HTTPException):
+    """Exception raised when acceleration data is not found in HDF5 file"""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.status_code = 500
+        self.detail = "Acceleration data not found in HDF5 file"
 
 
 def get_sensor_defaults() -> list[Sensor]:
@@ -491,3 +502,192 @@ class MeasurementSensorInfo:
 
 
 # pylint: enable=too-few-public-methods
+
+
+def get_node_names(hdf5_file_handle: tables.File) -> list[str]:
+    """Get name of HDF5 nodes"""
+
+    nodes = hdf5_file_handle.list_nodes("/")
+    return [
+        node._v_pathname for node in nodes  # pylint: disable=protected-access
+    ]
+
+
+def get_picture_node_names(hdf5_file_handle: tables.File) -> list[str]:
+    """Get name of nodes that contain picture data"""
+
+    names = get_node_names(hdf5_file_handle)
+    return [name for name in names if "pictures" in name]
+
+
+def parse_json_if_possible(val):
+    """
+    If val is a str or bytes containing JSON, return the deserialized object.
+    Otherwise, return val unchanged.
+    """
+    # Only attempt on str/bytes
+    if isinstance(val, (bytes, bytearray)):
+        try:
+            text = val.decode("utf-8")
+        except UnicodeDecodeError:
+            return val
+    elif isinstance(val, str):
+        text = val
+    else:
+        return val
+
+    # Try parsing
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return val
+
+
+# pylint: disable=protected-access
+
+
+def node_to_dict(node):
+    """Convert HDF5 metadata node to dictionary"""
+
+    info = HDF5NodeInfo(
+        name=node._v_name,
+        path=node._v_pathname,
+        type=node.__class__.__name__,
+        attributes={},
+    )
+
+    for key in node._v_attrs._f_list(attrset="all"):
+        raw = node._v_attrs[key]
+        # first coerce numpy‐types to Python
+        if hasattr(raw, "tolist"):
+            pyval = raw.tolist()
+        elif hasattr(raw, "item"):
+            pyval = raw.item()
+        else:
+            pyval = raw
+        # then parse JSON if it is a JSON string
+        info.attributes[key] = parse_json_if_possible(pyval)
+
+    return info
+
+
+# pylint: enable=protected-access
+
+
+# pylint: disable=too-many-locals
+
+
+def get_file_data(
+        file_path: str,
+) -> ParsedHDF5FileContent:
+    """Get HDF5 measurement data"""
+
+    with tables.open_file(file_path, mode="r") as file_handle:
+
+        picture_node_names = get_picture_node_names(file_handle)
+        pictures: dict[str, list[str]] = {}
+        for node_name in picture_node_names:
+            node = file_handle.get_node(node_name)
+            assert isinstance(node, tables.Array)
+            pictures[node_name.removeprefix("/")] = [
+                img.decode("utf-8") for img in node.read().tolist()
+            ]
+
+        try:
+            acceleration_data = file_handle.get_node("/acceleration")
+            assert isinstance(acceleration_data, tables.Table)
+            acceleration_df = pd.DataFrame.from_records(
+                acceleration_data.read(), columns=acceleration_data.colnames
+            )
+            acceleration_meta = node_to_dict(acceleration_data)
+        except NoSuchNodeError as error:
+            raise AccelerationDataNotFoundError from error
+        except AssertionError as error:
+            raise HTTPException(
+                status_code=500, detail="Acceleration data is not a table"
+            ) from error
+
+        # pylint: disable=consider-using-dict-items, consider-iterating-dictionary
+        try:
+            for pics_key in pictures.keys():
+
+                obj: dict[int, str] = {}
+                for index, pic in enumerate(pictures[pics_key]):
+                    obj[index] = pic
+                if MetadataPrefix.PRE in pics_key:
+                    stripped_key = pics_key.split(f"{MetadataPrefix.PRE}__")[1]
+                    acceleration_meta.attributes["pre_metadata"]["parameters"][
+                        stripped_key
+                    ] = obj
+                elif MetadataPrefix.POST in pics_key:
+                    stripped_key = pics_key.split(f"{MetadataPrefix.POST}__")[
+                        1
+                    ]
+                    acceleration_meta.attributes["post_metadata"][
+                        "parameters"
+                    ][stripped_key] = obj
+                else:
+                    logger.error("Unknown picture key: %s", pics_key)
+        except KeyError:
+            pass
+        except IndexError as error:
+            raise HTTPException(
+                status_code=500, detail="Picture data is not prefixed."
+            ) from error
+
+        # pylint: enable=consider-using-dict-items, consider-iterating-dictionary
+
+        sensor_df = pd.DataFrame()
+        try:
+            sensor_data = file_handle.get_node("/sensors")
+            assert isinstance(sensor_data, tables.Table)
+            sensor_df = pd.DataFrame.from_records(
+                sensor_data.read(), columns=sensor_data.colnames
+            )
+        except NoSuchNodeError:
+            # No sensor data available; pass
+            pass
+        except AssertionError:
+            # sensor data available, but not in the right shape
+            pass
+
+    return ParsedHDF5FileContent(
+        acceleration_df=acceleration_df,
+        sensor_df=sensor_df,
+        acceleration_meta=acceleration_meta,
+        pictures=pictures,
+    )
+
+
+# pylint: enable=too-many-locals
+
+
+def ensure_dataframe_with_columns(df, required_columns) -> pd.DataFrame:
+    """
+    Ensures the object is a DataFrame and contains the required columns.
+
+    Parameters:
+        df: The object to check.
+        required_columns: A list or set of column names that must be present.
+
+    Returns:
+        The DataFrame if it meets the requirements.
+
+    Raises:
+        TypeError: If the object is not a DataFrame.
+        ValueError: If required columns are missing.
+    """
+    # Ensure the object is a DataFrame
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError(
+            f"Expected a pandas DataFrame, but got {type(df).__name__}"
+        )
+
+    # Check for required columns
+    missing_columns = set(required_columns) - set(df.columns)
+    if missing_columns:
+        raise ValueError(
+            f"Missing required columns: {', '.join(missing_columns)}"
+        )
+
+    return df
