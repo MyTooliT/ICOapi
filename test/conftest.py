@@ -39,7 +39,7 @@ def create_measurement_instructions(
     set_default("ift_window_width", 50)
     set_default("meta", {"version": "", "profile": "", "parameters": {}})
     set_default("name", "Test Measurement")
-    set_default("time", 10)
+    set_default("time", 3)
 
     instructions["mac_address"] = mac_address
 
