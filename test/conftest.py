@@ -253,7 +253,7 @@ def sensor_id(sensor_name, client):
 
 
 @fixture
-def measurement_instructions_simple(
+def measurement_instructions_single_channel(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
     """Single channel measurement instructions"""
@@ -303,7 +303,7 @@ def measurement_instructions_ift_value(
 
 
 @fixture
-def measurement_instructions_three_values(
+def measurement_instructions_three_channels(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
     """Tripple channel measurement instructions with activated IFT value"""
@@ -338,7 +338,7 @@ def measurement_instructions_three_values(
 
 exec(
     generate_measurement_fixture(
-        "measurement_simple", "measurement_instructions_simple"
+        "measurement_single_channel", "measurement_instructions_single_channel"
     )
 )
 exec(
@@ -348,7 +348,7 @@ exec(
 )
 exec(
     generate_measurement_fixture(
-        "measurement_three_values", "measurement_instructions_three_values"
+        "measurement_three_channels", "measurement_instructions_three_channels"
     )
 )
 
