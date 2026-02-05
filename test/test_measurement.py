@@ -62,13 +62,13 @@ class TestMeasurement:
         self,
         measurement_prefix,
         test_sensor_node,
-        measurement_simple,
+        measurement_single_channel,
         client,
     ) -> None:
         """Test endpoint ``/`` while measurement takes place"""
 
         measurement_status = measurement_prefix
-        measurement_instructions_simple = measurement_simple
+        measurement_instructions_single_channel = measurement_single_channel
 
         response = client.get(measurement_status)
         assert response.status_code == 200
@@ -77,10 +77,15 @@ class TestMeasurement:
 
         assert body["instructions"] is not None
         instructions = body["instructions"]
-        for key in measurement_instructions_simple:
-            assert instructions[key] == measurement_instructions_simple[key]
+        for key in measurement_instructions_single_channel:
+            assert (
+                instructions[key]
+                == measurement_instructions_single_channel[key]
+            )
         assert body["running"] is True
-        assert body["name"].startswith(measurement_instructions_simple["name"])
+        assert body["name"].startswith(
+            measurement_instructions_single_channel["name"]
+        )
         assert body["tool_name"] == test_sensor_node["name"]
 
         assert isinstance(body["start_time"], str)
@@ -112,7 +117,10 @@ class TestMeasurement:
 
     @mark.hardware
     def test_measurement_start_correct_input(
-        self, measurement_prefix, measurement_instructions_simple, client
+        self,
+        measurement_prefix,
+        measurement_instructions_single_channel,
+        client,
     ) -> None:
         """Test endpoint ``/start`` with correct data"""
 
@@ -124,7 +132,9 @@ class TestMeasurement:
         # = Test Normal Response =
         # ========================
 
-        response = client.post(start, json=measurement_instructions_simple)
+        response = client.post(
+            start, json=measurement_instructions_single_channel
+        )
         assert response.status_code == 200
 
         assert (
@@ -135,9 +145,13 @@ class TestMeasurement:
         assert response.status_code == 200
         body = response.json()
         instructions = body["instructions"]
-        assert instructions["adc"] == measurement_instructions_simple["adc"]
         assert (
-            instructions["first"] == measurement_instructions_simple["first"]
+            instructions["adc"]
+            == measurement_instructions_single_channel["adc"]
+        )
+        assert (
+            instructions["first"]
+            == measurement_instructions_single_channel["first"]
         )
 
         response = client.post(stop)
@@ -147,7 +161,7 @@ class TestMeasurement:
     @mark.hardware
     def test_measurement_stream_simple(
         self,
-        measurement_simple,  # pylint: disable=unused-argument
+        measurement_single_channel,  # pylint: disable=unused-argument
         measurement_prefix,
         client,
     ) -> None:
@@ -227,7 +241,7 @@ class TestMeasurement:
     @mark.hardware
     def test_measurement_stream_three_values(
         self,
-        measurement_three_values,  # pylint: disable=unused-argument
+        measurement_three_channels,  # pylint: disable=unused-argument
         measurement_prefix,
         client,
     ) -> None:
