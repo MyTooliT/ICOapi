@@ -159,6 +159,19 @@ class TestMeasurement:
         assert response.json() is None
 
     @mark.hardware
+    def test_measurement_stop(
+        self,
+        measurement_prefix,
+        client,
+    ) -> None:
+        """Test endpoint ``/stop`` without running measurement"""
+
+        stop = f"{measurement_prefix}/stop"
+        response = client.post(stop)
+        assert response.status_code == 200
+        assert response.json() is None
+
+    @mark.hardware
     def test_measurement_stream_simple(
         self,
         measurement_single_channel,  # pylint: disable=unused-argument
