@@ -165,7 +165,7 @@ class TestMeasurement:
         measurement_prefix,
         client,
     ) -> None:
-        """Check WebSocket streaming data for single channel stream"""
+        """Check `/stream` for single channel stream"""
 
         stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
@@ -198,7 +198,7 @@ class TestMeasurement:
         measurement_prefix,
         client,
     ) -> None:
-        """Check data for message loss"""
+        """Check `/stream` for message loss"""
 
         stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
@@ -221,7 +221,7 @@ class TestMeasurement:
         measurement_prefix,
         client,
     ) -> None:
-        """Check data for single channel stream with active IFT value"""
+        """Check `/stream` for single channel stream with active IFT value"""
 
         stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
@@ -268,7 +268,7 @@ class TestMeasurement:
         measurement_prefix,
         client,
     ) -> None:
-        """Check data for three channel stream with active IFT value"""
+        """Check `/stream` for three channel stream with active IFT value"""
 
         stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
