@@ -387,7 +387,17 @@ class Sensor(BaseModel):
     def convert_to_phys(self, volt_value: float) -> float:
         """Convert voltage to physical value"""
 
-        return volt_value * self.scaling_factor + self.offset
+        physical_value = volt_value * self.scaling_factor + self.offset
+
+        phys_min = self.phys_min
+        phys_max = self.phys_max
+
+        if physical_value <= phys_min:
+            physical_value = phys_min
+        elif physical_value >= phys_max:
+            physical_value = phys_max
+
+        return physical_value
 
 
 @dataclass
