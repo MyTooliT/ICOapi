@@ -405,11 +405,19 @@ The API now accepts a `sensor_id` which can be used to choose a unique sensor fo
 
 **Note:** Running the tests (successfully) requires that
 
-- you connected a STU to your test system and
-- at least one sensor device (e.g. STH) is available.
+- you connected a STU to your test system,
+- at least one sensor device (e.g. STH) is available
+- the sensor device has support for changing the sensor configuration (mapping sensor channels to measurement channels)
+
+In the text below we assume that you installed
+
+- [uv](https://docs.astral.sh/uv), and
+- [just](https://github.com/casey/just)
+
+To run the tests run the following command:
 
 ```sh
-poetry run pytest
+just test
 ```
 
 # Development Guidelines
