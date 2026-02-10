@@ -172,6 +172,39 @@ class TestMeasurement:
         assert response.json() is None
 
     @mark.hardware
+    def test_measurement_post_meta(
+        self,
+        measurement_prefix,
+        measurement_wait_for_meta,  # pylint: disable=unused-argument
+        client,
+    ) -> None:
+        """Test adding post metadata to measurement"""
+
+        stream = get_measurement_websocket_endpoint(measurement_prefix, client)
+
+        data = None
+        with client.websocket_connect(stream) as websocket:
+            while data := websocket.receive_json():
+                message = data[0]
+                # Dataloss values are sent at end of measurement session
+                # We ignore data sent before
+                if message["dataloss"] is not None:
+                    break
+
+        post_meta = f"{measurement_prefix}/post_meta"
+
+        metadata = {
+            "version": "1.0",
+            "profile": "default",
+            "parameters": {
+                "Post Metadata": {"value": "Post Metadata", "unit": "string"},
+            },
+        }
+
+        response = client.post(post_meta, json=metadata)
+        assert response.status_code == 200
+
+    @mark.hardware
     def test_measurement_stream_simple(
         self,
         measurement_single_channel,  # pylint: disable=unused-argument
