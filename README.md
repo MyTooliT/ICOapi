@@ -2,7 +2,7 @@
 
 A REST and WebSocket API using the Python [FastAPI library](https://fastapi.tiangolo.com/).
 
-We currently support all major operating systems (Linux, macOS, Windows) which can run Python 3.12 and use a CAN interface properly
+We currently support all major operating systems (Linux, macOS, Windows) on [CPython](https://en.wikipedia.org/wiki/CPython) 3.12+.
 
 When the API is running, it hosts an OpenAPI compliant documentation under `/docs`, e.g. under [`localhost:33215/docs`](http://localhost:33215/docs).
 
@@ -12,16 +12,10 @@ This API is designed to interact with the ICOtronic system and thus only reasona
 
 To get a complete experience, even for development, you need:
 
-- A CAN interface (usually either PCAN-USB or the RevPi CAN Module)
-- The proper drivers
+- A CAN interface (usually either [PCAN-USB](https://www.peak-system.com/PCAN-USB.199.0.html) or the RevPi CAN Module)
+- The proper drivers:
 
-## Linux
-
-On Linux, the API (rather: the underlying CAN library) requires:
-
-- The proper driver for your CAN device (PCAN-USB if used)
-- The CAN port set up as described in [this guide](https://mytoolit.github.io/ICOtronic/#introduction:section:pcan-driver:linux)
-  - Including the setup for `systemd-networkd`!
+  For PCAN-USB you can find a description on how to install and set up the drivers for [Linux](https://mytoolit.github.io/ICOtronic/#introduction:section:pcan-driver:linux), [macOS](https://mytoolit.github.io/ICOtronic/#introduction:section:pcan-driver:macos) and [Windows](https://mytoolit.github.io/ICOtronic/#introduction:section:pcan-driver:windows) in the [documentation of the ICOtronic package](https://mytoolit.github.io/ICOtronic/#pcan-driver).
 
 # Installation for Development
 
