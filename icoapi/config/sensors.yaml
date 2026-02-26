@@ -9,7 +9,7 @@ sensors:
   offset: -125.0
   phys_max: 100.0
   phys_min: -100.0
-  scaling_factor: 75.75757575757575
+  scaling_factor: 75.75757575757575 # Currently unused
   sensor_id: acc100g_01
   sensor_type: ADXL1001
   unit: g
@@ -20,7 +20,7 @@ sensors:
   offset: -45.000000000000014
   phys_max: 40.0
   phys_min: -40.0
-  scaling_factor: 50.00000000000001
+  scaling_factor: 50.00000000000001 # Currently unused
   sensor_id: acc40g_y
   sensor_type: ADXL358C
   unit: g
@@ -31,7 +31,7 @@ sensors:
   offset: -45.000000000000014
   phys_max: 40.0
   phys_min: -40.0
-  scaling_factor: 50.00000000000001
+  scaling_factor: 50.00000000000001 # Currently unused
   sensor_id: acc40g_z
   sensor_type: ADXL358C
   unit: g
@@ -42,7 +42,7 @@ sensors:
   offset: -45.000000000000014
   phys_max: 40.0
   phys_min: -40.0
-  scaling_factor: 50.00000000000001
+  scaling_factor: 50.00000000000001 # Currently unused
   sensor_id: acc40g_x
   sensor_type: ADXL358C
   unit: g
@@ -53,7 +53,7 @@ sensors:
   offset: -297.3333333333334
   phys_max: 125.0
   phys_min: -40.0
-  scaling_factor: 333.3333333333334
+  scaling_factor: 333.3333333333334 # Currently unused
   sensor_id: temp_01
   sensor_type: ADXL358C
   unit: "\xB0C"
@@ -64,7 +64,7 @@ sensors:
   offset: 0.0
   phys_max: 1.0
   phys_min: 0.0
-  scaling_factor: 0.30303030303030304
+  scaling_factor: 0.30303030303030304 # Currently unused
   sensor_id: photo_01
   sensor_type: null
   unit: '-'
@@ -75,7 +75,7 @@ sensors:
   offset: 0.0
   phys_max: 1.0
   phys_min: 0.0
-  scaling_factor: 0.30303030303030304
+  scaling_factor: 0.30303030303030304 # Currently unused
   sensor_id: backpack_01
   sensor_type: null
   unit: /
@@ -86,7 +86,7 @@ sensors:
   offset: 0.0
   phys_max: 1.0
   phys_min: 0.0
-  scaling_factor: 0.30303030303030304
+  scaling_factor: 0.30303030303030304 # Currently unused
   sensor_id: backpack_02
   sensor_type: null
   unit: /
@@ -97,7 +97,7 @@ sensors:
   offset: 0.0
   phys_max: 1.0
   phys_min: 0.0
-  scaling_factor: 0.30303030303030304
+  scaling_factor: 0.30303030303030304 # Currently unused
   sensor_id: backpack_03
   sensor_type: null
   unit: /
@@ -108,7 +108,7 @@ sensors:
   offset: -0.0021929824561413014
   phys_max: 4.2
   phys_min: 2.9
-  scaling_factor: 5.701754385964914
+  scaling_factor: 5.701754385964914 # Currently unused
   sensor_id: vbat_01
   sensor_type: null
   unit: V
@@ -119,7 +119,7 @@ sensors:
   offset: -98100.000
   phys_max: 78480.0
   phys_min: -78480.0
-  scaling_factor: 59454.54545
+  scaling_factor: 59454.54545 # Currently unused
   sensor_id: rotacc_01
   sensor_type: 2xADXL1001
   unit: 1/s^2
@@ -130,7 +130,7 @@ sensors:
   offset: -77122.642
   phys_max: 61698.11321
   phys_min: -61698.11321
-  scaling_factor: 46740.99485
+  scaling_factor: 46740.99485 # Currently unused
   sensor_id: rotacc_02
   sensor_type: 2xADXL1001
   unit: 1/s^2
