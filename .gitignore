@@ -11,3 +11,4 @@ dist
 /poetry.lock
 /.idea/
 /uv.lock
+/sphinx
