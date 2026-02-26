@@ -39,7 +39,9 @@ def create_measurement_instructions(
     set_default("ift_window_width", 50)
     set_default("meta", {"version": "", "profile": "", "parameters": {}})
     set_default("name", "Test Measurement")
-    set_default("time", 10)
+    set_default("time", 3)
+    set_default("wait_for_post_meta", False)
+    set_default("disconnect_after_measurement", False)
 
     instructions["mac_address"] = mac_address
 
@@ -249,10 +251,10 @@ def sensor_id(sensor_name, client):
 
 
 @fixture
-def measurement_instructions_simple(
+def measurement_instructions_single_channel(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
-    """Get test measurement configuration"""
+    """Single channel measurement instructions"""
 
     node = connect
 
@@ -274,10 +276,43 @@ def measurement_instructions_simple(
 
 
 @fixture
+def measurement_instructions_wait_for_meta(
+    test_sensor_node_adc_configuration, connect, sensor_id
+):
+    """Single channel measurement instructions"""
+
+    node = connect
+
+    first = {
+        "channel_number": 1,
+        "sensor_id": sensor_id,
+    }
+
+    instructions = create_measurement_instructions(
+        mac_address=node["mac_address"],
+        adc=test_sensor_node_adc_configuration,
+        first=first,
+        meta={
+            "version": "1.0",
+            "profile": "default",
+            "parameters": {
+                "Pre Test Metadata": {
+                    "value": "Pre Metadata",
+                    "unit": "string",
+                }
+            },
+        },
+        wait_for_post_meta=True,
+    )
+
+    return instructions
+
+
+@fixture
 def measurement_instructions_ift_value(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
-    """Get test measurement configuration"""
+    """Single channel measurement instructions with activated IFT value"""
 
     node = connect
 
@@ -298,6 +333,34 @@ def measurement_instructions_ift_value(
     return instructions
 
 
+@fixture
+def measurement_instructions_three_channels(
+    test_sensor_node_adc_configuration, connect, sensor_id
+):
+    """Tripple channel measurement instructions with activated IFT value"""
+
+    node = connect
+
+    def get_sensor(channel: int) -> dict[str, Any]:
+        return {
+            "channel_number": channel,
+            "sensor_id": sensor_id,
+        }
+
+    instructions = create_measurement_instructions(
+        mac_address=node["mac_address"],
+        adc=test_sensor_node_adc_configuration,
+        first=get_sensor(2),
+        second=get_sensor(1),
+        third=get_sensor(5),
+        time=5,
+        ift_requested=True,
+        ift_channel="third",
+    )
+
+    return instructions
+
+
 # pylint: disable=exec-used
 
 # If you think that creating the fixture by using exec is horrible, I do
@@ -306,12 +369,22 @@ def measurement_instructions_ift_value(
 
 exec(
     generate_measurement_fixture(
-        "measurement_simple", "measurement_instructions_simple"
+        "measurement_single_channel", "measurement_instructions_single_channel"
+    )
+)
+exec(
+    generate_measurement_fixture(
+        "measurement_wait_for_meta", "measurement_instructions_wait_for_meta"
     )
 )
 exec(
     generate_measurement_fixture(
         "measurement_ift_value", "measurement_instructions_ift_value"
+    )
+)
+exec(
+    generate_measurement_fixture(
+        "measurement_three_channels", "measurement_instructions_three_channels"
     )
 )
 

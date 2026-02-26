@@ -123,6 +123,14 @@ start-measurement: connect
 	  meta[profile]="" \
 	  meta[parameters]:={}
 
+# Add post-meta measurement data
+[group('http')]
+set-post-measurement-data:
+	http POST "{{http_url}}/measurement/post_meta" \
+	  version="1.0" \
+	  profile="default" \
+	  parameters[test_post_metadata]="something"
+
 # Check measurement status
 [group('http')]
 status:

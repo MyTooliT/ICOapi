@@ -62,13 +62,13 @@ class TestMeasurement:
         self,
         measurement_prefix,
         test_sensor_node,
-        measurement_simple,
+        measurement_single_channel,
         client,
     ) -> None:
         """Test endpoint ``/`` while measurement takes place"""
 
         measurement_status = measurement_prefix
-        measurement_instructions_simple = measurement_simple
+        measurement_instructions_single_channel = measurement_single_channel
 
         response = client.get(measurement_status)
         assert response.status_code == 200
@@ -77,10 +77,15 @@ class TestMeasurement:
 
         assert body["instructions"] is not None
         instructions = body["instructions"]
-        for key in measurement_instructions_simple:
-            assert instructions[key] == measurement_instructions_simple[key]
+        for key in measurement_instructions_single_channel:
+            assert (
+                instructions[key]
+                == measurement_instructions_single_channel[key]
+            )
         assert body["running"] is True
-        assert body["name"].startswith(measurement_instructions_simple["name"])
+        assert body["name"].startswith(
+            measurement_instructions_single_channel["name"]
+        )
         assert body["tool_name"] == test_sensor_node["name"]
 
         assert isinstance(body["start_time"], str)
@@ -112,7 +117,10 @@ class TestMeasurement:
 
     @mark.hardware
     def test_measurement_start_correct_input(
-        self, measurement_prefix, measurement_instructions_simple, client
+        self,
+        measurement_prefix,
+        measurement_instructions_single_channel,
+        client,
     ) -> None:
         """Test endpoint ``/start`` with correct data"""
 
@@ -124,7 +132,9 @@ class TestMeasurement:
         # = Test Normal Response =
         # ========================
 
-        response = client.post(start, json=measurement_instructions_simple)
+        response = client.post(
+            start, json=measurement_instructions_single_channel
+        )
         assert response.status_code == 200
 
         assert (
@@ -135,9 +145,13 @@ class TestMeasurement:
         assert response.status_code == 200
         body = response.json()
         instructions = body["instructions"]
-        assert instructions["adc"] == measurement_instructions_simple["adc"]
         assert (
-            instructions["first"] == measurement_instructions_simple["first"]
+            instructions["adc"]
+            == measurement_instructions_single_channel["adc"]
+        )
+        assert (
+            instructions["first"]
+            == measurement_instructions_single_channel["first"]
         )
 
         response = client.post(stop)
@@ -145,13 +159,59 @@ class TestMeasurement:
         assert response.json() is None
 
     @mark.hardware
-    def test_measurement_stream_simple(
+    def test_measurement_stop(
         self,
-        measurement_simple,  # pylint: disable=unused-argument
         measurement_prefix,
         client,
     ) -> None:
-        """Check WebSocket streaming data"""
+        """Test endpoint ``/stop`` without running measurement"""
+
+        stop = f"{measurement_prefix}/stop"
+        response = client.post(stop)
+        assert response.status_code == 200
+        assert response.json() is None
+
+    @mark.hardware
+    def test_measurement_post_meta(
+        self,
+        measurement_prefix,
+        measurement_wait_for_meta,  # pylint: disable=unused-argument
+        client,
+    ) -> None:
+        """Test adding post metadata to measurement"""
+
+        stream = get_measurement_websocket_endpoint(measurement_prefix, client)
+
+        data = None
+        with client.websocket_connect(stream) as websocket:
+            while data := websocket.receive_json():
+                message = data[0]
+                # Dataloss values are sent at end of measurement session
+                # We ignore data sent before
+                if message["dataloss"] is not None:
+                    break
+
+        post_meta = f"{measurement_prefix}/post_meta"
+
+        metadata = {
+            "version": "1.0",
+            "profile": "default",
+            "parameters": {
+                "Post Metadata": {"value": "Post Metadata", "unit": "string"},
+            },
+        }
+
+        response = client.post(post_meta, json=metadata)
+        assert response.status_code == 200
+
+    @mark.hardware
+    def test_measurement_stream_simple(
+        self,
+        measurement_single_channel,  # pylint: disable=unused-argument
+        measurement_prefix,
+        client,
+    ) -> None:
+        """Check `/stream` for single channel stream"""
 
         stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
@@ -178,13 +238,36 @@ class TestMeasurement:
             assert message["ift"] is None
 
     @mark.hardware
+    def test_measurement_stream_dataloss(
+        self,
+        measurement_single_channel,  # pylint: disable=unused-argument
+        measurement_prefix,
+        client,
+    ) -> None:
+        """Check `/stream` for message loss"""
+
+        stream = get_measurement_websocket_endpoint(measurement_prefix, client)
+
+        data = None
+        with client.websocket_connect(stream) as websocket:
+            while data := websocket.receive_json():
+                message = data[0]
+                # Dataloss values are sent at end of measurement session
+                # We ignore data sent before
+                if message["dataloss"] is not None:
+                    break
+
+        message = data[0]
+        assert message["dataloss"] < 0.1
+
+    @mark.hardware
     def test_measurement_stream_ift_value(
         self,
         measurement_ift_value,  # pylint: disable=unused-argument
         measurement_prefix,
         client,
     ) -> None:
-        """Check WebSocket streaming data"""
+        """Check `/stream` for single channel stream with active IFT value"""
 
         stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
@@ -211,11 +294,9 @@ class TestMeasurement:
             **measurement_ift_value["adc"]
         ).sample_rate()
         getLogger().debug("Sample Rate: %.2f Hz", sample_rate)
-        # For single channel the current code only uses every third value for
-        # IFT value calculation
         approx_number_values = (
-            (measurement_ift_value["time"] - 0.1) * sample_rate / 3
-        )
+            measurement_ift_value["time"] - 0.1
+        ) * sample_rate
         assert len(values) >= approx_number_values
 
         timestamp_before = 0
@@ -225,3 +306,27 @@ class TestMeasurement:
             assert timestamp_before <= timestamp
             assert ift_value >= 0
             timestamp_before = timestamp
+
+    @mark.hardware
+    def test_measurement_stream_three_values(
+        self,
+        measurement_three_channels,  # pylint: disable=unused-argument
+        measurement_prefix,
+        client,
+    ) -> None:
+        """Check `/stream` for three channel stream with active IFT value"""
+
+        stream = get_measurement_websocket_endpoint(measurement_prefix, client)
+
+        with client.websocket_connect(stream) as websocket:
+            data = websocket.receive_json()
+            getLogger().info("Data: %s", data)
+            assert isinstance(data, list)
+            assert len(data) >= 1
+            message = data[0]
+            assert message["timestamp"] >= 0
+            assert -100 <= message["first"] <= 100
+            assert -100 <= message["second"] <= 100
+            assert -100 <= message["third"] <= 100
+            assert 0 <= message["counter"] <= 255
+            assert message["ift"] is None
