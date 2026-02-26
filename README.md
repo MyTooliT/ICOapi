@@ -252,7 +252,7 @@ The sensors (which are written to the `*.hdf5` file when used) are defined as:
   offset: -125.0
   phys_max: 100.0
   phys_min: -100.0
-  scaling_factor: 75.75757575757575
+  scaling_factor: 75.75757575757575 # Currently unused
   sensor_id: acc100g_01
   sensor_type: ADXL1001
   unit: g
