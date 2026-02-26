@@ -8,4 +8,5 @@ When the API is running, it hosts an OpenAPI compliant documentation under `/doc
 :maxdepth: 3
 
 requirements
+install
 ```
