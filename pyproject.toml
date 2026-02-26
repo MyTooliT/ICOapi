@@ -11,7 +11,7 @@ authors = [
 dependencies = [
   "colorlog>=6.9.0,<7",
   "fastapi>=0.115.7",
-  "icostate>=0.22.0,<2",
+  "icostate>=0.23.0,<2",
   "icolyzer>=1.8.0",
   "orjson>=3.11.0",
   "pandas>=2.2.3,<3",
@@ -39,8 +39,11 @@ version = "0.2.0a3"
 [project.optional-dependencies]
 dev = [
   "Flake8-pyproject>=1.2.3",
-  "mypy",
-  "pylint",
+  "mypy>=1.19.1",
+  "pylint>=4.0.5",
+  "sphinx>=9.1.0,<10",
+  "sphinx-pyproject>=0.3",
+  "sphinx_rtd_theme",
   "types-requests",
 ]
 test = [
@@ -74,7 +77,7 @@ ignore = [
   # Line break after binary operator
   "W504"
 ]
-per-file-ignores = "__init__.py:F401"
+per-file-ignores = "__init__.py:F401,conf.py:F821"
 exclude = [
   ".venv",
 ]
