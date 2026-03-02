@@ -158,3 +158,17 @@ stop-measurement:
 [group('documentation')]
 documentation:
 	uv run sphinx-build -M html {{sphinx_input_directory}} {{sphinx_directory}}
+
+# Remove documentation
+[group('documentation')]
+[windows]
+clean:
+	#!pwsh
+	Remove-Item -Recurse {{sphinx_directory}}
+
+# Remove documentation
+[group('documentation')]
+[unix]
+clean:
+	#!/usr/bin/env sh -e
+	rm -rf {{sphinx_directory}}
