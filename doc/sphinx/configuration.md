@@ -8,7 +8,16 @@ Should you want to change those not via arguments but via files, you have three
 chances to do so:
 
 1. For local development: the `.env` file should be in the project root.
-2. For normal usage, the file is in the `user_data_dir`.
+2. For normal usage, the file is in the user data directory (`user_data_dir`). The location of this directory depends on the used operating system (and is also part of the log output of the `icoapi` command):
+
+   | OS      | User Data Directory                        |
+   | ------- | ------------------------------------------ |
+   | Linux   | `$HOME/.local/share/ICOdaq`                |
+   | macOS   | `$HOME/Library/Application Support/ICOdaq` |
+   | Windows | `$HOME\AppData\Local\ICOdaq`               |
+
+   **Note:** `$HOME` refers to the directory of the currently logged in user.
+
 3. When no environment variable file was found, we check the bundle directory from the [PyInstaller](https://pyinstaller.org) for the bundled file.
 
 > All variables prefixed with `VITE_` indicate that there is a counterpart in the client side environment variables. This is to show that changes here most likely need to be propagated to the client (and Electron wrapper, for that matter).
