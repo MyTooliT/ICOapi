@@ -82,8 +82,8 @@ LOG_LEVEL_UVICORN=INFO
 - `LOG_PATH` overrides the default log location as an absolute path to a directory
   - You **need** to have write permissions
   - The defaults are:
-    - Windows: `AppData/Local/icodaq/logs`
-    - Linux/macOS: `~/.local/share/icodaq/logs`
+    - Windows: `$HOME/AppData/Local/icodaq/logs`
+    - Linux/macOS: `$HOME/.local/share/icodaq/logs`
 
 - `LOG_NAME_WITHOUT_EXTENSION` sets the name of the logfile (without the file extension).
 
