@@ -51,13 +51,13 @@ INSTALL_DIR="/etc/icoapi"
 SERVICE_PATH="/etc/systemd/system"
 ```
 
-Run the script to install normally:
+To install the service use the command:
 
 ```sh
 ./install.sh
 ```
 
-Or, if you want to delete existing installations and do a clean reinstall, add the `--force` flag:
+If you want to delete existing installations and do a clean reinstall, add the `--force` flag:
 
 ```sh
 ./install.sh --force
