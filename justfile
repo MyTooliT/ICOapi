@@ -156,7 +156,7 @@ stop-measurement:
 
 # Generate documentation
 [group('documentation')]
-documentation:
+documentation: setup
 	uv run sphinx-build -M html {{sphinx_input_directory}} {{sphinx_directory}}
 
 # Remove documentation
