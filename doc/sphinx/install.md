@@ -1,3 +1,5 @@
+(install:installation-and-setup)=
+
 # Installation & Setup
 
 This repository can be
