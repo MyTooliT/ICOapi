@@ -1,7 +1,5 @@
-# https://git.ift.tuwien.ac.at/lab/ift/infrastructure/trident-client/-/blob/main/main.py?ref_type=heads
 from dataclasses import dataclass, field
 import json
-import socket
 from http.client import HTTPException
 from typing import Any, Optional
 
@@ -90,15 +88,15 @@ class StorageClient:
         domain: str,
     ):
         settings = BearerAuthRoutes(
-            auth = RouteDescription(
-                method = METHODS.POST,
-                endpoint = "auth/login",
-                field_name = "access_token"
+            auth=RouteDescription(
+                method=METHODS.POST,
+                endpoint="auth/login",
+                field_name="access_token"
             ),
-            refresh_auth = RouteDescription(
-                method = METHODS.POST,
-                endpoint = "auth/refresh",
-                field_name = "refresh_token"
+            refresh_auth=RouteDescription(
+                method=METHODS.POST,
+                endpoint="auth/refresh",
+                field_name="refresh_token"
             )
         )
         self.connection = BearerAuthConnection(
