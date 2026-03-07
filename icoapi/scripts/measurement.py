@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+from itertools import repeat
 from pathlib import Path
 
 from icolyzer import iftlibrary
@@ -77,23 +78,39 @@ async def write_sensor_config_if_required(
             ) from exception
 
 
-def get_measurement_indices(
+def get_measurement_slices(
     streaming_configuration: StreamingConfiguration,
-) -> list[int]:
+) -> list[slice]:
     """
-    Obtain ordered indices from streaming configuration
+    Get slices that select data of the first, second and third channel
     :param streaming_configuration: Selected / Activated channels for the measurement
-    :return: list containing [first_index, second_index, third_index]
+    :return: list containing [first_slice, second_slice, third_slice]
     """
-    first_index = 0
-    second_index = 1 if streaming_configuration.first else 0
-    third_index = (
-        (second_index + 1)
+    empty = slice(0, 0)
+    everything = slice(0, 3)
+
+    if streaming_configuration.enabled_channels() == 1:
+        return (
+            [everything, empty, empty]
+            if streaming_configuration.first
+            else (
+                [empty, everything, empty]
+                if streaming_configuration.second
+                else [empty, empty, everything]
+            )
+        )
+
+    first = slice(0, 1)
+    second = slice(1, 2)
+    first_slice = first if streaming_configuration.first else empty
+    second_slice = second if streaming_configuration.first else first
+    third_slice = (
+        slice(second_slice.start + 1, second_slice.stop + 1)
         if streaming_configuration.second
-        else (first_index + 1)
+        else slice(first_slice.start + 1, first_slice.stop + 1)
     )
 
-    return [first_index, second_index, third_index]
+    return [first_slice, second_slice, third_slice]
 
 
 def create_objects(
@@ -419,9 +436,9 @@ async def run_measurement(
     streaming_configuration = sensor_configuration.streaming_configuration()
 
     # NOTE: The array data.values only contains the activated channels. This
-    # means we need to compute the index at which each channel is located.
+    # means we need to compute the slice at which each channel is located.
     # This may not be pretty, but it works.
-    [first_index, second_index, third_index] = get_measurement_indices(
+    [first_slice, second_slice, third_slice] = get_measurement_slices(
         streaming_configuration
     )
 
@@ -513,16 +530,16 @@ async def run_measurement(
                     if instructions.ift_requested:
                         match instructions.ift_channel:
                             case "first":
-                                ift_relevant_channel.append(
-                                    data.values[first_index]
+                                ift_relevant_channel.extend(
+                                    data.values[first_slice]
                                 )
                             case "second":
-                                ift_relevant_channel.append(
-                                    data.values[second_index]
+                                ift_relevant_channel.extend(
+                                    data.values[second_slice]
                                 )
                             case "third":
-                                ift_relevant_channel.append(
-                                    data.values[third_index]
+                                ift_relevant_channel.extend(
+                                    data.values[third_slice]
                                 )
 
                     data_to_send = get_sendable_data_and_apply_conversion(
@@ -591,6 +608,20 @@ async def run_measurement(
 
             # Send IFT value values at once after the measurement is finished.
             if instructions.ift_requested:
+                # If only one channel is enabled then each streaming message
+                # contains 3 values for this channel. These values share the
+                # same timestamp. This means we have to replicate each
+                # timestamp 3 times to get a timestamp for every value.
+                # Note: In all other cases every message contains at most one
+                #       value for a specific channel, which means the number of
+                #       timestamps and number of values for the specific
+                #       channel should be the same.
+                if streaming_configuration.enabled_channels() == 1:
+                    trippeled_timestamps: list[float] = []
+                    for timestamp in timestamps:
+                        trippeled_timestamps.extend(repeat(timestamp, 3))
+                    timestamps = trippeled_timestamps
+
                 await send_ift_values(
                     timestamps,
                     ift_relevant_channel,
