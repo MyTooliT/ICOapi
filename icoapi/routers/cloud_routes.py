@@ -103,4 +103,5 @@ async def get_cloud_files(
         return objects.files
     except Exception as e:
         logger.error("Error getting cloud files.")
+        logger.error(e)
         raise HTTPException(status_code=HTTP_502_BAD_GATEWAY) from e
