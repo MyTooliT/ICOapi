@@ -385,7 +385,7 @@ class SensorDescription(IsDescription):
     phys_max = Float32Col()  # Float for physical maximum
     volt_min = Float32Col()  # Float for voltage minimum
     volt_max = Float32Col()  # Float for voltage maximum
-    scaling_factor = Float32Col()  # Float for scaling factor
+    scaling_factor = Float32Col()  # Float for scaling factor; Currently unused
     offset = Float32Col()  # Float for offset
 
 
