@@ -252,7 +252,7 @@ The sensors (which are written to the `*.hdf5` file when used) are defined as:
   offset: -125.0
   phys_max: 100.0
   phys_min: -100.0
-  scaling_factor: 75.75757575757575
+  scaling_factor: 75.75757575757575 # Currently unused
   sensor_id: acc100g_01
   sensor_type: ADXL1001
   unit: g
@@ -405,11 +405,19 @@ The API now accepts a `sensor_id` which can be used to choose a unique sensor fo
 
 **Note:** Running the tests (successfully) requires that
 
-- you connected a STU to your test system and
-- at least one sensor device (e.g. STH) is available.
+- you connected a STU to your test system,
+- at least one sensor device (e.g. STH) is available
+- the sensor device has support for changing the sensor configuration (mapping sensor channels to measurement channels)
+
+In the text below we assume that you installed
+
+- [uv](https://docs.astral.sh/uv), and
+- [just](https://github.com/casey/just)
+
+To run the tests run the following command:
 
 ```sh
-poetry run pytest
+just test
 ```
 
 # Development Guidelines
