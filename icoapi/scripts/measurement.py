@@ -14,7 +14,7 @@ from icotronic.can.sensor import SensorConfiguration
 from icotronic.can.streaming import (
     StreamingConfiguration,
     StreamingData,
-    StreamingTimeoutError,
+    StreamingTimeoutError
 )
 from icotronic.measurement import Storage, StorageData
 import numpy as np
@@ -417,7 +417,7 @@ async def measurement_preparations(
     await write_sensor_config_if_required(system, sensor_configuration)
 
 
-async def send_dataloss(measurement_state: MeasurementState, storage: StorageData) -> None:
+async def send_dataloss(measurement_state: MeasurementState, dataloss: float) -> None:
     """Send dataloss to clients of the measurement state WebSocket"""
     for client in measurement_state.clients:
         try:
@@ -429,7 +429,7 @@ async def send_dataloss(measurement_state: MeasurementState, storage: StorageDat
                     ift=None,
                     counter=None,
                     timestamp=None,
-                    dataloss=storage.dataloss(),
+                    dataloss=dataloss,
                 ).model_dump()
             ])
         except RuntimeError:
@@ -570,10 +570,12 @@ async def run_measurement(
                     )
                     storage.add_streaming_data(data)
 
-                    # Send dataloss once per second
+                    # Send current dataloss once per second
                     if dataloss_counter >= sample_rate:
-                        await send_dataloss(measurement_state, storage)
+                        dataloss = stream.dataloss()
+                        await send_dataloss(measurement_state, dataloss)
                         dataloss_counter = 0
+                        stream.reset_stats()
                     else:
                         dataloss_counter += 1
 
@@ -617,7 +619,8 @@ async def run_measurement(
                         break
 
                 # Send dataloss
-                await send_dataloss(measurement_state, storage)
+                overall_dataloss = storage.dataloss()
+                await send_dataloss(measurement_state, overall_dataloss)
 
             if instructions.disconnect_after_measurement:
                 await disconnect_sth_devices(system)
