@@ -417,6 +417,28 @@ async def measurement_preparations(
     await write_sensor_config_if_required(system, sensor_configuration)
 
 
+async def send_dataloss(measurement_state: MeasurementState, storage: StorageData) -> None:
+    """Send dataloss to clients of the measurement state WebSocket"""
+    for client in measurement_state.clients:
+        try:
+            await client.send_json([
+                DataValueModel(
+                    first=None,
+                    second=None,
+                    third=None,
+                    ift=None,
+                    counter=None,
+                    timestamp=None,
+                    dataloss=storage.dataloss(),
+                ).model_dump()
+            ])
+        except RuntimeError:
+            logger.warning(
+                "Failed to send dataloss to client <%s>",
+                client.client,
+            )
+
+
 async def run_measurement(
     system: ICOsystem,
     instructions: MeasurementInstructions,
@@ -478,6 +500,7 @@ async def run_measurement(
                 )
 
                 counter: int = 0
+                dataloss_counter : int = 0
                 data_collected_for_send: list = []
 
                 sensor_info = MeasurementSensorInfo(instructions)
@@ -547,6 +570,13 @@ async def run_measurement(
                     )
                     storage.add_streaming_data(data)
 
+                    # Send dataloss once per second
+                    if dataloss_counter >= sample_rate:
+                        await send_dataloss(measurement_state, storage)
+                        dataloss_counter = 0
+                    else:
+                        dataloss_counter += 1
+
                     if counter >= (
                         sample_rate
                         // int(os.getenv("WEBSOCKET_UPDATE_RATE", "300"))
@@ -587,21 +617,7 @@ async def run_measurement(
                         break
 
                 # Send dataloss
-                for client in measurement_state.clients:
-                    try:
-                        await client.send_json([
-                            DataValueModel(
-                                first=None,
-                                second=None,
-                                third=None,
-                                ift=None,
-                                counter=None,
-                                timestamp=None,
-                                dataloss=storage.dataloss(),
-                            ).model_dump()
-                        ])
-                    except RuntimeError:
-                        logger.warning("Client must be disconnected, passing")
+                await send_dataloss(measurement_state, storage)
 
             if instructions.disconnect_after_measurement:
                 await disconnect_sth_devices(system)
