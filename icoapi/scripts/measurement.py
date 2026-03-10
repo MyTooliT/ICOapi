@@ -14,7 +14,7 @@ from icotronic.can.sensor import SensorConfiguration
 from icotronic.can.streaming import (
     StreamingConfiguration,
     StreamingData,
-    StreamingTimeoutError,
+    StreamingTimeoutError
 )
 from icotronic.measurement import Storage, StorageData
 import numpy as np
@@ -417,6 +417,28 @@ async def measurement_preparations(
     await write_sensor_config_if_required(system, sensor_configuration)
 
 
+async def send_dataloss(measurement_state: MeasurementState, dataloss: float) -> None:
+    """Send dataloss to clients of the measurement state WebSocket"""
+    for client in measurement_state.clients:
+        try:
+            await client.send_json([
+                DataValueModel(
+                    first=None,
+                    second=None,
+                    third=None,
+                    ift=None,
+                    counter=None,
+                    timestamp=None,
+                    dataloss=dataloss,
+                ).model_dump()
+            ])
+        except RuntimeError:
+            logger.warning(
+                "Failed to send dataloss to client <%s>",
+                client.client,
+            )
+
+
 async def run_measurement(
     system: ICOsystem,
     instructions: MeasurementInstructions,
@@ -478,6 +500,7 @@ async def run_measurement(
                 )
 
                 counter: int = 0
+                dataloss_counter : int = 0
                 data_collected_for_send: list = []
 
                 sensor_info = MeasurementSensorInfo(instructions)
@@ -547,6 +570,15 @@ async def run_measurement(
                     )
                     storage.add_streaming_data(data)
 
+                    # Send current dataloss once per second
+                    if dataloss_counter >= sample_rate:
+                        dataloss = stream.dataloss()
+                        await send_dataloss(measurement_state, dataloss)
+                        dataloss_counter = 0
+                        stream.reset_stats()
+                    else:
+                        dataloss_counter += 1
+
                     if counter >= (
                         sample_rate
                         // int(os.getenv("WEBSOCKET_UPDATE_RATE", "300"))
@@ -587,21 +619,8 @@ async def run_measurement(
                         break
 
                 # Send dataloss
-                for client in measurement_state.clients:
-                    try:
-                        await client.send_json([
-                            DataValueModel(
-                                first=None,
-                                second=None,
-                                third=None,
-                                ift=None,
-                                counter=None,
-                                timestamp=None,
-                                dataloss=storage.dataloss(),
-                            ).model_dump()
-                        ])
-                    except RuntimeError:
-                        logger.warning("Client must be disconnected, passing")
+                overall_dataloss = storage.dataloss()
+                await send_dataloss(measurement_state, overall_dataloss)
 
             if instructions.disconnect_after_measurement:
                 await disconnect_sth_devices(system)
