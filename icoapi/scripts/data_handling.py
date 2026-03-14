@@ -463,7 +463,7 @@ def read_and_parse_trident_config(file_path: str) -> TridentConfig:
         password=str(data["password"]),
         default_bucket=str(data["bucket"]),
         enabled=bool(data["enabled"]),
-        manage_assets_path=data["manage_assets_path"],
+        manage_assets_path=data["manage_assets_path"] if "manage_assets_path" in data else None,
     )
 
 

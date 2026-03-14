@@ -401,7 +401,6 @@ def validate_dataspace_payload(payload: Any) -> list[str]:
                 "username",
                 "password",
                 "bucket",
-                "manage_assets_path"
             ]:
                 value = connection.get(key)
                 if not is_valid_string(value):
