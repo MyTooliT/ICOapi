@@ -280,9 +280,7 @@ async def setup_trident():
         await handler.reset()
         if dataspace_config.enabled:
             await handler.set_enabled()
-            print("BBBBBBBBBBBBBBBBBBb")
             await TridentHandler.create_client(dataspace_config)
-            print("CCCCCCCCCCCCCCCCCCCCC")
             client = await TridentHandler.get_client()
             if client is None:
                 logger.exception("Failed at creating trident connection")
