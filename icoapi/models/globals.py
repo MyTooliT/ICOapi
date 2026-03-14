@@ -228,6 +228,8 @@ class TridentHandler:
             config.password,
             config.domain,
         )
+        if config.manage_assets_path:
+            cls.feature.manage_url = f"{config.service}/{config.manage_assets_path}"
         await get_messenger().push_messenger_update()
         logger.info(
             "Created TridentClient for user <%s> at service <%s>",

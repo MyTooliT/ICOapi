@@ -267,6 +267,7 @@ class Feature:
 
     enabled: bool
     healthy: bool
+    manage_url: str | None = None
 
 
 class SystemStateModel(BaseModel, JSONEncoder):
@@ -300,6 +301,7 @@ class TridentConfig:
     password: str
     default_bucket: str
     enabled: bool
+    manage_assets_path: str | None = None
 
 
 # pylint: enable=too-many-instance-attributes
