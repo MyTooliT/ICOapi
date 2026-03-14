@@ -38,6 +38,14 @@ async def upload_file(
         file_data = get_file_data(full_path)
         metadata = file_data.acceleration_meta
 
+        for (key, item) in metadata.attributes["pre_metadata"]["parameters"].items():
+            if key.endswith("_pictures"):
+                metadata.attributes["pre_metadata"]["parameters"][key] = len(item)
+
+        for (key, item) in metadata.attributes["post_metadata"]["parameters"].items():
+            if key.endswith("_pictures"):
+                metadata.attributes["post_metadata"]["parameters"][key] = len(item)
+
         upload_details = FileUploadDetails(
             key=filename,
             name=filename,
