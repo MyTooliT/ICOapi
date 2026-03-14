@@ -228,6 +228,8 @@ class TridentHandler:
             config.password,
             config.domain,
         )
+        if config.manage_assets_path:
+            cls.feature.manage_url = f"{config.service}/{config.manage_assets_path}"
         await get_messenger().push_messenger_update()
         logger.info(
             "Created TridentClient for user <%s> at service <%s>",
@@ -278,7 +280,9 @@ async def setup_trident():
         await handler.reset()
         if dataspace_config.enabled:
             await handler.set_enabled()
+            print("BBBBBBBBBBBBBBBBBBb")
             await TridentHandler.create_client(dataspace_config)
+            print("CCCCCCCCCCCCCCCCCCCCC")
             client = await TridentHandler.get_client()
             if client is None:
                 logger.exception("Failed at creating trident connection")
