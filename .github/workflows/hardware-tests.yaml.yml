@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   hardware-tests:
-    runs-on: [self-hosted, linux, arm64, revpi, icoapi-hw]
+    runs-on: [icoapi,revpi,hardware-tests,arm64]
 
     steps:
       - uses: actions/checkout@v4
