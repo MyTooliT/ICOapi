@@ -1,0 +1,33 @@
+name: Hardware tests on RevPi
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [test-runner, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  hardware-tests:
+    runs-on: [self-hosted, linux, arm64, revpi, icoapi-hw]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install just
+        uses: taiki-e/install-action@just
+
+      - name: Run hardware tests
+        run: just test
