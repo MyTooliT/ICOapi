@@ -92,13 +92,8 @@ app.add_middleware(
 )
 
 
-def main():
-    """API entry point"""
-
-    import uvicorn  # pylint: disable=import-outside-toplevel
-
-    load_env_file()
-    setup_logging()
+def setup_config():
+    """Setup configuration directories and files"""
 
     ensure_folder_exists(get_application_dir())
     ensure_folder_exists(get_measurement_dir())
@@ -112,6 +107,16 @@ def main():
     else:
         config_src = Path(__file__).parent / "config"
     copy_config_files_if_not_exists(config_src, get_config_dir())
+
+
+def main():
+    """API entry point"""
+
+    import uvicorn  # pylint: disable=import-outside-toplevel
+
+    load_env_file()
+    setup_logging()
+    setup_config()
 
     port = int(getenv("VITE_API_PORT", "33215"))
     host = getenv("VITE_API_HOSTNAME", "0.0.0.0")
