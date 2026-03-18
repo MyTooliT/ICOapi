@@ -3,7 +3,7 @@ name: Hardware tests on RevPi
 on:
   workflow_dispatch:
   push:
-    branches: [test-runner, main]
+    branches: [test-runner, main, 🏗️]
   pull_request:
 
 permissions:
