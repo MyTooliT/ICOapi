@@ -19,11 +19,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
 
-      - name: Sync environment
-        run: uv sync --all-extras
-
       - name: Install just
         uses: taiki-e/install-action@just
 
       - name: Run hardware tests
-        run: uv run just test
+        run: just test
