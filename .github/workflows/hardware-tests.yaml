@@ -29,5 +29,10 @@ jobs:
       - name: Install just
         uses: taiki-e/install-action@just
 
+      - name: Reset ICOtronic hardware
+        run: |
+          just setup
+          uv run icon stu reset
+
       - name: Run hardware tests
         run: just test
