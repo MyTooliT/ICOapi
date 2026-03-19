@@ -1,16 +1,19 @@
 name: Hardware tests on RevPi
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [test-runner, main, 🏗️]
   pull_request:
+    types:
+      - labeled
 
 permissions:
   contents: read
 
 jobs:
   hardware-tests:
+
+    # Only run job, after we add `hardware-test` label
+    if: github.event.label.name == 'hardware-test'
+
     runs-on:
       - arm64
       - hardware-tests
