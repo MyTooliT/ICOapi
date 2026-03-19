@@ -11,7 +11,11 @@ permissions:
 
 jobs:
   hardware-tests:
-    runs-on: [icoapi,revpi,hardware-tests,arm64]
+    runs-on:
+      - arm64
+      - hardware-tests
+      - icoapi
+      - revpi
 
     steps:
       - uses: actions/checkout@v4
