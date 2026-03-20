@@ -191,11 +191,20 @@ class DataValueModel(BaseModel, JSONEncoder):
     dataloss: float | None
 
 
+@unique
+class FileCloudStatus(StrEnum):
+    """Sync status of a local measurement file relative to cloud"""
+
+    NOT_UPLOADED = "not_uploaded"
+    OUTDATED = "outdated"
+    UP_TO_DATE = "up_to_date"
+
+
 @dataclass
 class FileCloudDetails:
     """Data model for details of file on cloud"""
 
-    is_uploaded: bool
+    status: FileCloudStatus
     upload_timestamp: str | None
 
 

@@ -3,13 +3,17 @@
 # -- Imports ------------------------------------------------------------------
 
 import json
+import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import tables
 from pytest import fixture
 
 from icoapi.api import app
+from icoapi.models.globals import get_trident_client
+from icoapi.models.trident import RemoteObjectDetails
 from icoapi.scripts.file_handling import get_measurement_dir
 
 # -- Fixtures -----------------------------------------------------------------
@@ -22,6 +26,7 @@ def fixture_temporary_measurement_dir(tmp_path: Path):
     app.dependency_overrides[get_measurement_dir] = lambda: str(tmp_path)
     yield tmp_path
     app.dependency_overrides.pop(get_measurement_dir, None)
+    app.dependency_overrides.pop(get_trident_client, None)
 
 
 @fixture(name="measurement_hdf5_file")
@@ -68,6 +73,99 @@ def fixture_analyze_hdf5_file(
 
 class TestFileRoutes:
     """File route test methods"""
+
+    def test_list_files_cloud_status(
+        self, client, temporary_measurement_dir: Path
+    ) -> None:
+        """Test endpoint ``/files`` reports cloud sync status"""
+
+        not_uploaded = temporary_measurement_dir / "not_uploaded.hdf5"
+        outdated = temporary_measurement_dir / "outdated.hdf5"
+        up_to_date = temporary_measurement_dir / "up_to_date.hdf5"
+        for file_path in (not_uploaded, outdated, up_to_date):
+            file_path.write_bytes(b"content")
+
+        os.utime(not_uploaded, (1735689600, 1735689600))
+        os.utime(outdated, (1736035200, 1736035200))
+        os.utime(up_to_date, (1735776000, 1735776000))
+
+        remote_files = [
+            RemoteObjectDetails(
+                id=1,
+                bucket="bucket",
+                objectname="outdated.hdf5",
+                name="outdated.hdf5",
+                description=None,
+                metadata={},
+                created_at="2025-01-01T00:00:00Z",
+                s3_lastmodified="2025-01-03T00:00:00Z",
+                s3_size=7,
+                origin="origin",
+                author="author",
+                type="file",
+                last_status="uploaded",
+                last_status_time="2025-01-03T00:00:00Z",
+                secrets_count=0,
+                access_total_count=0,
+                access_week_count=0,
+                last_access_time=None,
+                active_offerings_count=0,
+                virtual_group=None,
+            ),
+            RemoteObjectDetails(
+                id=2,
+                bucket="bucket",
+                objectname="up_to_date.hdf5",
+                name="up_to_date.hdf5",
+                description=None,
+                metadata={},
+                created_at="2025-01-01T00:00:00Z",
+                s3_lastmodified="2025-01-03T00:00:00Z",
+                s3_size=7,
+                origin="origin",
+                author="author",
+                type="file",
+                last_status="uploaded",
+                last_status_time="2025-01-03T00:00:00Z",
+                secrets_count=0,
+                access_total_count=0,
+                access_week_count=0,
+                last_access_time=None,
+                active_offerings_count=0,
+                virtual_group=None,
+            ),
+        ]
+
+        def get_remote_objects():
+            """Return controlled remote object data for tests"""
+
+            return SimpleNamespace(files=remote_files)
+
+        def get_fake_trident_client():
+            """Return a storage client stub for tests"""
+
+            return SimpleNamespace(get_remote_objects=get_remote_objects)
+
+        app.dependency_overrides[get_trident_client] = get_fake_trident_client
+
+        response = client.get("files")
+
+        assert response.status_code == 200
+        files_by_name = {
+            file["name"]: file["cloud"] for file in response.json()["files"]
+        }
+        assert files_by_name["not_uploaded.hdf5"] == {
+            "status": "not_uploaded",
+            "upload_timestamp": None,
+        }
+        assert files_by_name["outdated.hdf5"] == {
+            "status": "outdated",
+            "upload_timestamp": "2025-01-03T00:00:00Z",
+        }
+        assert files_by_name["up_to_date.hdf5"] == {
+            "status": "up_to_date",
+            "upload_timestamp": "2025-01-03T00:00:00Z",
+        }
 
     def test_upload_embedded_file(
         self, client, measurement_hdf5_file: Path
