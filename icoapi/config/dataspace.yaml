@@ -1,9 +1,9 @@
 info:
   schema_name: dataspace_schema
-  schema_version: 0.0.1
+  schema_version: 1.0.0
   config_name: Disabled Dataspace Connection
-  config_date: '2025-10-07T13:52:40+0200'
-  config_version: 0.0.1
+  config_date: '2026-03-20T13:52:40+0200'
+  config_version: 1.0.0
 connection:
   enabled: False
   username:
@@ -13,3 +13,5 @@ connection:
   protocol:
   domain:
   base_path:
+  gui:
+  virtual_group_root:

@@ -272,6 +272,10 @@ async def get_trident_feature() -> Feature:
     return TridentHandler.feature
 
 
+def get_dataspace_config():
+    return read_and_parse_trident_config(get_dataspace_file_path())
+
+
 async def setup_trident():
     ds_path = get_dataspace_file_path()
     try:
