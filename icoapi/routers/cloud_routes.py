@@ -26,7 +26,7 @@ async def upload_file(
     filename: Annotated[str, Body(embed=True)],
     client: Annotated[StorageClient, Depends(get_trident_client)],
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
-    config: Annotated[TridentConfig, Depends(get_dataspace_config())]
+    config: Annotated[TridentConfig, Depends(get_dataspace_config)]
 ):
     """Upload file to cloud storage"""
 
@@ -54,14 +54,14 @@ async def upload_file(
             metadata=metadata.__dict__,
         )
 
-        root = str(config.virtual_group_root)
+        root = config.virtual_group_root
         profile = metadata.attributes["pre_metadata"]["profile"]
 
         if config.virtual_group_root is not None:
             vg = root
 
             if profile is not None:
-                vg += profile
+                vg = f"{root}/{profile}"
 
             upload_details.virtual_group = vg
 
