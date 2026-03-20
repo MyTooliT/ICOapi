@@ -27,10 +27,11 @@ class PresignError(HTTPException):
 class FileUploadDetails:
     key: str
     name: str
-    description: str
-    author: str
+    description: str | None = None
+    author: str | None = None
     expiresInSeconds: int = 600
     metadata: dict = field(default_factory=dict)
+    virtual_group: str | None = None
 
 
 @dataclass

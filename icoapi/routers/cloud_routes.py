@@ -6,7 +6,8 @@ from fastapi import HTTPException, APIRouter
 from fastapi.params import Depends, Annotated, Body
 from starlette.status import HTTP_502_BAD_GATEWAY
 
-from icoapi.models.globals import get_trident_client, setup_trident
+from icoapi.models.globals import get_trident_client, setup_trident, get_dataspace_config
+from icoapi.models.models import TridentConfig
 from icoapi.models.trident import (
     AuthorizationError,
     FileUploadDetails, HostNotFoundError,
@@ -25,6 +26,7 @@ async def upload_file(
     filename: Annotated[str, Body(embed=True)],
     client: Annotated[StorageClient, Depends(get_trident_client)],
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+    config: Annotated[TridentConfig, Depends(get_dataspace_config)]
 ):
     """Upload file to cloud storage"""
 
@@ -49,10 +51,19 @@ async def upload_file(
         upload_details = FileUploadDetails(
             key=filename,
             name=filename,
-            description="",
-            author="CIRP ICOdaq",
             metadata=metadata.__dict__,
         )
+
+        root = config.virtual_group_root
+        profile = metadata.attributes["pre_metadata"]["profile"]
+
+        if config.virtual_group_root is not None:
+            vg = root
+
+            if profile is not None:
+                vg = f"{root}/{profile}"
+
+            upload_details.virtual_group = vg
 
         try:
             client.upload_file(

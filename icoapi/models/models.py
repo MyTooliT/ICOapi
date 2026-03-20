@@ -337,6 +337,7 @@ class TridentConfig:
     default_bucket: str
     enabled: bool
     manage_assets_path: str | None = None
+    virtual_group_root: str | None = None
 
 
 # pylint: enable=too-many-instance-attributes
