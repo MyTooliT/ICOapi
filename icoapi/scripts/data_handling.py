@@ -466,6 +466,7 @@ def read_and_parse_trident_config(file_path: str) -> CloudConfig:
         enabled=bool(data["enabled"]),
         manage_assets_path=data["manage_assets_path"] if "manage_assets_path" in data else None,
         virtual_group_root=data["virtual_group_root"] if "virtual_group_root" in data else None,
+        connector=data["connector"]
     )
 
 

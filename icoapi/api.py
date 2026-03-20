@@ -52,7 +52,7 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
             if config.connector == "trident":
                 await setup_trident()
             else:
-                logger.warning(f"Connector {config.connector} not supported")
+                logger.warning("Connector %s not supported", config.connector)
         else:
             logger.info("Cloud disabled")
 

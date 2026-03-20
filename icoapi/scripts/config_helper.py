@@ -395,6 +395,7 @@ def validate_dataspace_payload(payload: Any) -> list[str]:
                 return errors
 
             for key in [
+                "connector",
                 "protocol",
                 "domain",
                 "base_path",

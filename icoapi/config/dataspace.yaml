@@ -6,6 +6,7 @@ info:
   config_version: 1.0.0
 connection:
   enabled: False
+  connector:
   username:
   password:
   bucket:
