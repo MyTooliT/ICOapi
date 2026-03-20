@@ -255,6 +255,12 @@ class EmbeddedFileInfo(BaseModel, JSONEncoder):
     download_path: str
 
 
+class EmbeddedFileDeleteResponse(BaseModel, JSONEncoder):
+    """Response for embedded file deletion"""
+    file_name: str
+    dataset_name: str
+
+
 class Dataset(BaseModel, JSONEncoder):
     """Measurement data"""
 

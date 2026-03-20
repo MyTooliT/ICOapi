@@ -18,7 +18,7 @@ from tables import HDF5ExtError, NoSuchNodeError, Node
 from icoapi.models.globals import get_trident_client
 from icoapi.models.models import (
     Dataset,
-    EmbeddedFileUploadResponse,
+    EmbeddedFileDeleteResponse, EmbeddedFileUploadResponse,
     FileCloudDetails,
     FileListResponseModel,
     MeasurementFileDetails,
@@ -195,7 +195,7 @@ async def get_analyzed_file(
             embedded_file.model_copy(
                 update={
                     "download_path": (
-                        f"/api/v1/files/{name}/embedded/"
+                        f"files/{name}/embedded/"
                         f"{embedded_file.dataset_name}"
                     )
                 }
@@ -365,7 +365,7 @@ async def delete_embedded_file(
     name: str,
     dataset_name: str,
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
-):
+) -> EmbeddedFileDeleteResponse:
     """Delete an embedded file from an HDF5 file"""
 
     danger, cause = is_dangerous_filename(name)
@@ -385,11 +385,10 @@ async def delete_embedded_file(
     except HDF5ExtError as exc:
         raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
 
-    return {
-        "detail": (
-            f"Embedded file '{dataset_name}' deleted successfully"
-        )
-    }
+    return EmbeddedFileDeleteResponse(
+        dataset_name=dataset_name,
+        file_name=name
+    )
 
 
 @router.get("/analyze/meta/{name}")
