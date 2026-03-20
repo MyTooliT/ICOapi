@@ -226,6 +226,16 @@ class FileListResponseModel:
     directory: str
 
 
+@dataclass
+class EmbeddedFileUploadResponse:
+    """Data model for embedded file upload response"""
+
+    dataset_name: str
+    original_name: str
+    mime: str
+    size: int
+
+
 class Dataset(BaseModel, JSONEncoder):
     """Measurement data"""
 

@@ -6,17 +6,18 @@ import logging
 import os
 from datetime import datetime
 from typing import Annotated, AsyncGenerator
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.params import Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from icotronic.measurement import Storage
 from starlette.responses import PlainTextResponse
-from tables import NoSuchNodeError, Node
+from tables import HDF5ExtError, NoSuchNodeError, Node
 
 
 from icoapi.models.globals import get_trident_client
 from icoapi.models.models import (
     Dataset,
+    EmbeddedFileUploadResponse,
     FileCloudDetails,
     FileListResponseModel,
     MeasurementFileDetails,
@@ -31,8 +32,11 @@ from icoapi.scripts.data_handling import AccelerationDataNotFoundError, get_file
 from icoapi.scripts.errors import (
     HTTP_404_FILE_NOT_FOUND_EXCEPTION,
     HTTP_404_FILE_NOT_FOUND_SPEC,
+    HTTP_422_INVALID_HDF5_FILE_EXCEPTION,
+    HTTP_422_INVALID_HDF5_FILE_SPEC,
 )
 from icoapi.scripts.file_handling import (
+    append_embedded_file_to_hdf5,
     get_disk_space_in_gib,
     get_drive_or_root_path,
     get_measurement_dir,
@@ -244,6 +248,44 @@ async def post_analyzed_file(
         f.write(file.file.read())
 
     return PlainTextResponse(filename)
+
+
+@router.post(
+    "/{name}/embedded",
+    response_model=EmbeddedFileUploadResponse,
+    responses={
+        404: HTTP_404_FILE_NOT_FOUND_SPEC,
+        422: HTTP_422_INVALID_HDF5_FILE_SPEC,
+    },
+)
+async def upload_embedded_file(
+    name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+    file: UploadFile = File(..., description="File to store in HDF5"),
+) -> EmbeddedFileUploadResponse:
+    """Append an uploaded file below the embedded_files group"""
+
+    danger, cause = is_dangerous_filename(name)
+    if danger:
+        raise HTTPException(
+            status_code=405, detail=f"Method not allowed: {cause}"
+        )
+
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    payload = await file.read()
+
+    try:
+        return append_embedded_file_to_hdf5(
+            file_path,
+            file.filename,
+            payload,
+            file.content_type,
+        )
+    except HDF5ExtError as exc:
+        raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
 
 
 @router.get("/analyze/meta/{name}")
