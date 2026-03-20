@@ -7,7 +7,7 @@ from fastapi.params import Depends, Annotated, Body
 from starlette.status import HTTP_502_BAD_GATEWAY
 
 from icoapi.models.globals import get_trident_client, setup_trident, get_dataspace_config
-from icoapi.models.models import TridentConfig
+from icoapi.models.models import CloudConfig
 from icoapi.models.trident import (
     AuthorizationError,
     FileUploadDetails, HostNotFoundError,
@@ -26,7 +26,7 @@ async def upload_file(
     filename: Annotated[str, Body(embed=True)],
     client: Annotated[StorageClient, Depends(get_trident_client)],
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
-    config: Annotated[TridentConfig, Depends(get_dataspace_config)]
+    config: Annotated[CloudConfig, Depends(get_dataspace_config)]
 ):
     """Upload file to cloud storage"""
 

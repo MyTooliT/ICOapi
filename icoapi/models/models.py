@@ -325,9 +325,9 @@ class SocketMessage(BaseModel, JSONEncoder):
 
 
 @dataclass
-class TridentConfig:
+class CloudConfig:
     """Trident configuration data"""
-
+    connector: str
     protocol: str
     domain: str
     base_path: str

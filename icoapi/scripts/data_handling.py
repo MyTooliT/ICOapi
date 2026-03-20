@@ -18,7 +18,7 @@ from icoapi.models.models import (
     MeasurementInstructions,
     MetadataPrefix, ParsedHDF5FileContent, Sensor,
     PCBSensorConfiguration,
-    TridentConfig,
+    CloudConfig,
 )
 from icoapi.models.models import ADCValues
 from icoapi.scripts.config_helper import validate_dataspace_payload
@@ -430,7 +430,7 @@ def add_sensor_data_to_storage(
     logger.info("Added %s sensors to the HDF5 file.", count)
 
 
-def read_and_parse_trident_config(file_path: str) -> TridentConfig:
+def read_and_parse_trident_config(file_path: str) -> CloudConfig:
     """Read Trident configuration file"""
 
     logger.info("Trying to read dataspace config file: %s", file_path)
@@ -455,7 +455,7 @@ def read_and_parse_trident_config(file_path: str) -> TridentConfig:
     data = payload.get("connection")
     logger.info("Found dataspace config: %s", data)
 
-    return TridentConfig(
+    return CloudConfig(
         protocol=str(data["protocol"]).strip(),
         domain=str(data["domain"]).strip(),
         base_path=str(data["base_path"]).lstrip("/").strip(),
