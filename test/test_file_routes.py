@@ -244,9 +244,7 @@ class TestFileRoutes:
         response = client.delete("files/measurement.hdf5/embedded/hello_txt")
 
         assert response.status_code == 200
-        assert response.json() == {
-            "detail": "Embedded file 'hello_txt' deleted successfully"
-        }
+        assert response.json() == {'dataset_name': 'hello_txt', 'file_name': 'measurement.hdf5'}
 
         with tables.open_file(str(measurement_hdf5_file), mode="r") as hdf5_file:
             assert "/embedded_files/hello_txt" not in hdf5_file
@@ -305,5 +303,5 @@ class TestFileRoutes:
             "original_name": "hello.txt",
             "mime": "text/plain",
             "size": len(payload),
-            "download_path": "/api/v1/files/analyze.hdf5/embedded/hello_txt",
+            "download_path": "files/analyze.hdf5/embedded/hello_txt",
         }]
