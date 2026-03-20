@@ -13,6 +13,7 @@ from tables import Float32Col, IsDescription, NoSuchNodeError, StringCol
 from icotronic.measurement import StorageData
 
 from icoapi.models.models import (
+    EmbeddedFileInfo,
     HDF5NodeInfo, MeasurementInstructionChannel,
     MeasurementInstructions,
     MetadataPrefix, ParsedHDF5FileContent, Sensor,
@@ -575,6 +576,37 @@ def node_to_dict(node):
 # pylint: enable=protected-access
 
 
+def get_embedded_file_infos(
+    file_handle: tables.File,
+) -> list[EmbeddedFileInfo]:
+    """Get embedded file descriptors from an HDF5 file"""
+
+    try:
+        embedded_group = file_handle.get_node("/embedded_files")
+    except NoSuchNodeError:
+        return []
+
+    embedded_files: list[EmbeddedFileInfo] = []
+    for node in file_handle.list_nodes(embedded_group):
+        size = getattr(node.attrs, "size", None)
+        if size is None:
+            raw = node.read()
+            size = len(raw if isinstance(raw, bytes) else raw.tobytes())
+        embedded_files.append(
+            EmbeddedFileInfo(
+                dataset_name=node.name,
+                original_name=getattr(node.attrs, "original_name", node.name),
+                mime=getattr(
+                    node.attrs, "mime", "application/octet-stream"
+                ),
+                size=size,
+                download_path="",
+            )
+        )
+
+    return embedded_files
+
+
 # pylint: disable=too-many-locals
 
 
@@ -587,12 +619,15 @@ def get_file_data(
 
         picture_node_names = get_picture_node_names(file_handle)
         pictures: dict[str, list[str]] = {}
+        embedded_files: list[EmbeddedFileInfo] = []
         for node_name in picture_node_names:
             node = file_handle.get_node(node_name)
             assert isinstance(node, tables.Array)
             pictures[node_name.removeprefix("/")] = [
                 img.decode("utf-8") for img in node.read().tolist()
             ]
+
+        embedded_files = get_embedded_file_infos(file_handle)
 
         try:
             acceleration_data = file_handle.get_node("/acceleration")
@@ -657,6 +692,7 @@ def get_file_data(
         sensor_df=sensor_df,
         acceleration_meta=acceleration_meta,
         pictures=pictures,
+        embedded_files=embedded_files,
     )
 
 

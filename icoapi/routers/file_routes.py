@@ -190,10 +190,22 @@ async def get_analyzed_file(
             if "dimension" not in sensor_raw:
                 sensor_raw["dimension"] = ""
         sensors: list[Sensor] = [Sensor(**sensor) for sensor in sensors_raw]
+        embedded_files = [
+            embedded_file.model_copy(
+                update={
+                    "download_path": (
+                        f"/api/v1/files/{name}/embedded/"
+                        f"{embedded_file.dataset_name}"
+                    )
+                }
+            )
+            for embedded_file in parsed_file_content.embedded_files
+        ]
         yield ParsedMetadata(
             acceleration=parsed_file_content.acceleration_meta,
             pictures=parsed_file_content.pictures,
             sensors=sensors,
+            embedded_files=embedded_files,
         ).model_dump_json() + "\n"
 
         # Then: yield measurement data
@@ -341,6 +353,17 @@ async def get_file_meta(
     """Get measurement file metadata"""
 
     data = get_file_data(os.path.join(measurement_dir, name))
+    embedded_files = [
+        embedded_file.model_copy(
+            update={
+                "download_path": (
+                    f"/api/v1/files/{name}/embedded/"
+                    f"{embedded_file.dataset_name}"
+                )
+            }
+        )
+        for embedded_file in data.embedded_files
+    ]
     return ParsedMetadata(
         acceleration=data.acceleration_meta,
         pictures=data.pictures,
@@ -348,6 +371,7 @@ async def get_file_meta(
             Sensor(**sensor)
             for sensor in data.sensor_df.to_dict(orient="records")
         ],
+        embedded_files=embedded_files,
     )
 
 

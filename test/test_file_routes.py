@@ -2,6 +2,7 @@
 
 # -- Imports ------------------------------------------------------------------
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +33,32 @@ def fixture_measurement_hdf5_file(
     hdf5_path = temporary_measurement_dir / "measurement.hdf5"
     with tables.open_file(str(hdf5_path), mode="w"):
         pass
+
+    return hdf5_path
+
+
+@fixture(name="analyze_hdf5_file")
+def fixture_analyze_hdf5_file(
+    temporary_measurement_dir: Path,
+) -> Path:
+    """Create a minimal HDF5 measurement file for analyze tests"""
+
+    hdf5_path = temporary_measurement_dir / "analyze.hdf5"
+    with tables.open_file(str(hdf5_path), mode="w") as hdf5_file:
+        acceleration_dtype = np.dtype([
+            ("counter", np.uint32),
+            ("timestamp", np.float64),
+            ("first", np.float32),
+        ])
+        table = hdf5_file.create_table(
+            "/", "acceleration", acceleration_dtype
+        )
+        row = table.row
+        row["counter"] = 1
+        row["timestamp"] = 1.5
+        row["first"] = 2.5
+        row.append()
+        table.flush()
 
     return hdf5_path
 
@@ -137,7 +164,7 @@ class TestFileRoutes:
         """Test endpoint ``/{name}/embedded/{dataset_name}``"""
 
         payload = b"download-payload"
-        with tables.open_file(measurement_hdf5_file, mode="a") as hdf5_file:
+        with tables.open_file(str(measurement_hdf5_file), mode="a") as hdf5_file:
             group = hdf5_file.create_group("/", "embedded_files")
             dataset = hdf5_file.create_array(group, "hello_txt", payload)
             dataset.attrs["mime"] = "text/plain"
@@ -169,3 +196,29 @@ class TestFileRoutes:
         assert response.json() == {
             "detail": "File not found. Check your measurement directory."
         }
+
+    def test_analyze_file_includes_embedded_file_information(
+        self, client, analyze_hdf5_file: Path
+    ) -> None:
+        """Test endpoint ``/analyze/{name}`` includes embedded file info"""
+
+        payload = b"download-payload"
+        with tables.open_file(str(analyze_hdf5_file), mode="a") as hdf5_file:
+            group = hdf5_file.create_group("/", "embedded_files")
+            dataset = hdf5_file.create_array(group, "hello_txt", payload)
+            dataset.attrs["mime"] = "text/plain"
+            dataset.attrs["original_name"] = "hello.txt"
+            dataset.attrs["size"] = len(payload)
+
+        response = client.get("files/analyze/analyze.hdf5")
+
+        assert response.status_code == 200
+
+        metadata = json.loads(response.text.splitlines()[0])
+        assert metadata["embedded_files"] == [{
+            "dataset_name": "hello_txt",
+            "original_name": "hello.txt",
+            "mime": "text/plain",
+            "size": len(payload),
+            "download_path": "/api/v1/files/analyze.hdf5/embedded/hello_txt",
+        }]
