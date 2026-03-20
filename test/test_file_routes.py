@@ -77,18 +77,18 @@ class TestFileRoutes:
         payload = b"\x00\x10\xffabc"
         response = client.post(
             "files/measurement.hdf5/embedded",
-            files={
-                "file": ("hello.txt", payload, "text/plain"),
-            },
+            files=[
+                ("files", ("hello.txt", payload, "text/plain")),
+            ],
         )
 
         assert response.status_code == 200
-        assert response.json() == {
+        assert response.json() == [{
             "dataset_name": "hello_txt",
             "original_name": "hello.txt",
             "mime": "text/plain",
             "size": len(payload),
-        }
+        }]
 
         with tables.open_file(str(measurement_hdf5_file), mode="r") as hdf5_file:
             dataset = hdf5_file.get_node("/embedded_files/hello_txt")
@@ -110,27 +110,62 @@ class TestFileRoutes:
 
         response = client.post(
             "files/measurement.hdf5/embedded",
-            files={
-                "file": ("hello.txt", b"new-payload", "text/plain"),
-            },
+            files=[
+                ("files", ("hello.txt", b"new-payload", "text/plain")),
+            ],
         )
 
         assert response.status_code == 200
-        assert response.json()["dataset_name"] == "hello_txt__1"
+        assert response.json()[0]["dataset_name"] == "hello_txt__1"
 
         with tables.open_file(str(measurement_hdf5_file), mode="r") as hdf5_file:
             dataset = hdf5_file.get_node("/embedded_files/hello_txt__1")
             assert dataset.read().tobytes() == b"new-payload"
             assert dataset.attrs["original_name"] == "hello.txt"
 
+    def test_upload_multiple_embedded_files(
+        self, client, measurement_hdf5_file: Path
+    ) -> None:
+        """Test endpoint ``/{name}/embedded`` for multiple files"""
+
+        response = client.post(
+            "files/measurement.hdf5/embedded",
+            files=[
+                ("files", ("hello.txt", b"first", "text/plain")),
+                ("files", ("world.bin", b"\x01\x02", "application/octet-stream")),
+            ],
+        )
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "dataset_name": "hello_txt",
+                "original_name": "hello.txt",
+                "mime": "text/plain",
+                "size": 5,
+            },
+            {
+                "dataset_name": "world_bin",
+                "original_name": "world.bin",
+                "mime": "application/octet-stream",
+                "size": 2,
+            },
+        ]
+
+        with tables.open_file(str(measurement_hdf5_file), mode="r") as hdf5_file:
+            hello = hdf5_file.get_node("/embedded_files/hello_txt")
+            world = hdf5_file.get_node("/embedded_files/world_bin")
+            assert hello.read().tobytes() == b"first"
+            assert world.read().tobytes() == b"\x01\x02"
+
     def test_upload_embedded_file_not_found(self, client) -> None:
         """Test endpoint ``/{name}/embedded`` for missing HDF5 files"""
 
         response = client.post(
             "files/missing.hdf5/embedded",
-            files={
-                "file": ("hello.txt", b"payload", "text/plain"),
-            },
+            files=[
+                ("files", ("hello.txt", b"payload", "text/plain")),
+            ],
         )
 
         assert response.status_code == 404
@@ -148,9 +183,9 @@ class TestFileRoutes:
 
         response = client.post(
             "files/invalid.hdf5/embedded",
-            files={
-                "file": ("hello.txt", b"payload", "text/plain"),
-            },
+            files=[
+                ("files", ("hello.txt", b"payload", "text/plain")),
+            ],
         )
 
         assert response.status_code == 422
@@ -195,6 +230,56 @@ class TestFileRoutes:
         assert response.status_code == 404
         assert response.json() == {
             "detail": "File not found. Check your measurement directory."
+        }
+
+    def test_delete_embedded_file(
+        self, client, measurement_hdf5_file: Path
+    ) -> None:
+        """Test endpoint ``/{name}/embedded/{dataset_name}`` for deletion"""
+
+        with tables.open_file(str(measurement_hdf5_file), mode="a") as hdf5_file:
+            group = hdf5_file.create_group("/", "embedded_files")
+            hdf5_file.create_array(group, "hello_txt", b"payload")
+
+        response = client.delete("files/measurement.hdf5/embedded/hello_txt")
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "detail": "Embedded file 'hello_txt' deleted successfully"
+        }
+
+        with tables.open_file(str(measurement_hdf5_file), mode="r") as hdf5_file:
+            assert "/embedded_files/hello_txt" not in hdf5_file
+
+    def test_delete_embedded_file_not_found(
+        self, client, measurement_hdf5_file: Path
+    ) -> None:
+        """Test delete endpoint for missing embedded data"""
+
+        assert measurement_hdf5_file.is_file()
+
+        response = client.delete("files/measurement.hdf5/embedded/missing")
+
+        assert response.status_code == 404
+        assert response.json() == {
+            "detail": "File not found. Check your measurement directory."
+        }
+
+    def test_delete_embedded_file_invalid_hdf5(
+        self, client, temporary_measurement_dir: Path
+    ) -> None:
+        """Test delete endpoint for invalid HDF5 files"""
+
+        invalid_hdf5_path = temporary_measurement_dir / "invalid_delete.hdf5"
+        invalid_hdf5_path.write_bytes(b"not-an-hdf5-file")
+
+        response = client.delete(
+            "files/invalid_delete.hdf5/embedded/hello_txt"
+        )
+
+        assert response.status_code == 422
+        assert response.json() == {
+            "detail": "Target file is not a valid HDF5 file."
         }
 
     def test_analyze_file_includes_embedded_file_information(

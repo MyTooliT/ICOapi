@@ -284,6 +284,15 @@ def get_embedded_file_from_hdf5(
     )
 
 
+def delete_embedded_file_from_hdf5(
+    hdf5_path: str, dataset_name: str
+) -> None:
+    """Delete an embedded file dataset from an HDF5 file"""
+
+    with tables.open_file(hdf5_path, mode="a") as hdf5_file:
+        hdf5_file.remove_node("/embedded_files", dataset_name)
+
+
 def ensure_folder_exists(path):
     """Create folder if it does not exist already"""
 

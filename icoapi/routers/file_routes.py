@@ -38,6 +38,7 @@ from icoapi.scripts.errors import (
 )
 from icoapi.scripts.file_handling import (
     append_embedded_file_to_hdf5,
+    delete_embedded_file_from_hdf5,
     get_embedded_file_from_hdf5,
     get_disk_space_in_gib,
     get_drive_or_root_path,
@@ -266,7 +267,7 @@ async def post_analyzed_file(
 
 @router.post(
     "/{name}/embedded",
-    response_model=EmbeddedFileUploadResponse,
+    response_model=list[EmbeddedFileUploadResponse],
     responses={
         404: HTTP_404_FILE_NOT_FOUND_SPEC,
         422: HTTP_422_INVALID_HDF5_FILE_SPEC,
@@ -275,9 +276,11 @@ async def post_analyzed_file(
 async def upload_embedded_file(
     name: str,
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
-    file: UploadFile = File(..., description="File to store in HDF5"),
-) -> EmbeddedFileUploadResponse:
-    """Append an uploaded file below the embedded_files group"""
+    files: list[UploadFile] = File(
+        ..., description="Files to store in HDF5"
+    ),
+) -> list[EmbeddedFileUploadResponse]:
+    """Append uploaded files below the embedded_files group"""
 
     danger, cause = is_dangerous_filename(name)
     if danger:
@@ -289,15 +292,19 @@ async def upload_embedded_file(
     if not os.path.isfile(file_path):
         raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
 
-    payload = await file.read()
-
     try:
-        return append_embedded_file_to_hdf5(
-            file_path,
-            file.filename,
-            payload,
-            file.content_type,
-        )
+        responses: list[EmbeddedFileUploadResponse] = []
+        for file in files:
+            payload = await file.read()
+            responses.append(
+                append_embedded_file_to_hdf5(
+                    file_path,
+                    file.filename,
+                    payload,
+                    file.content_type,
+                )
+            )
+        return responses
     except HDF5ExtError as exc:
         raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
 
@@ -346,10 +353,50 @@ async def download_embedded_file(
     )
 
 
+@router.delete(
+    "/{name}/embedded/{dataset_name}",
+    responses={
+        200: {"description": "Embedded file deleted successfully."},
+        404: HTTP_404_FILE_NOT_FOUND_SPEC,
+        422: HTTP_422_INVALID_HDF5_FILE_SPEC,
+    },
+)
+async def delete_embedded_file(
+    name: str,
+    dataset_name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+):
+    """Delete an embedded file from an HDF5 file"""
+
+    danger, cause = is_dangerous_filename(name)
+    if danger:
+        raise HTTPException(
+            status_code=405, detail=f"Method not allowed: {cause}"
+        )
+
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    try:
+        delete_embedded_file_from_hdf5(file_path, dataset_name)
+    except NoSuchNodeError as exc:
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION from exc
+    except HDF5ExtError as exc:
+        raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
+
+    return {
+        "detail": (
+            f"Embedded file '{dataset_name}' deleted successfully"
+        )
+    }
+
+
 @router.get("/analyze/meta/{name}")
 async def get_file_meta(
     name: str, measurement_dir: Annotated[str, Depends(get_measurement_dir)]
 ) -> ParsedMetadata:
+
     """Get measurement file metadata"""
 
     data = get_file_data(os.path.join(measurement_dir, name))
