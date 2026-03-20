@@ -43,7 +43,7 @@ class RemoteObjectDetails:
     description: Optional[str]
     metadata: dict
     created_at: str
-    s3_lastmodified: str
+    s3_lastmodified: Optional[str]
     s3_size: int
     origin: str
     author: str

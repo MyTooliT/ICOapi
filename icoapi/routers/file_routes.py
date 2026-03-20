@@ -56,6 +56,7 @@ router = APIRouter(prefix="/files", tags=["File Handling"])
 
 logger = logging.getLogger(__name__)
 
+
 @router.get("")
 async def list_files_and_capacity(
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],

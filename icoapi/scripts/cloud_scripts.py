@@ -7,8 +7,11 @@ from icoapi.models.models import FileCloudStatus, FileCloudDetails
 from icoapi.models.trident import RemoteObjectDetails
 
 
-def parse_cloud_timestamp(timestamp: str) -> datetime:
+def parse_cloud_timestamp(timestamp: str | None) -> datetime:
     """Parse cloud timestamps into timezone-aware datetimes"""
+
+    if timestamp is None:
+        return datetime.max.replace(tzinfo=UTC)
 
     normalized = (
         timestamp.replace("Z", "+00:00")
@@ -46,6 +49,10 @@ def get_cloud_details(
         ),
     )
     cloud_details.upload_timestamp = latest_match.s3_lastmodified
+    if latest_match.s3_lastmodified is None:
+        cloud_details.status = FileCloudStatus.UP_TO_DATE
+        return cloud_details
+
     local_modified = datetime.fromtimestamp(os.path.getmtime(file_path), tz=UTC)
     cloud_modified = parse_cloud_timestamp(latest_match.s3_lastmodified)
     cloud_details.status = (

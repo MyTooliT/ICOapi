@@ -82,12 +82,19 @@ class TestFileRoutes:
         not_uploaded = temporary_measurement_dir / "not_uploaded.hdf5"
         outdated = temporary_measurement_dir / "outdated.hdf5"
         up_to_date = temporary_measurement_dir / "up_to_date.hdf5"
-        for file_path in (not_uploaded, outdated, up_to_date):
+        recent_cloud = temporary_measurement_dir / "recent_cloud.hdf5"
+        for file_path in (
+            not_uploaded,
+            outdated,
+            up_to_date,
+            recent_cloud,
+        ):
             file_path.write_bytes(b"content")
 
         os.utime(not_uploaded, (1735689600, 1735689600))
         os.utime(outdated, (1736035200, 1736035200))
         os.utime(up_to_date, (1735776000, 1735776000))
+        os.utime(recent_cloud, (1736121600, 1736121600))
 
         remote_files = [
             RemoteObjectDetails(
@@ -134,6 +141,28 @@ class TestFileRoutes:
                 active_offerings_count=0,
                 virtual_group=None,
             ),
+            RemoteObjectDetails(
+                id=3,
+                bucket="bucket",
+                objectname="recent_cloud.hdf5",
+                name="recent_cloud.hdf5",
+                description=None,
+                metadata={},
+                created_at="2025-01-01T00:00:00Z",
+                s3_lastmodified=None,
+                s3_size=7,
+                origin="origin",
+                author="author",
+                type="file",
+                last_status="uploaded",
+                last_status_time="2025-01-06T00:00:00Z",
+                secrets_count=0,
+                access_total_count=0,
+                access_week_count=0,
+                last_access_time=None,
+                active_offerings_count=0,
+                virtual_group=None,
+            ),
         ]
 
         def get_remote_objects():
@@ -165,6 +194,10 @@ class TestFileRoutes:
         assert files_by_name["up_to_date.hdf5"] == {
             "status": "up_to_date",
             "upload_timestamp": "2025-01-03T00:00:00Z",
+        }
+        assert files_by_name["recent_cloud.hdf5"] == {
+            "status": "up_to_date",
+            "upload_timestamp": None,
         }
 
     def test_upload_embedded_file(
