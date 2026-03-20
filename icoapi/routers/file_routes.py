@@ -6,17 +6,19 @@ import logging
 import os
 from datetime import datetime
 from typing import Annotated, AsyncGenerator
-from fastapi import APIRouter, HTTPException, UploadFile
+from urllib.parse import quote
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.params import Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from icotronic.measurement import Storage
 from starlette.responses import PlainTextResponse
-from tables import NoSuchNodeError, Node
+from tables import HDF5ExtError, NoSuchNodeError, Node
 
 
 from icoapi.models.globals import get_trident_client
 from icoapi.models.models import (
     Dataset,
+    EmbeddedFileDeleteResponse, EmbeddedFileUploadResponse,
     FileCloudDetails,
     FileListResponseModel,
     MeasurementFileDetails,
@@ -31,8 +33,13 @@ from icoapi.scripts.data_handling import AccelerationDataNotFoundError, get_file
 from icoapi.scripts.errors import (
     HTTP_404_FILE_NOT_FOUND_EXCEPTION,
     HTTP_404_FILE_NOT_FOUND_SPEC,
+    HTTP_422_INVALID_HDF5_FILE_EXCEPTION,
+    HTTP_422_INVALID_HDF5_FILE_SPEC,
 )
 from icoapi.scripts.file_handling import (
+    append_embedded_file_to_hdf5,
+    delete_embedded_file_from_hdf5,
+    get_embedded_file_from_hdf5,
     get_disk_space_in_gib,
     get_drive_or_root_path,
     get_measurement_dir,
@@ -184,10 +191,22 @@ async def get_analyzed_file(
             if "dimension" not in sensor_raw:
                 sensor_raw["dimension"] = ""
         sensors: list[Sensor] = [Sensor(**sensor) for sensor in sensors_raw]
+        embedded_files = [
+            embedded_file.model_copy(
+                update={
+                    "download_path": (
+                        f"files/{name}/embedded/"
+                        f"{embedded_file.dataset_name}"
+                    )
+                }
+            )
+            for embedded_file in parsed_file_content.embedded_files
+        ]
         yield ParsedMetadata(
             acceleration=parsed_file_content.acceleration_meta,
             pictures=parsed_file_content.pictures,
             sensors=sensors,
+            embedded_files=embedded_files,
         ).model_dump_json() + "\n"
 
         # Then: yield measurement data
@@ -246,13 +265,151 @@ async def post_analyzed_file(
     return PlainTextResponse(filename)
 
 
+@router.post(
+    "/{name}/embedded",
+    response_model=list[EmbeddedFileUploadResponse],
+    responses={
+        404: HTTP_404_FILE_NOT_FOUND_SPEC,
+        422: HTTP_422_INVALID_HDF5_FILE_SPEC,
+    },
+)
+async def upload_embedded_file(
+    name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+    files: list[UploadFile] = File(
+        ..., description="Files to store in HDF5"
+    ),
+) -> list[EmbeddedFileUploadResponse]:
+    """Append uploaded files below the embedded_files group"""
+
+    danger, cause = is_dangerous_filename(name)
+    if danger:
+        raise HTTPException(
+            status_code=405, detail=f"Method not allowed: {cause}"
+        )
+
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    try:
+        responses: list[EmbeddedFileUploadResponse] = []
+        for file in files:
+            payload = await file.read()
+            responses.append(
+                append_embedded_file_to_hdf5(
+                    file_path,
+                    file.filename,
+                    payload,
+                    file.content_type,
+                )
+            )
+        return responses
+    except HDF5ExtError as exc:
+        raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
+
+
+@router.get(
+    "/{name}/embedded/{dataset_name}",
+    responses={
+        404: HTTP_404_FILE_NOT_FOUND_SPEC,
+        422: HTTP_422_INVALID_HDF5_FILE_SPEC,
+    },
+)
+async def download_embedded_file(
+    name: str,
+    dataset_name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+) -> StreamingResponse:
+    """Download an embedded file from an HDF5 file"""
+
+    danger, cause = is_dangerous_filename(name)
+    if danger:
+        raise HTTPException(
+            status_code=405, detail=f"Method not allowed: {cause}"
+        )
+
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    try:
+        embedded_file = get_embedded_file_from_hdf5(file_path, dataset_name)
+    except NoSuchNodeError as exc:
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION from exc
+    except HDF5ExtError as exc:
+        raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
+
+    quoted_name = quote(embedded_file.original_name)
+    return StreamingResponse(
+        iter([embedded_file.content]),
+        media_type=embedded_file.mime,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{embedded_file.original_name}"; '
+                f"filename*=UTF-8''{quoted_name}"
+            )
+        },
+    )
+
+
+@router.delete(
+    "/{name}/embedded/{dataset_name}",
+    responses={
+        200: {"description": "Embedded file deleted successfully."},
+        404: HTTP_404_FILE_NOT_FOUND_SPEC,
+        422: HTTP_422_INVALID_HDF5_FILE_SPEC,
+    },
+)
+async def delete_embedded_file(
+    name: str,
+    dataset_name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+) -> EmbeddedFileDeleteResponse:
+    """Delete an embedded file from an HDF5 file"""
+
+    danger, cause = is_dangerous_filename(name)
+    if danger:
+        raise HTTPException(
+            status_code=405, detail=f"Method not allowed: {cause}"
+        )
+
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    try:
+        delete_embedded_file_from_hdf5(file_path, dataset_name)
+    except NoSuchNodeError as exc:
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION from exc
+    except HDF5ExtError as exc:
+        raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
+
+    return EmbeddedFileDeleteResponse(
+        dataset_name=dataset_name,
+        file_name=name
+    )
+
+
 @router.get("/analyze/meta/{name}")
 async def get_file_meta(
     name: str, measurement_dir: Annotated[str, Depends(get_measurement_dir)]
 ) -> ParsedMetadata:
+
     """Get measurement file metadata"""
 
     data = get_file_data(os.path.join(measurement_dir, name))
+    embedded_files = [
+        embedded_file.model_copy(
+            update={
+                "download_path": (
+                    f"/api/v1/files/{name}/embedded/"
+                    f"{embedded_file.dataset_name}"
+                )
+            }
+        )
+        for embedded_file in data.embedded_files
+    ]
     return ParsedMetadata(
         acceleration=data.acceleration_meta,
         pictures=data.pictures,
@@ -260,6 +417,7 @@ async def get_file_meta(
             Sensor(**sensor)
             for sensor in data.sensor_df.to_dict(orient="records")
         ],
+        embedded_files=embedded_files,
     )
 
 

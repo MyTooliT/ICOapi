@@ -4,15 +4,22 @@ import logging
 import os
 import platform
 import sys
-from typing import Tuple
+from typing import Iterable, Tuple
 import shutil
 import re
 
+import numpy as np
+import pathvalidate
+import tables
 
 from dotenv import load_dotenv
 from platformdirs import user_data_dir
 
-from icoapi.models.models import DiskCapacity
+from icoapi.models.models import (
+    DiskCapacity,
+    EmbeddedFileContent,
+    EmbeddedFileUploadResponse,
+)
 from icoapi.scripts.config_helper import CONFIG_FILE_DEFINITIONS
 
 logger = logging.getLogger(__name__)
@@ -182,20 +189,108 @@ def get_drive_or_root_path() -> str:
 def get_suffixed_filename(base_name: str, directory: str) -> str:
     """Get suffixed filename"""
 
-    possible_filename = base_name
-    suffix: int = 0
-    while possible_filename in os.listdir(directory):
-        suffix += 1
-        tokens = possible_filename.split(".")
-        extension = tokens[-1]
-        # reassemble filename if dots were used in it (bad user, bad!)
-        name = ".".join(tokens[:-1])
-        has_suffix = bool(re.search(r"__\d+$", name))
-        if has_suffix:
-            name = "__".join(name.split("__")[:-1])
-        possible_filename = f"{name}__{suffix}.{extension}"
+    return get_suffixed_name(base_name, os.listdir(directory))
 
-    return possible_filename
+
+def get_suffixed_name(base_name: str, existing_names: Iterable[str]) -> str:
+    """Get suffixed name for a collection of existing names"""
+
+    existing_name_set = set(existing_names)
+    possible_name = base_name
+    suffix: int = 0
+
+    while possible_name in existing_name_set:
+        suffix += 1
+        tokens = possible_name.rsplit(".", maxsplit=1)
+        if len(tokens) == 2:
+            name, extension = tokens
+            has_suffix = bool(re.search(r"__\d+$", name))
+            if has_suffix:
+                name = "__".join(name.split("__")[:-1])
+            possible_name = f"{name}__{suffix}.{extension}"
+        else:
+            name = possible_name
+            has_suffix = bool(re.search(r"__\d+$", name))
+            if has_suffix:
+                name = "__".join(name.split("__")[:-1])
+            possible_name = f"{name}__{suffix}"
+
+    return possible_name
+
+
+def append_embedded_file_to_hdf5(
+    hdf5_path: str,
+    file_name: str | None,
+    content: bytes,
+    mime_type: str | None,
+) -> EmbeddedFileUploadResponse:
+    """Store an uploaded file as uint8 dataset below /embedded_files"""
+
+    original_name = file_name or "file"
+    sanitized_name = pathvalidate.sanitize_filename(
+        original_name, replacement_text="_"
+    )
+    sanitized_name = re.sub(r"\W+", "_", sanitized_name).strip("_") or "file"
+    if sanitized_name[0].isdigit():
+        sanitized_name = f"file__{sanitized_name}"
+    stored_mime_type = mime_type or "application/octet-stream"
+    byte_array = np.frombuffer(content, dtype=np.uint8)
+
+    with tables.open_file(hdf5_path, mode="a") as hdf5_file:
+        try:
+            group = hdf5_file.get_node("/embedded_files")
+        except tables.NoSuchNodeError:
+            group = hdf5_file.create_group("/", "embedded_files")
+
+        existing_names = [node.name for node in hdf5_file.list_nodes(group)]
+        dataset_name = get_suffixed_name(sanitized_name, existing_names)
+        dataset = hdf5_file.create_array(group, dataset_name, byte_array)
+        dataset.attrs["size"] = len(content)
+        dataset.attrs["mime"] = stored_mime_type
+        dataset.attrs["original_name"] = original_name
+
+    return EmbeddedFileUploadResponse(
+        dataset_name=dataset_name,
+        original_name=original_name,
+        mime=stored_mime_type,
+        size=len(content),
+    )
+
+
+def get_embedded_file_from_hdf5(
+    hdf5_path: str, dataset_name: str
+) -> EmbeddedFileContent:
+    """Retrieve an embedded file from an HDF5 dataset"""
+
+    with tables.open_file(hdf5_path, mode="r") as hdf5_file:
+        dataset = hdf5_file.get_node(f"/embedded_files/{dataset_name}")
+        raw_content = dataset.read()
+        content = (
+            raw_content
+            if isinstance(raw_content, bytes)
+            else raw_content.tobytes()
+        )
+        original_name = getattr(
+            dataset.attrs, "original_name", dataset_name
+        )
+        mime = getattr(
+            dataset.attrs, "mime", "application/octet-stream"
+        )
+
+    return EmbeddedFileContent(
+        content=content,
+        original_name=original_name,
+        mime=mime,
+    )
+
+
+def delete_embedded_file_from_hdf5(
+    hdf5_path: str, dataset_name: str
+) -> None:
+    """Delete an embedded file dataset from an HDF5 file"""
+
+    with tables.open_file(hdf5_path, mode="a") as hdf5_file:
+        hdf5_file.remove_node("/embedded_files", dataset_name)
 
 
 def ensure_folder_exists(path):

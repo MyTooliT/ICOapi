@@ -226,6 +226,41 @@ class FileListResponseModel:
     directory: str
 
 
+@dataclass
+class EmbeddedFileUploadResponse:
+    """Data model for embedded file upload response"""
+
+    dataset_name: str
+    original_name: str
+    mime: str
+    size: int
+
+
+@dataclass
+class EmbeddedFileContent:
+    """Embedded file payload and metadata"""
+
+    content: bytes
+    original_name: str
+    mime: str
+
+
+class EmbeddedFileInfo(BaseModel, JSONEncoder):
+    """Embedded file information for clients"""
+
+    dataset_name: str
+    original_name: str
+    mime: str
+    size: int
+    download_path: str
+
+
+class EmbeddedFileDeleteResponse(BaseModel, JSONEncoder):
+    """Response for embedded file deletion"""
+    file_name: str
+    dataset_name: str
+
+
 class Dataset(BaseModel, JSONEncoder):
     """Measurement data"""
 
@@ -427,6 +462,7 @@ class ParsedHDF5FileContent(JSONEncoder):
     sensor_df: pandas.DataFrame
     acceleration_meta: HDF5NodeInfo
     pictures: dict[str, list[str]]
+    embedded_files: list[EmbeddedFileInfo]
 
 
 class ParsedMetadata(BaseModel, JSONEncoder):
@@ -435,6 +471,7 @@ class ParsedMetadata(BaseModel, JSONEncoder):
     acceleration: HDF5NodeInfo
     pictures: dict[str, list[str]]
     sensors: list[Sensor]
+    embedded_files: list[EmbeddedFileInfo]
 
 
 @dataclass

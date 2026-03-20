@@ -182,6 +182,30 @@ HTTP_422_INVALID_ADC_CONFIGURATION_SPEC = {
     },
 }
 
+HTTP_422_INVALID_HDF5_FILE_EXCEPTION = HTTPException(
+    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+    detail="Target file is not a valid HDF5 file.",
+)
+HTTP_422_INVALID_HDF5_FILE_SPEC = {
+    "description": "Target file is not a valid HDF5 file.",
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+                "required": ["detail", "status_code"],
+            },
+            "example": {
+                "detail": "Target file is not a valid HDF5 file.",
+                "status_code": 422,
+            },
+        }
+    },
+}
+
 HTTP_400_INVALID_YAML_EXCEPTION = HTTPException(
     status_code=status.HTTP_400_BAD_REQUEST,
     detail="Failed to parse YAML payload.",
