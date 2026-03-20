@@ -33,7 +33,7 @@ from icoapi.scripts.file_handling import (
 from icoapi.models.globals import (
     MeasurementSingleton,
     ICOsystemSingleton,
-    setup_trident,
+    setup_trident, get_dataspace_config,
 )
 from icoapi.utils.logging_setup import setup_logging
 
@@ -47,7 +47,15 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
     """
     MeasurementSingleton.create_instance_if_none()
     try:
-        await setup_trident()
+        config = get_dataspace_config()
+        if config.enabled:
+            if config.connector == "trident":
+                await setup_trident()
+            else:
+                logger.warning("Connector %s not supported", config.connector)
+        else:
+            logger.info("Cloud disabled")
+
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Error when setting up Trident: %s", e)
     try:

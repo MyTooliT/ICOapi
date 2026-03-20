@@ -15,7 +15,7 @@ from icoapi.models.models import (
     Metadata,
     SocketMessage,
     SystemStateModel,
-    TridentConfig,
+    CloudConfig,
 )
 from icoapi.models.trident import StorageClient
 from icoapi.scripts.data_handling import read_and_parse_trident_config
@@ -221,7 +221,7 @@ class TridentHandler:
         logger.info("Reset TridentHandler")
 
     @classmethod
-    async def create_client(cls, config: TridentConfig):
+    async def create_client(cls, config: CloudConfig):
         cls.client = StorageClient(
             config.service,
             config.username,
