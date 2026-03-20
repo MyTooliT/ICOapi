@@ -15,7 +15,11 @@ import tables
 from dotenv import load_dotenv
 from platformdirs import user_data_dir
 
-from icoapi.models.models import DiskCapacity, EmbeddedFileUploadResponse
+from icoapi.models.models import (
+    DiskCapacity,
+    EmbeddedFileContent,
+    EmbeddedFileUploadResponse,
+)
 from icoapi.scripts.config_helper import CONFIG_FILE_DEFINITIONS
 
 logger = logging.getLogger(__name__)
@@ -250,6 +254,33 @@ def append_embedded_file_to_hdf5(
         original_name=original_name,
         mime=stored_mime_type,
         size=len(content),
+    )
+
+
+def get_embedded_file_from_hdf5(
+    hdf5_path: str, dataset_name: str
+) -> EmbeddedFileContent:
+    """Retrieve an embedded file from an HDF5 dataset"""
+
+    with tables.open_file(hdf5_path, mode="r") as hdf5_file:
+        dataset = hdf5_file.get_node(f"/embedded_files/{dataset_name}")
+        raw_content = dataset.read()
+        content = (
+            raw_content
+            if isinstance(raw_content, bytes)
+            else raw_content.tobytes()
+        )
+        original_name = getattr(
+            dataset.attrs, "original_name", dataset_name
+        )
+        mime = getattr(
+            dataset.attrs, "mime", "application/octet-stream"
+        )
+
+    return EmbeddedFileContent(
+        content=content,
+        original_name=original_name,
+        mime=mime,
     )
 
 

@@ -6,6 +6,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Annotated, AsyncGenerator
+from urllib.parse import quote
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.params import Depends
 from fastapi.responses import FileResponse, StreamingResponse
@@ -37,6 +38,7 @@ from icoapi.scripts.errors import (
 )
 from icoapi.scripts.file_handling import (
     append_embedded_file_to_hdf5,
+    get_embedded_file_from_hdf5,
     get_disk_space_in_gib,
     get_drive_or_root_path,
     get_measurement_dir,
@@ -286,6 +288,50 @@ async def upload_embedded_file(
         )
     except HDF5ExtError as exc:
         raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
+
+
+@router.get(
+    "/{name}/embedded/{dataset_name}",
+    responses={
+        404: HTTP_404_FILE_NOT_FOUND_SPEC,
+        422: HTTP_422_INVALID_HDF5_FILE_SPEC,
+    },
+)
+async def download_embedded_file(
+    name: str,
+    dataset_name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+) -> StreamingResponse:
+    """Download an embedded file from an HDF5 file"""
+
+    danger, cause = is_dangerous_filename(name)
+    if danger:
+        raise HTTPException(
+            status_code=405, detail=f"Method not allowed: {cause}"
+        )
+
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    try:
+        embedded_file = get_embedded_file_from_hdf5(file_path, dataset_name)
+    except NoSuchNodeError as exc:
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION from exc
+    except HDF5ExtError as exc:
+        raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
+
+    quoted_name = quote(embedded_file.original_name)
+    return StreamingResponse(
+        iter([embedded_file.content]),
+        media_type=embedded_file.mime,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{embedded_file.original_name}"; '
+                f"filename*=UTF-8''{quoted_name}"
+            )
+        },
+    )
 
 
 @router.get("/analyze/meta/{name}")

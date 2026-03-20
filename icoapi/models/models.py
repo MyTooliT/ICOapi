@@ -236,6 +236,15 @@ class EmbeddedFileUploadResponse:
     size: int
 
 
+@dataclass
+class EmbeddedFileContent:
+    """Embedded file payload and metadata"""
+
+    content: bytes
+    original_name: str
+    mime: str
+
+
 class Dataset(BaseModel, JSONEncoder):
     """Measurement data"""
 

@@ -130,3 +130,42 @@ class TestFileRoutes:
         assert response.json() == {
             "detail": "Target file is not a valid HDF5 file."
         }
+
+    def test_download_embedded_file(
+        self, client, measurement_hdf5_file: Path
+    ) -> None:
+        """Test endpoint ``/{name}/embedded/{dataset_name}``"""
+
+        payload = b"download-payload"
+        with tables.open_file(measurement_hdf5_file, mode="a") as hdf5_file:
+            group = hdf5_file.create_group("/", "embedded_files")
+            dataset = hdf5_file.create_array(group, "hello_txt", payload)
+            dataset.attrs["mime"] = "text/plain"
+            dataset.attrs["original_name"] = "hello.txt"
+
+        response = client.get("files/measurement.hdf5/embedded/hello_txt")
+
+        assert response.status_code == 200
+        assert response.content == payload
+        assert response.headers["content-type"] == "text/plain; charset=utf-8"
+        assert (
+            response.headers["content-disposition"]
+            == (
+                'attachment; filename="hello.txt";'
+                " filename*=UTF-8''hello.txt"
+            )
+        )
+
+    def test_download_embedded_file_not_found(
+        self, client, measurement_hdf5_file: Path
+    ) -> None:
+        """Test endpoint ``/{name}/embedded/{dataset_name}`` for missing data"""
+
+        assert measurement_hdf5_file.is_file()
+
+        response = client.get("files/measurement.hdf5/embedded/missing")
+
+        assert response.status_code == 404
+        assert response.json() == {
+            "detail": "File not found. Check your measurement directory."
+        }
