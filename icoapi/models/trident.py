@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import json
 from http.client import HTTPException
+from os import PathLike
 from typing import Any, Optional
 
 import requests
@@ -133,29 +134,24 @@ class StorageClient:
             data=object_details.__dict__,
         )
 
-        if not presigned_url_response.status_code // 100 == 2:
-            logger.error(
-                "Error getting presigned URL for upload: code"
-                f" {presigned_url_response.status_code} with"
-                f" {presigned_url_response.text}"
-            )
-            raise PresignError
-
-        data = presigned_url_response.json()
-        presigned_url = data["presignedUrl"]
-        if not presigned_url:
-            logger.error(
-                "Error getting presigned URL for upload: no presigned URL"
-                " returned."
-            )
-            raise PresignError
-        logger.info(f"Got presigned URL for upload: {presigned_url}")
+        presigned_url = validate_presign_url(presigned_url_response)
 
         with open(file_path, "rb") as f:
             return requests.put(presigned_url, data=f)
 
-    def update_file(self, ):
-        pass
+    def update_file(
+            self,
+            file_id: int,
+            file_path: str | PathLike
+    ):
+        presigned_url_response = self.connection.get(
+            f"/management/files/{file_id}/upload-url",
+        )
+
+        presigned_url = validate_presign_url(presigned_url_response)
+
+        with open(file_path, "rb") as f:
+            return requests.put(presigned_url, data=f)
 
     def authenticate(self, *args, **kwargs):
         self.connection.authenticate()
@@ -169,3 +165,26 @@ class StorageClient:
     def revoke_auth(self):
         self.connection.session.close()
         self.connection.session = requests.Session()
+
+
+def validate_presign_url(response: requests.Response) -> str:
+    if response.status_code // 100 != 2:
+        logger.error(
+            "Error validating presigned URL: code"
+            f" {response.status_code} with"
+            f" {response.text}"
+        )
+        raise PresignError
+
+    data = response.json()
+    presigned_url = data["presignedUrl"]
+    if not presigned_url:
+        logger.error(
+            "Error getting presigned URL for upload: no presigned URL"
+            " returned."
+        )
+        raise PresignError
+
+    logger.info(f"Got presigned URL for upload: {presigned_url}")
+
+    return presigned_url

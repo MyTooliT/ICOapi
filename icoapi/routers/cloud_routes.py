@@ -12,7 +12,7 @@ from icoapi.models.models import CloudConfig, FileCloudDetails, FileCloudStatus
 from icoapi.models.trident import (
     AuthorizationError,
     FileUploadDetails, HostNotFoundError,
-    RemoteObjectDetails, StorageClient,
+    PresignError, RemoteObjectDetails, StorageClient,
 )
 from icoapi.scripts.data_handling import get_file_data
 from icoapi.scripts.file_handling import get_measurement_dir
@@ -81,14 +81,24 @@ async def update_file(
     filename: Annotated[str, Body(embed=True)],
     client: Annotated[StorageClient, Depends(get_trident_client)],
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
-    config: Annotated[CloudConfig, Depends(get_dataspace_config)]
 ) -> FileCloudDetails:
-    print(f"Updating file <{filename}> with id <{file_id}>")
-    return FileCloudDetails(
-        id=file_id,
-        status=FileCloudStatus.UP_TO_DATE,
-        upload_timestamp=None
-    )
+    """Update file in cloud storage"""
+    if file_id is None:
+        raise HTTPException(status_code=400, detail="File ID is required")
+
+    try:
+        client.update_file(file_id, os.path.join(measurement_dir, filename))
+        logger.info("Successfully updated file <%s> with id <%i>", filename, file_id)
+        return FileCloudDetails(
+            id=file_id,
+            status=FileCloudStatus.UP_TO_DATE,
+            upload_timestamp=None
+        )
+    except PresignError as e:
+        raise HTTPException(status_code=500, detail="Error getting presigned URL") from e
+    except HTTPException as e:
+        logger.error(e)
+        raise HTTPException(status_code=500, detail="Error updating file") from e
 
 
 @router.post("/authenticate")
