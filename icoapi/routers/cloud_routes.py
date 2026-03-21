@@ -1,13 +1,14 @@
 """Support for uploading data to cloud storage"""
 import logging
 import os
+from typing import Optional
 
 from fastapi import HTTPException, APIRouter
 from fastapi.params import Depends, Annotated, Body
 from starlette.status import HTTP_502_BAD_GATEWAY
 
 from icoapi.models.globals import get_trident_client, setup_trident, get_dataspace_config
-from icoapi.models.models import CloudConfig
+from icoapi.models.models import CloudConfig, FileCloudDetails, FileCloudStatus
 from icoapi.models.trident import (
     AuthorizationError,
     FileUploadDetails, HostNotFoundError,
@@ -72,6 +73,22 @@ async def upload_file(
             logger.info("Successfully uploaded file <%s>", filename)
         except HTTPException as e:
             logger.error(e)
+
+
+@router.post("/update")
+async def update_file(
+    file_id: Annotated[Optional[int], Body(embed=True)],
+    filename: Annotated[str, Body(embed=True)],
+    client: Annotated[StorageClient, Depends(get_trident_client)],
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+    config: Annotated[CloudConfig, Depends(get_dataspace_config)]
+) -> FileCloudDetails:
+    print(f"Updating file <{filename}> with id <{file_id}>")
+    return FileCloudDetails(
+        id=file_id,
+        status=FileCloudStatus.UP_TO_DATE,
+        upload_timestamp=None
+    )
 
 
 @router.post("/authenticate")

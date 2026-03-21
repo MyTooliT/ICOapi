@@ -133,8 +133,6 @@ class StorageClient:
             data=object_details.__dict__,
         )
 
-        print(presigned_url_response)
-
         if not presigned_url_response.status_code // 100 == 2:
             logger.error(
                 "Error getting presigned URL for upload: code"
@@ -155,6 +153,9 @@ class StorageClient:
 
         with open(file_path, "rb") as f:
             return requests.put(presigned_url, data=f)
+
+    def update_file(self, ):
+        pass
 
     def authenticate(self, *args, **kwargs):
         self.connection.authenticate()
