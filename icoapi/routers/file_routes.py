@@ -18,7 +18,9 @@ from tables import HDF5ExtError, NoSuchNodeError, Node
 from icoapi.models.globals import get_trident_client
 from icoapi.models.models import (
     Dataset,
-    EmbeddedFileDeleteResponse, EmbeddedFileUploadResponse,
+    EmbeddedFileDeleteResponse,
+    EmbeddedFileUploadResponse,
+    FileCloudStatus,
     FileCloudDetails,
     FileListResponseModel,
     MeasurementFileDetails,
@@ -29,6 +31,7 @@ from icoapi.models.models import (
     Sensor,
 )
 from icoapi.models.trident import RemoteObjectDetails, StorageClient
+from icoapi.scripts.cloud_scripts import get_cloud_details
 from icoapi.scripts.data_handling import AccelerationDataNotFoundError, get_file_data
 from icoapi.scripts.errors import (
     HTTP_404_FILE_NOT_FOUND_EXCEPTION,
@@ -83,20 +86,15 @@ async def list_files_and_capacity(
                     os.path.getctime(file_path)
                 ).isoformat()
                 file_size = os.path.getsize(file_path)
-                cloud_details = FileCloudDetails(
-                    is_uploaded=False, upload_timestamp=None
+                cloud_details = (
+                    get_cloud_details(file_path, filename, cloud_files)
+                    if storage is not None
+                    else FileCloudDetails(
+                        status=FileCloudStatus.NOT_UPLOADED,
+                        upload_timestamp=None,
+                        id=None
+                    )
                 )
-                if storage is not None:
-                    matches = [
-                        file for file in cloud_files
-                        if filename in file.objectname
-                        and file.last_status != "deleted"
-                    ]
-                    if matches:
-                        cloud_details.is_uploaded = True
-                        cloud_details.upload_timestamp = matches[
-                            0
-                        ].s3_lastmodified
 
                 details = MeasurementFileDetails(
                     name=filename,
