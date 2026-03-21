@@ -34,6 +34,7 @@ def get_cloud_details(
     cloud_details = FileCloudDetails(
         status=FileCloudStatus.NOT_UPLOADED,
         upload_timestamp=None,
+        id=None
     )
     matches = [
         file for file in cloud_files
@@ -48,16 +49,21 @@ def get_cloud_details(
             remote_file.s3_lastmodified
         ),
     )
+
     cloud_details.upload_timestamp = latest_match.s3_lastmodified
+    cloud_details.id = latest_match.id
+
     if latest_match.s3_lastmodified is None:
         cloud_details.status = FileCloudStatus.UP_TO_DATE
         return cloud_details
 
     local_modified = datetime.fromtimestamp(os.path.getmtime(file_path), tz=UTC)
     cloud_modified = parse_cloud_timestamp(latest_match.s3_lastmodified)
+
     cloud_details.status = (
         FileCloudStatus.UP_TO_DATE
         if cloud_modified >= local_modified
         else FileCloudStatus.OUTDATED
     )
+
     return cloud_details

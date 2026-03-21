@@ -92,6 +92,7 @@ async def list_files_and_capacity(
                     else FileCloudDetails(
                         status=FileCloudStatus.NOT_UPLOADED,
                         upload_timestamp=None,
+                        id=None
                     )
                 )
 

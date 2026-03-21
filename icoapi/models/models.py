@@ -203,8 +203,8 @@ class FileCloudStatus(StrEnum):
 @dataclass
 class FileCloudDetails:
     """Data model for details of file on cloud"""
-
     status: FileCloudStatus
+    id: int | None
     upload_timestamp: str | None
 
 
