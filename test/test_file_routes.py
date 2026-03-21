@@ -186,18 +186,22 @@ class TestFileRoutes:
         assert files_by_name["not_uploaded.hdf5"] == {
             "status": "not_uploaded",
             "upload_timestamp": None,
+            "id": None
         }
         assert files_by_name["outdated.hdf5"] == {
             "status": "outdated",
             "upload_timestamp": "2025-01-03T00:00:00Z",
+            "id": 1
         }
         assert files_by_name["up_to_date.hdf5"] == {
             "status": "up_to_date",
             "upload_timestamp": "2025-01-03T00:00:00Z",
+            "id": 2
         }
         assert files_by_name["recent_cloud.hdf5"] == {
             "status": "up_to_date",
             "upload_timestamp": None,
+            "id": 3
         }
 
     def test_upload_embedded_file(
