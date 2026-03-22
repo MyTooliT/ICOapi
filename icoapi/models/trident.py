@@ -130,10 +130,14 @@ class StorageClient:
         file_path: str,
         object_details: FileUploadDetails,
     ):
-        presigned_url_response = self.connection.post(
-            "/management/files",
-            data=object_details.__dict__,
-        )
+        try:
+            presigned_url_response = self.connection.post(
+                "/management/files",
+                data=object_details.__dict__,
+            )
+        except Exception as e:
+            logger.error("Error getting presigned URL for upload.")
+            raise PresignError from e
 
         presigned_url = validate_presign_url(presigned_url_response)
 

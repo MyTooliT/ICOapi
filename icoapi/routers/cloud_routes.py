@@ -15,6 +15,10 @@ from icoapi.models.trident import (
     PresignError, RemoteObjectDetails, StorageClient,
 )
 from icoapi.scripts.data_handling import get_file_data
+from icoapi.scripts.errors import (
+    HTTP_500_CLOUD_UPLOAD_PRESIGN_EXCEPTION,
+    HTTP_500_CLOUD_UPLOAD_PRESIGN_SPEC,
+)
 from icoapi.scripts.file_handling import get_measurement_dir
 
 router = APIRouter(prefix="/cloud", tags=["Cloud Connection"])
@@ -22,7 +26,12 @@ router = APIRouter(prefix="/cloud", tags=["Cloud Connection"])
 logger = logging.getLogger(__name__)
 
 
-@router.post("/upload")
+@router.post(
+    "/upload",
+    responses={
+        500: HTTP_500_CLOUD_UPLOAD_PRESIGN_SPEC,
+    },
+)
 async def upload_file(
     filename: Annotated[str, Body(embed=True)],
     client: Annotated[StorageClient, Depends(get_trident_client)],
@@ -71,8 +80,8 @@ async def upload_file(
                 os.path.join(measurement_dir, filename), upload_details
             )
             logger.info("Successfully uploaded file <%s>", filename)
-        except HTTPException as e:
-            logger.error(e)
+        except PresignError as e:
+            raise HTTP_500_CLOUD_UPLOAD_PRESIGN_EXCEPTION from e
 
 
 @router.post("/update")
