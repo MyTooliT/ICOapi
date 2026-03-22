@@ -200,6 +200,7 @@ class FileCloudStatus(StrEnum):
     UPDATING = "updating"
     UP_TO_DATE = "up_to_date"
     ERROR = "error"
+    CREATED = "created"
 
 
 @dataclass
