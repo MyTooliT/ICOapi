@@ -86,8 +86,16 @@ async def list_files_and_capacity(
                     os.path.getctime(file_path)
                 ).isoformat()
                 file_size = os.path.getsize(file_path)
+                try:
+                    cloud_details = get_cloud_details(file_path, filename, cloud_files)
+                except ValueError:
+                    cloud_details = FileCloudDetails(
+                        status=FileCloudStatus.ERROR,
+                        upload_timestamp=None,
+                        id=None
+                    )
                 cloud_details = (
-                    get_cloud_details(file_path, filename, cloud_files)
+                    cloud_details
                     if storage is not None
                     else FileCloudDetails(
                         status=FileCloudStatus.NOT_UPLOADED,

@@ -1,10 +1,13 @@
 """Helpers for comparing local files with cloud metadata"""
-
 import os
 from datetime import datetime, UTC
+import logging
 
 from icoapi.models.models import FileCloudStatus, FileCloudDetails
 from icoapi.models.trident import RemoteObjectDetails
+
+
+logger = logging.getLogger(__name__)
 
 
 def parse_cloud_timestamp(timestamp: str | None) -> datetime:
@@ -36,34 +39,41 @@ def get_cloud_details(
         upload_timestamp=None,
         id=None
     )
+
     matches = [
         file for file in cloud_files
-        if filename in file.objectname and file.last_status != "deleted"
+        if file.name == filename and file.last_status != "deleted"
     ]
+
     if not matches:
         return cloud_details
 
-    latest_match = max(
-        matches,
-        key=lambda remote_file: parse_cloud_timestamp(
-            remote_file.s3_lastmodified
-        ),
-    )
+    if len(matches) > 1:
+        logger.error(
+            "Multiple non-deleted matches for file %s: with statuses %s",
+            filename, str(list(map(lambda x: x.last_status, matches))))
+        raise ValueError(
+            f"Multiple non-deleted matches for file {filename}: with "
+            f"ids {list(map(lambda x: x.id, matches))} "
+            f"statuses {list(map(lambda x: x.last_status, matches))}"
+        )
 
-    cloud_details.upload_timestamp = latest_match.s3_lastmodified
-    cloud_details.id = latest_match.id
-
-    if latest_match.s3_lastmodified is None:
-        cloud_details.status = FileCloudStatus.UP_TO_DATE
-        return cloud_details
+    latest_match = matches[0]
 
     local_modified = datetime.fromtimestamp(os.path.getmtime(file_path), tz=UTC)
     cloud_modified = parse_cloud_timestamp(latest_match.s3_lastmodified)
+    cloud_details.upload_timestamp = latest_match.s3_lastmodified
+    cloud_details.id = latest_match.id
 
-    cloud_details.status = (
-        FileCloudStatus.UP_TO_DATE
-        if cloud_modified >= local_modified
-        else FileCloudStatus.OUTDATED
-    )
+    if latest_match.last_status == 'available':
+        if local_modified > cloud_modified:
+            cloud_details.status = FileCloudStatus.OUTDATED
+        else:
+            cloud_details.status = FileCloudStatus.UP_TO_DATE
+        return cloud_details
+
+    if latest_match.last_status == "updating":
+        cloud_details.status = FileCloudStatus.UPDATING
+        return cloud_details
 
     return cloud_details
