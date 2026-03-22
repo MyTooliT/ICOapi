@@ -1,6 +1,5 @@
 """Routes for measurement data"""
 
-import asyncio
 import json
 import logging
 import os
@@ -243,9 +242,6 @@ async def get_analyzed_file(
             parsed_rows += len(batch) * 10
             progress = parsed_rows / total_rows
             yield json.dumps({"progress": progress}) + "\n"
-
-            # Simulate async behavior to avoid blocking
-            await asyncio.sleep(0.01)
 
         # Final completion progress
         yield json.dumps({"progress": 1.0}) + "\n"
