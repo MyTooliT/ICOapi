@@ -49,6 +49,7 @@ class RemoteObjectDetails:
     origin: str
     author: str
     type: str
+    etag: Optional[str]
     last_status: str
     last_status_time: str
     secrets_count: int

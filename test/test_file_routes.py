@@ -74,20 +74,22 @@ def fixture_analyze_hdf5_file(
 class TestFileRoutes:
     """File route test methods"""
 
-    def test_list_files_cloud_status(
+    def test_cloud_status(
         self, client, temporary_measurement_dir: Path
     ) -> None:
-        """Test endpoint ``/files`` reports cloud sync status"""
+        """Return cloud sync states"""
 
         not_uploaded = temporary_measurement_dir / "not_uploaded.hdf5"
         outdated = temporary_measurement_dir / "outdated.hdf5"
         up_to_date = temporary_measurement_dir / "up_to_date.hdf5"
         recent_cloud = temporary_measurement_dir / "recent_cloud.hdf5"
+        updating = temporary_measurement_dir / "updating.hdf5"
         for file_path in (
             not_uploaded,
             outdated,
             up_to_date,
             recent_cloud,
+            updating,
         ):
             file_path.write_bytes(b"content")
 
@@ -95,6 +97,7 @@ class TestFileRoutes:
         os.utime(outdated, (1736035200, 1736035200))
         os.utime(up_to_date, (1735776000, 1735776000))
         os.utime(recent_cloud, (1736121600, 1736121600))
+        os.utime(updating, (1736121600, 1736121600))
 
         remote_files = [
             RemoteObjectDetails(
@@ -110,7 +113,7 @@ class TestFileRoutes:
                 origin="origin",
                 author="author",
                 type="file",
-                last_status="uploaded",
+                last_status="available",
                 last_status_time="2025-01-03T00:00:00Z",
                 secrets_count=0,
                 access_total_count=0,
@@ -118,6 +121,7 @@ class TestFileRoutes:
                 last_access_time=None,
                 active_offerings_count=0,
                 virtual_group=None,
+                etag="etag1",
             ),
             RemoteObjectDetails(
                 id=2,
@@ -132,7 +136,7 @@ class TestFileRoutes:
                 origin="origin",
                 author="author",
                 type="file",
-                last_status="uploaded",
+                last_status="available",
                 last_status_time="2025-01-03T00:00:00Z",
                 secrets_count=0,
                 access_total_count=0,
@@ -140,6 +144,7 @@ class TestFileRoutes:
                 last_access_time=None,
                 active_offerings_count=0,
                 virtual_group=None,
+                etag="etag2",
             ),
             RemoteObjectDetails(
                 id=3,
@@ -154,7 +159,7 @@ class TestFileRoutes:
                 origin="origin",
                 author="author",
                 type="file",
-                last_status="uploaded",
+                last_status="available",
                 last_status_time="2025-01-06T00:00:00Z",
                 secrets_count=0,
                 access_total_count=0,
@@ -162,6 +167,30 @@ class TestFileRoutes:
                 last_access_time=None,
                 active_offerings_count=0,
                 virtual_group=None,
+                etag="etag3",
+            ),
+            RemoteObjectDetails(
+                id=4,
+                bucket="bucket",
+                objectname="updating.hdf5",
+                name="updating.hdf5",
+                description=None,
+                metadata={},
+                created_at="2025-01-01T00:00:00Z",
+                s3_lastmodified="2025-01-06T00:00:00Z",
+                s3_size=7,
+                origin="origin",
+                author="author",
+                type="file",
+                last_status="updating",
+                last_status_time="2025-01-06T00:00:00Z",
+                secrets_count=0,
+                access_total_count=0,
+                access_week_count=0,
+                last_access_time=None,
+                active_offerings_count=0,
+                virtual_group=None,
+                etag="etag4",
             ),
         ]
 
@@ -202,6 +231,175 @@ class TestFileRoutes:
             "status": "up_to_date",
             "upload_timestamp": None,
             "id": 3
+        }
+        assert files_by_name["updating.hdf5"] == {
+            "status": "updating",
+            "upload_timestamp": "2025-01-06T00:00:00Z",
+            "id": 4
+        }
+
+    def test_cloud_status_exact_name_match(
+        self, client, temporary_measurement_dir: Path
+    ) -> None:
+        """Match cloud files by exact name"""
+
+        ambiguous = temporary_measurement_dir / "ambiguous.hdf5"
+        ambiguous.write_bytes(b"content")
+        os.utime(ambiguous, (1736035200, 1736035200))
+
+        remote_files = [
+            RemoteObjectDetails(
+                id=11,
+                bucket="bucket",
+                objectname="remote/path/ambiguous.hdf5",
+                name="ambiguous.hdf5",
+                description=None,
+                metadata={},
+                created_at="2025-01-01T00:00:00Z",
+                s3_lastmodified="2025-01-03T00:00:00Z",
+                s3_size=7,
+                origin="origin",
+                author="author",
+                type="file",
+                last_status="available",
+                last_status_time="2025-01-03T00:00:00Z",
+                secrets_count=0,
+                access_total_count=0,
+                access_week_count=0,
+                last_access_time=None,
+                active_offerings_count=0,
+                virtual_group=None,
+                etag="etag11",
+            ),
+            RemoteObjectDetails(
+                id=12,
+                bucket="bucket",
+                objectname="remote/path/prefix-ambiguous.hdf5",
+                name="prefix-ambiguous.hdf5",
+                description=None,
+                metadata={},
+                created_at="2025-01-01T00:00:00Z",
+                s3_lastmodified="2025-01-04T00:00:00Z",
+                s3_size=7,
+                origin="origin",
+                author="author",
+                type="file",
+                last_status="available",
+                last_status_time="2025-01-04T00:00:00Z",
+                secrets_count=0,
+                access_total_count=0,
+                access_week_count=0,
+                last_access_time=None,
+                active_offerings_count=0,
+                virtual_group=None,
+                etag="etag12",
+            ),
+        ]
+
+        def get_remote_objects():
+            """Return controlled remote object data for tests"""
+
+            return SimpleNamespace(files=remote_files)
+
+        def get_fake_trident_client():
+            """Return a storage client stub for tests"""
+
+            return SimpleNamespace(get_remote_objects=get_remote_objects)
+
+        app.dependency_overrides[get_trident_client] = get_fake_trident_client
+
+        response = client.get("files")
+
+        assert response.status_code == 200
+        files_by_name = {
+            file["name"]: file["cloud"] for file in response.json()["files"]
+        }
+        assert files_by_name["ambiguous.hdf5"] == {
+            "status": "outdated",
+            "upload_timestamp": "2025-01-03T00:00:00Z",
+            "id": 11
+        }
+
+    def test_cloud_status_duplicate_exact_name_error(
+        self, client, temporary_measurement_dir: Path
+    ) -> None:
+        """Return error for duplicate exact matches"""
+
+        duplicate = temporary_measurement_dir / "duplicate.hdf5"
+        duplicate.write_bytes(b"content")
+        os.utime(duplicate, (1736035200, 1736035200))
+
+        remote_files = [
+            RemoteObjectDetails(
+                id=21,
+                bucket="bucket",
+                objectname="remote/path-a/duplicate.hdf5",
+                name="duplicate.hdf5",
+                description=None,
+                metadata={},
+                created_at="2025-01-01T00:00:00Z",
+                s3_lastmodified="2025-01-03T00:00:00Z",
+                s3_size=7,
+                origin="origin",
+                author="author",
+                type="file",
+                last_status="available",
+                last_status_time="2025-01-03T00:00:00Z",
+                secrets_count=0,
+                access_total_count=0,
+                access_week_count=0,
+                last_access_time=None,
+                active_offerings_count=0,
+                virtual_group=None,
+                etag="etag21",
+            ),
+            RemoteObjectDetails(
+                id=22,
+                bucket="bucket",
+                objectname="remote/path-b/duplicate.hdf5",
+                name="duplicate.hdf5",
+                description=None,
+                metadata={},
+                created_at="2025-01-01T00:00:00Z",
+                s3_lastmodified="2025-01-04T00:00:00Z",
+                s3_size=7,
+                origin="origin",
+                author="author",
+                type="file",
+                last_status="updating",
+                last_status_time="2025-01-04T00:00:00Z",
+                secrets_count=0,
+                access_total_count=0,
+                access_week_count=0,
+                last_access_time=None,
+                active_offerings_count=0,
+                virtual_group=None,
+                etag="etag22",
+            ),
+        ]
+
+        def get_remote_objects():
+            """Return controlled remote object data for tests"""
+
+            return SimpleNamespace(files=remote_files)
+
+        def get_fake_trident_client():
+            """Return a storage client stub for tests"""
+
+            return SimpleNamespace(get_remote_objects=get_remote_objects)
+
+        app.dependency_overrides[get_trident_client] = get_fake_trident_client
+
+        response = client.get("files")
+
+        assert response.status_code == 200
+        files_by_name = {
+            file["name"]: file["cloud"] for file in response.json()["files"]
+        }
+        assert files_by_name["duplicate.hdf5"] == {
+            "status": "error",
+            "upload_timestamp": None,
+            "id": None
         }
 
     def test_upload_embedded_file(

@@ -197,7 +197,9 @@ class FileCloudStatus(StrEnum):
 
     NOT_UPLOADED = "not_uploaded"
     OUTDATED = "outdated"
+    UPDATING = "updating"
     UP_TO_DATE = "up_to_date"
+    ERROR = "error"
 
 
 @dataclass

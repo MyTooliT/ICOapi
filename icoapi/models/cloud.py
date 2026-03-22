@@ -251,7 +251,11 @@ class BearerAuthConnection(CloudConnection):
                     "Trident API could not be reached, raised code %s",
                     response.status_code
                 )
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as e:
+                logger.error("Request failed: %s", e)
+                raise HTTPException("Request failed") from e
             return response
         except requests.exceptions.RequestException as e:
             logger.error("Request error: %s", e)
