@@ -1,4 +1,5 @@
 """Helpers for comparing local files with cloud metadata"""
+import hashlib
 import os
 from datetime import datetime, UTC
 import logging
@@ -62,12 +63,19 @@ def get_cloud_details(
 
     local_modified = datetime.fromtimestamp(os.path.getmtime(file_path), tz=UTC)
     cloud_modified = parse_cloud_timestamp(latest_match.s3_lastmodified)
+
     cloud_details.upload_timestamp = latest_match.s3_lastmodified
     cloud_details.id = latest_match.id
 
     if latest_match.last_status == 'available':
         if local_modified > cloud_modified:
-            cloud_details.status = FileCloudStatus.OUTDATED
+            local_hash = None
+            with open(file_path, "rb") as f:
+                local_hash = hashlib.md5(f.read()).hexdigest()
+            if local_hash != latest_match.etag:
+                cloud_details.status = FileCloudStatus.OUTDATED
+            else:
+                cloud_details.status = FileCloudStatus.UP_TO_DATE
         else:
             cloud_details.status = FileCloudStatus.UP_TO_DATE
         return cloud_details
@@ -75,5 +83,8 @@ def get_cloud_details(
     if latest_match.last_status == "updating":
         cloud_details.status = FileCloudStatus.UPDATING
         return cloud_details
+
+    if latest_match.last_status == "created":
+        cloud_details.status = FileCloudStatus.CREATED
 
     return cloud_details

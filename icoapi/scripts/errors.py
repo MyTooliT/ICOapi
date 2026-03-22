@@ -443,5 +443,37 @@ HTTP_500_CONFIG_RESTORE_SPEC = {
                 "status_code": 500,
             },
         }
+    }
+}
+HTTP_500_CLOUD_UPLOAD_PRESIGN_EXCEPTION = HTTPException(
+    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    detail=(
+        "Could not upload to dataspace. Most likely, this results from a"
+        " duplicate entry."
+    ),
+)
+HTTP_500_CLOUD_UPLOAD_PRESIGN_SPEC = {
+    "description": (
+        "Could not upload to dataspace. Most likely, this results from a"
+        " duplicate entry."
+    ),
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+                "required": ["detail", "status_code"],
+            },
+            "example": {
+                "detail": (
+                    "Could not upload to dataspace. Most likely, this"
+                    " results from a duplicate entry."
+                ),
+                "status_code": 500,
+            },
+        }
     },
 }
