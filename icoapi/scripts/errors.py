@@ -443,9 +443,8 @@ HTTP_500_CONFIG_RESTORE_SPEC = {
                 "status_code": 500,
             },
         }
-    },
+    }
 }
-
 HTTP_500_CLOUD_UPLOAD_PRESIGN_EXCEPTION = HTTPException(
     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
     detail=(

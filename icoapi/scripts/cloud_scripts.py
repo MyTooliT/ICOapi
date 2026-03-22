@@ -69,7 +69,9 @@ def get_cloud_details(
 
     if latest_match.last_status == 'available':
         if local_modified > cloud_modified:
-            local_hash = hashlib.md5(open(file_path, "rb").read()).hexdigest()
+            local_hash = None
+            with open(file_path, "rb") as f:
+                local_hash= hashlib.md5(f.read()).hexdigest()
             if local_hash != latest_match.etag:
                 cloud_details.status = FileCloudStatus.OUTDATED
             else:
