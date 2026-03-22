@@ -606,6 +606,8 @@ async def run_measurement(
             if instructions.disconnect_after_measurement:
                 await disconnect_sth_devices(system)
 
+            measurement_state.running = False
+
             # Send IFT value values at once after the measurement is finished.
             if instructions.ift_requested:
                 # If only one channel is enabled then each streaming message
