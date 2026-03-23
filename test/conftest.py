@@ -11,7 +11,7 @@ from httpx_ws.transport import ASGIWebSocketTransport
 from netaddr import EUI
 from pytest import fixture
 
-from icoapi.api import app
+from icoapi.api import app, setup_config
 
 # -- Functions ----------------------------------------------------------------
 
@@ -151,6 +151,8 @@ def sensor_name():
 def client():
     """Test client used to communicate with API"""
 
+    setup_config()
+
     with TestClient(
         app=app,
         base_url="http://test/api/v1/",
@@ -161,6 +163,8 @@ def client():
 @fixture(scope="session")
 async def async_client():
     """Async test client used to communicate with API"""
+
+    setup_config()
 
     async with AsyncClient(
         transport=ASGIWebSocketTransport(app=app),
