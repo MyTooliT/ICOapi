@@ -6,6 +6,7 @@ import logging
 import os
 from itertools import repeat
 from pathlib import Path
+from time import monotonic
 
 from icolyzer import iftlibrary
 from icostate import ICOsystem, State
@@ -14,7 +15,7 @@ from icotronic.can.sensor import SensorConfiguration
 from icotronic.can.streaming import (
     StreamingConfiguration,
     StreamingData,
-    StreamingTimeoutError
+    StreamingTimeoutError,
 )
 from icotronic.measurement import Storage, StorageData
 import numpy as np
@@ -417,8 +418,13 @@ async def measurement_preparations(
     await write_sensor_config_if_required(system, sensor_configuration)
 
 
-async def send_dataloss(measurement_state: MeasurementState, dataloss: float) -> None:
+async def send_dataloss(
+    measurement_state: MeasurementState, dataloss: float
+) -> None:
     """Send dataloss to clients of the measurement state WebSocket"""
+
+    logger.debug("Sending dataloss: %s to clients", dataloss)
+
     for client in measurement_state.clients:
         try:
             await client.send_json([
@@ -500,7 +506,7 @@ async def run_measurement(
                 )
 
                 counter: int = 0
-                dataloss_counter : int = 0
+                dataloss_sent_time = monotonic()
                 data_collected_for_send: list = []
 
                 sensor_info = MeasurementSensorInfo(instructions)
@@ -571,13 +577,12 @@ async def run_measurement(
                     storage.add_streaming_data(data)
 
                     # Send current dataloss once per second
-                    if dataloss_counter >= sample_rate:
+                    current_time = monotonic()
+                    if current_time >= dataloss_sent_time + 1:
                         dataloss = stream.dataloss()
                         await send_dataloss(measurement_state, dataloss)
-                        dataloss_counter = 0
+                        dataloss_sent_time = current_time
                         stream.reset_stats()
-                    else:
-                        dataloss_counter += 1
 
                     if counter >= (
                         sample_rate
