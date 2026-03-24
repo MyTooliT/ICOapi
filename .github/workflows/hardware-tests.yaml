@@ -50,5 +50,18 @@ jobs:
           just setup
           uv run icon stu reset
 
+      - name: Check if test sensor node is available
+        run: |
+          uv run icon list > devices.txt
+          if ! grep -q Test-STH devices.txt; then
+            printerr() { printf "%s\n" "$@" 1>&2; }
+            printerr "Unable to find “Test-STH”"
+            printerr "Found the following sensor nodes:"
+            printerr "—————————————————————————————————"
+            cat devices.txt 1>&2
+            printerr "—————————————————————————————————"
+            exit 1
+          fi
+
       - name: Run hardware tests
         run: just test
