@@ -45,14 +45,10 @@ jobs:
       - name: Install just
         uses: taiki-e/install-action@just
 
-      # TODO: Remove `if` and `grep` after we close
-      #       https://github.com/MyTooliT/ICOtronic/issues/32
       - name: Reset ICOtronic hardware
         run: |
           just setup
-          if uv run icon stu reset 2>&1 >/dev/null | grep 'Unable to'; then
-            exit 1
-          fi
+          uv run icon stu reset
 
       - name: Check if test sensor node is available
         run: |
