@@ -442,7 +442,7 @@ async def overwrite_post_meta(
         raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
 
     # we have the file and the metadata object
-    with Storage(file_path) as storage:
+    with Storage(file_path) as storage:  # pylint: disable=not-callable
         try:
             node: Node = storage.hdf.get_node("/acceleration")
             del node.attrs["post_metadata"]
@@ -470,7 +470,7 @@ async def overwrite_pre_meta(
         raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
 
     # we have the file and the metadata object
-    with Storage(file_path) as storage:
+    with Storage(file_path) as storage:  # pylint: disable=not-callable
         try:
             node: Node = storage.hdf.get_node("/acceleration")
             del node.attrs["pre_metadata"]
