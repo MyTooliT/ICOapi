@@ -10,7 +10,7 @@ import yaml
 from fastapi import HTTPException
 
 from tables import Float32Col, IsDescription, NoSuchNodeError, StringCol
-from icotronic.measurement import StorageData
+from icotronic.measurement.storage import StorageData
 
 from icoapi.models.models import (
     EmbeddedFileInfo,

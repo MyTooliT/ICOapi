@@ -9,7 +9,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.params import Depends
 from fastapi.responses import FileResponse, StreamingResponse
-from icotronic.measurement import Storage
+from icotronic.measurement.storage import Storage
 from starlette.responses import PlainTextResponse
 from tables import HDF5ExtError, NoSuchNodeError, Node
 

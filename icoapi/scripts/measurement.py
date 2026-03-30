@@ -17,7 +17,7 @@ from icotronic.can.streaming import (
     StreamingData,
     StreamingTimeoutError,
 )
-from icotronic.measurement import Storage, StorageData
+from icotronic.measurement.storage import Storage, StorageData
 import numpy as np
 from starlette.websockets import WebSocketDisconnect
 import tables.exceptions
