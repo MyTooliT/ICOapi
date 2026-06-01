@@ -396,7 +396,7 @@ class SensorDescription(IsDescription):
 def add_sensor_data_to_storage(
     storage: StorageData, sensors: List[Sensor]
 ) -> None:
-    """Add sensor data to storage oject"""
+    """Add sensor data to storage object"""
 
     if not storage.hdf:
         logger.error("Could not add sensors to storage; no storage found.")
