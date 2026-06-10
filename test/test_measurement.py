@@ -231,11 +231,7 @@ class TestMeasurement:
             ):
                 assert key in message
             assert message["timestamp"] >= 0
-            # pylint: disable=fixme
-            # TODO: Set minimum value to -100, after we close
-            # https://github.com/MyTooliT/ICOapi/issues/29
             assert -125 <= message["first"] <= 100
-            # pylint: enable=fixme
             assert message["second"] is None
             assert message["third"] is None
             assert 0 <= message["counter"] <= 255
@@ -329,9 +325,6 @@ class TestMeasurement:
             assert len(data) >= 1
             message = data[0]
             assert message["timestamp"] >= 0
-            # pylint: disable=fixme
-            # TODO: Set minimum value to -100 and maximum value to 100, after
-            #       we close https://github.com/MyTooliT/ICOapi/issues/29
             assert -125 <= message["first"] <= 125
             assert -125 <= message["second"] <= 125
             assert -125 <= message["third"] <= 125
