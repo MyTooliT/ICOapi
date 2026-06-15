@@ -39,7 +39,7 @@ version = "0.2.0a3"
 [project.optional-dependencies]
 dev = [
   "Flake8-pyproject>=1.2.3",
-  "mypy>=1.19.1",
+  "mypy>=2.1.0",
   "myst-parser>=5",
   "pylint>=4.0.5",
   "sphinx>=9.1.0,<10",
