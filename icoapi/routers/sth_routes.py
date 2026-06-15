@@ -5,6 +5,7 @@ from fastapi import APIRouter, Body, Depends
 from icotronic.can.error import NoResponseError
 from icostate import ICOsystem
 from icostate.error import IncorrectStateError
+import logging
 
 from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_EXCEPTION,
@@ -29,6 +30,8 @@ from icoapi.scripts.sth_scripts import (
     rename_sth_device,
     write_sth_adc,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/sth",
@@ -127,18 +130,27 @@ async def sth(
 async def sth_connect(
     mac_address: Annotated[str, Body(embed=True)],
     system: ICOsystem = Depends(get_system),
-) -> None:
-    """Connect to sensor node"""
+) -> float | None:
+    """Connect to sensor node and return the supply voltage"""
 
     try:
         await connect_sth_device_by_mac(system, mac_address)
-        return None
     except IncorrectStateError as error:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
+
+
+    if system.sensor_node is not None:
+        supply_voltage: float = await system.sensor_node.get_supply_voltage()
+        formatted_supply_voltage = round(supply_voltage, 2)
+        logger.info("Connected STH has supply voltage: %sV", formatted_supply_voltage)
+        return supply_voltage
+
+    logger.warning("Could not get supply voltage from connected STH.")
+    return None
 
 
 @router.put(
