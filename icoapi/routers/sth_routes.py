@@ -1,11 +1,11 @@
 """Routes for STH functionality"""
 
+import logging
 from typing import Annotated
 from fastapi import APIRouter, Body, Depends
 from icotronic.can.error import NoResponseError
 from icostate import ICOsystem
 from icostate.error import IncorrectStateError
-import logging
 
 from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_EXCEPTION,
@@ -141,7 +141,6 @@ async def sth_connect(
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
-
 
     if system.sensor_node is not None:
         supply_voltage: float = await system.sensor_node.get_supply_voltage()
