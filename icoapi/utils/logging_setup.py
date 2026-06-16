@@ -111,7 +111,10 @@ def setup_logging() -> None:
         )
 
     file_handler = RotatingFileHandler(
-        LOG_PATH, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT
+        LOG_PATH,
+        maxBytes=LOG_MAX_BYTES,
+        backupCount=LOG_BACKUP_COUNT,
+        encoding="utf-8",
     )
     file_handler.setFormatter(formatter)
 
