@@ -10,6 +10,7 @@ When the API is running, it hosts an OpenAPI compliant documentation under `/doc
 requirements
 install
 usage
+api
 configuration
 conversion
 development

@@ -12,3 +12,6 @@ dist
 /.idea/
 /uv.lock
 /sphinx
+
+# Auto-generated OpenAPI spec by sphinx-build
+/doc/sphinx/openapi.yaml
