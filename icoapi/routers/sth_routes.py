@@ -1,5 +1,6 @@
 """Routes for STH functionality"""
 
+import logging
 from typing import Annotated
 from fastapi import APIRouter, Body, Depends
 from icotronic.can.error import NoResponseError
@@ -11,14 +12,14 @@ from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_SPEC,
     HTTP_404_STH_UNREACHABLE_EXCEPTION,
     HTTP_404_STH_UNREACHABLE_SPEC,
-    HTTP_502_CAN_NO_RESPONSE_SPEC,
+    HTTP_500_SUPPLY_VOLTAGE_EXCEPTION, HTTP_500_SUPPLY_VOLTAGE_SPEC, HTTP_502_CAN_NO_RESPONSE_SPEC,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
 )
 from icoapi.models.models import (
     ADCValues,
     STHDeviceResponseModel,
     STHRenameRequestModel,
-    STHRenameResponseModel,
+    STHRenameResponseModel, SupplyVoltageResponseModel,
 )
 from icoapi.models.globals import get_system
 from icoapi.scripts.sth_scripts import (
@@ -29,6 +30,8 @@ from icoapi.scripts.sth_scripts import (
     rename_sth_device,
     write_sth_adc,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/sth",
@@ -132,7 +135,6 @@ async def sth_connect(
 
     try:
         await connect_sth_device_by_mac(system, mac_address)
-        return None
     except IncorrectStateError as error:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
     except TimeoutError as error:
@@ -267,3 +269,23 @@ async def write_adc(
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
+
+
+@router.get(
+    "/supply-voltage",
+    responses={
+        200: {"description": "Supply voltage of connected STH."},
+        500: HTTP_500_SUPPLY_VOLTAGE_SPEC,
+    }
+)
+async def get_supply_voltage(system: ICOsystem = Depends(get_system)) -> SupplyVoltageResponseModel:
+    """Get supply voltage of connected STH."""
+    try:
+        supply_voltage: float = await system.sensor_node.get_supply_voltage()
+        formatted_supply_voltage = round(supply_voltage, 2)
+        logger.info("Connected STH supply voltage: %sV", formatted_supply_voltage)
+        return SupplyVoltageResponseModel(supply_voltage=supply_voltage)
+
+    except AttributeError as error:
+        logger.error("Could not get supply voltage from connected STH: %s", str(error))
+        raise HTTP_500_SUPPLY_VOLTAGE_EXCEPTION(str(error)) from error
