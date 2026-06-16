@@ -12,14 +12,14 @@ from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_SPEC,
     HTTP_404_STH_UNREACHABLE_EXCEPTION,
     HTTP_404_STH_UNREACHABLE_SPEC,
-    HTTP_502_CAN_NO_RESPONSE_SPEC,
+    HTTP_500_SUPPLY_VOLTAGE_EXCEPTION, HTTP_500_SUPPLY_VOLTAGE_SPEC, HTTP_502_CAN_NO_RESPONSE_SPEC,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
 )
 from icoapi.models.models import (
     ADCValues,
     STHDeviceResponseModel,
     STHRenameRequestModel,
-    STHRenameResponseModel,
+    STHRenameResponseModel, SupplyVoltageResponseModel,
 )
 from icoapi.models.globals import get_system
 from icoapi.scripts.sth_scripts import (
@@ -130,8 +130,8 @@ async def sth(
 async def sth_connect(
     mac_address: Annotated[str, Body(embed=True)],
     system: ICOsystem = Depends(get_system),
-) -> float | None:
-    """Connect to sensor node and return the supply voltage"""
+) -> None:
+    """Connect to sensor node"""
 
     try:
         await connect_sth_device_by_mac(system, mac_address)
@@ -141,15 +141,6 @@ async def sth_connect(
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
-
-    if system.sensor_node is not None:
-        supply_voltage: float = await system.sensor_node.get_supply_voltage()
-        formatted_supply_voltage = round(supply_voltage, 2)
-        logger.info("Connected STH has supply voltage: %sV", formatted_supply_voltage)
-        return supply_voltage
-
-    logger.warning("Could not get supply voltage from connected STH.")
-    return None
 
 
 @router.put(
@@ -278,3 +269,23 @@ async def write_adc(
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
+
+
+@router.get(
+    "/supply-voltage",
+    responses={
+        200: {"description": "Supply voltage of connected STH."},
+        500: HTTP_500_SUPPLY_VOLTAGE_SPEC,
+    }
+)
+async def get_supply_voltage(system: ICOsystem = Depends(get_system)) -> SupplyVoltageResponseModel:
+    """Get supply voltage of connected STH."""
+    try:
+        supply_voltage: float = await system.sensor_node.get_supply_voltage()
+        formatted_supply_voltage = round(supply_voltage, 2)
+        logger.info("Connected STH supply voltage: %sV", formatted_supply_voltage)
+        return SupplyVoltageResponseModel(supply_voltage=supply_voltage)
+
+    except AttributeError as error:
+        logger.error("Could not get supply voltage from connected STH: %s", str(error))
+        raise HTTP_500_SUPPLY_VOLTAGE_EXCEPTION(str(error)) from error

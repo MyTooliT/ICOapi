@@ -1,12 +1,12 @@
 """Data Model Information"""
-
+import datetime
 from enum import unique, StrEnum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from json import JSONEncoder
 from typing import Any, Dict, List, Optional
 
 import pandas
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from icostate import ADCConfiguration, SensorNodeInfo
 
@@ -532,6 +532,29 @@ class ConfigRestoreRequest(BaseModel):
 
     filename: str
     backup_filename: str
+
+
+def _require_all_fields(schema: dict[str, Any]) -> None:
+    schema["required"] = list(schema.get("properties", {}).keys())
+
+
+@dataclass
+class SupplyVoltageResponseModel:
+    """
+    Response model for supply voltage
+
+    Use the indication field when a mapping of the voltage to a specific
+    charge status becomes available.
+    """
+
+    __pydantic_config__ = ConfigDict(json_schema_extra=_require_all_fields)
+
+    supply_voltage: float
+    unit: str = "V"
+    indication: str | None = None
+    timestamp_utc_iso: str = field(
+        default_factory=lambda: datetime.datetime.now(datetime.UTC).isoformat()
+    )
 
 
 if __name__ == "__main__":

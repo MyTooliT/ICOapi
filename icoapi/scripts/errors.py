@@ -477,3 +477,32 @@ HTTP_500_CLOUD_UPLOAD_PRESIGN_SPEC = {
         }
     },
 }
+
+
+class HTTP_500_SUPPLY_VOLTAGE_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
+    """Failed to read supply voltage."""
+    def __init__(self, e: str):
+        super().__init__(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to read supply voltage. {e}",
+        )
+
+
+HTTP_500_SUPPLY_VOLTAGE_SPEC = {
+    "description": "Failed to read supply voltage.",
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+            },
+            "example": {
+                "detail": "Failed to read supply voltage.",
+                "status_code": 500,
+            }
+        }
+    }
+}
