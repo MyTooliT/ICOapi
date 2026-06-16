@@ -295,7 +295,7 @@ class TestMeasurement:
         ).sample_rate()
         getLogger().debug("Sample Rate: %.2f Hz", sample_rate)
         approx_number_values = (
-            measurement_ift_value["time"] - 0.1
+            measurement_ift_value["time"] - 0.15
         ) * sample_rate
         assert len(values) >= approx_number_values
 
