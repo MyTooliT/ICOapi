@@ -87,6 +87,11 @@ reset:
 connect:
 	http PUT "{{http_url}}/sth/connect" "mac_address={{mac_address}}"
 
+# List sensor nodes
+[group('http')]
+list:
+	http GET "{{http_url}}/sth"
+
 # Disconnect from sensor node
 [group('http')]
 disconnect:
