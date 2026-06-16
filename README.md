@@ -1,4 +1,4 @@
-[![GitHub Workflow Documentation](https://img.shields.io/github/actions/workflow/status/mytoolit/ICOapi/documentation.yaml?branch=main&label=Documentation)](https://mytoolit.github.io/ICOapi/)
+[![GitHub Workflow Documentation](https://img.shields.io/github/actions/workflow/status/mytoolit/ICOapi/documentation.yaml?branch=main&label=Documentation)](https://mytoolit.github.io/ICOapi/)[![Read the Docs ](https://img.shields.io/readthedocs/icoapi?label=Read%20the%20Docs)](https://icoapi.readthedocs.io/en/latest/)
 
 # ICOapi
 
