@@ -45,9 +45,11 @@ jobs:
       - name: Install just
         uses: taiki-e/install-action@just
 
+      - name: Install ICOapi
+        run: just setup
+
       - name: Reset ICOtronic hardware
         run: |
-          just setup
           uv run icon stu reset
 
       - name: Check if test sensor node is available
