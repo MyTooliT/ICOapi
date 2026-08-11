@@ -109,6 +109,7 @@ async def start_measurement(
     )
 
     measurement_state.running = True
+    await general_messenger.push_messenger_update()
 
     return ControlResponse(
         message="Measurement started successfully.",

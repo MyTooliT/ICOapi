@@ -631,6 +631,7 @@ async def run_measurement(
                 await disconnect_sth_devices(system)
 
             measurement_state.running = False
+            await general_messenger.push_messenger_update()
 
             # Send IFT value values at once after the measurement is finished.
             if instructions.ift_requested:

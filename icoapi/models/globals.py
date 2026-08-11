@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from typing import List
-from starlette.websockets import WebSocket
+from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from icostate import CANInitError, ICOsystem
 from icostate.state import State
@@ -124,10 +124,6 @@ class MeasurementState:
         self.pre_meta: Metadata | None = None
         self.post_meta: Metadata | None = None
 
-    def __setattr__(self, name: str, value) -> None:
-        super().__setattr__(name, value)
-        asyncio.create_task(get_messenger().push_messenger_update())
-
     async def reset(self) -> None:
         """Reset measurement"""
 
@@ -199,8 +195,6 @@ class MeasurementSingleton:
 async def get_measurement_state():
     """Get measurement singleton"""
 
-    # We need a coroutine here, since `Measurement.__setattr__`
-    # uses `asyncio.create_task`, which requires a running event loop.
     return MeasurementSingleton().get_instance()
 
 
@@ -315,6 +309,7 @@ class GeneralMessenger:
     """
 
     _clients: List[WebSocket] = []
+    _push_lock: asyncio.Lock = asyncio.Lock()
 
     @classmethod
     def add_messenger(cls, messenger: WebSocket):
@@ -339,23 +334,43 @@ class GeneralMessenger:
             )
 
     @classmethod
+    async def _broadcast(cls, message: SocketMessage) -> None:
+        """Send a message to all connected clients
+
+        Broadcasts are serialized, since concurrent sends on the same
+        WebSocket connection are not supported and can crash the connection.
+        Clients that fail to receive the message are dropped.
+        """
+
+        payload = message.model_dump()
+        async with cls._push_lock:
+            for client in list(cls._clients):
+                try:
+                    await client.send_json(payload)
+                except (RuntimeError, WebSocketDisconnect):
+                    logger.warning(
+                        "Dropping unresponsive WebSocket instance from"
+                        " general messenger list"
+                    )
+                    cls.remove_messenger(client)
+
+    @classmethod
     async def push_messenger_update(cls):
         """Push updates about general state to messenger clients"""
 
         state = await get_measurement_state()
         cloud = await get_trident_feature()
-        for client in cls._clients:
-            await client.send_json(
-                SocketMessage(
-                    message="state",
-                    data=SystemStateModel(
-                        can_ready=ICOsystemSingleton.has_instance(),
-                        disk_capacity=get_disk_space_in_gib(),
-                        cloud=cloud,
-                        measurement_status=state.get_status(),
-                    ),
-                ).model_dump()
+        await cls._broadcast(
+            SocketMessage(
+                message="state",
+                data=SystemStateModel(
+                    can_ready=ICOsystemSingleton.has_instance(),
+                    disk_capacity=get_disk_space_in_gib(),
+                    cloud=cloud,
+                    measurement_status=state.get_status(),
+                ),
             )
+        )
 
         if (len(cls._clients)) > 0:
             logger.info("Pushed SystemState to %s clients.", len(cls._clients))
@@ -364,19 +379,13 @@ class GeneralMessenger:
     async def send_post_meta_request(cls):
         """Send post measurement metadata"""
 
-        for client in cls._clients:
-            await client.send_json(
-                SocketMessage(message="post_meta_request").model_dump()
-            )
+        await cls._broadcast(SocketMessage(message="post_meta_request"))
 
     @classmethod
     async def send_post_meta_completed(cls):
         """Send post measurement metadata completed"""
 
-        for client in cls._clients:
-            await client.send_json(
-                SocketMessage(message="post_meta_completed").model_dump()
-            )
+        await cls._broadcast(SocketMessage(message="post_meta_completed"))
 
 
 def get_messenger():
