@@ -445,6 +445,83 @@ async def send_dataloss(
             )
 
 
+async def notify_clients_of_measurement_error(
+    measurement_state: MeasurementState, error: BaseException
+) -> None:
+    """Notify measurement WebSocket clients that the measurement failed"""
+
+    for client in measurement_state.clients:
+        try:
+            await client.send_json({
+                "error": True,
+                "type": type(error).__name__,
+                "message": str(error),
+            })
+        except RuntimeError:
+            logger.warning(
+                "Failed to notify client <%s> about measurement error",
+                client.client,
+            )
+    measurement_state.clients.clear()
+
+
+async def mark_measurement_stopped(
+    measurement_state: MeasurementState, general_messenger: GeneralMessenger
+) -> None:
+    """Mark the measurement as no longer running and notify listeners"""
+
+    measurement_state.running = False
+    await general_messenger.push_messenger_update()
+
+
+async def request_and_receive_post_meta(
+    storage: StorageData,
+    measurement_state: MeasurementState,
+    general_messenger: GeneralMessenger,
+) -> None:
+    """Ask the client for post-measurement metadata and write it once received"""
+
+    logger.info("Waiting for post-measurement metadata")
+    await general_messenger.send_post_meta_request()
+    while measurement_state.post_meta is None:
+        await asyncio.sleep(1)
+    logger.info("Received post-measurement metadata")
+    await general_messenger.send_post_meta_completed()
+    write_metadata(MetadataPrefix.POST, measurement_state.post_meta, storage)
+
+
+async def request_post_meta_after_abnormal_stop(
+    measurement_file_path: Path,
+    measurement_state: MeasurementState,
+    general_messenger: GeneralMessenger,
+) -> None:
+    """
+    Still ask for post-measurement metadata after the measurement stopped
+    due to an error.
+
+    The success path below requests post-measurement metadata before the
+    measurement file is closed. When the measurement instead stops because
+    of an exception (e.g. a hardware disconnect or timeout), that code is
+    never reached, so the file is reopened here to give the user the same
+    opportunity to add post-measurement metadata.
+    """
+
+    if not measurement_state.wait_for_post_meta:
+        return
+
+    try:
+        with Storage(measurement_file_path) as storage:
+            await request_and_receive_post_meta(
+                storage, measurement_state, general_messenger
+            )
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception(
+            "Failed to request/write post-measurement metadata for <%s>"
+            " after abnormal measurement stop",
+            measurement_file_path,
+        )
+
+
 async def run_measurement(
     system: ICOsystem,
     instructions: MeasurementInstructions,
@@ -630,8 +707,7 @@ async def run_measurement(
             if instructions.disconnect_after_measurement:
                 await disconnect_sth_devices(system)
 
-            measurement_state.running = False
-            await general_messenger.push_messenger_update()
+            await mark_measurement_stopped(measurement_state, general_messenger)
 
             # Send IFT value values at once after the measurement is finished.
             if instructions.ift_requested:
@@ -658,23 +734,17 @@ async def run_measurement(
                 ift_sent = True
 
             if measurement_state.wait_for_post_meta:
-                logger.info("Waiting for post-measurement metadata")
-                await general_messenger.send_post_meta_request()
-                while measurement_state.post_meta is None:
-                    await asyncio.sleep(1)
-                logger.info("Received post-measurement metadata")
-                await general_messenger.send_post_meta_completed()
-                write_metadata(
-                    MetadataPrefix.POST, measurement_state.post_meta, storage
+                await request_and_receive_post_meta(
+                    storage, measurement_state, general_messenger
                 )
 
     except StreamingTimeoutError as e:
         logger.debug("Stream timeout error")
-        for client in measurement_state.clients:
-            await client.send_json(
-                {"error": True, "type": type(e).__name__, "message": str(e)}
-            )
-        measurement_state.clients.clear()
+        await notify_clients_of_measurement_error(measurement_state, e)
+        await mark_measurement_stopped(measurement_state, general_messenger)
+        await request_post_meta_after_abnormal_stop(
+            measurement_file_path, measurement_state, general_messenger
+        )
     except asyncio.CancelledError as e:
         logger.debug(
             "Measurement cancelled. IFT: requested <%s> | already sent: <%s>",
@@ -691,6 +761,17 @@ async def run_measurement(
         raise asyncio.CancelledError from e
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
+        await mark_measurement_stopped(measurement_state, general_messenger)
+        await request_post_meta_after_abnormal_stop(
+            measurement_file_path, measurement_state, general_messenger
+        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.exception("Measurement stopped due to an unexpected error")
+        await notify_clients_of_measurement_error(measurement_state, e)
+        await mark_measurement_stopped(measurement_state, general_messenger)
+        await request_post_meta_after_abnormal_stop(
+            measurement_file_path, measurement_state, general_messenger
+        )
     finally:
         clients = len(measurement_state.clients)
         for client in measurement_state.clients:
