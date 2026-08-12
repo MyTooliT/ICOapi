@@ -334,6 +334,16 @@ class GeneralMessenger:
             )
 
     @classmethod
+    def clear_messengers(cls):
+        """Clear list of WebSocket clients"""
+
+        num_of_clients = len(cls._clients)
+        cls._clients.clear()
+        logger.info(
+            "Cleared %s clients from general messenger list", num_of_clients
+        )
+
+    @classmethod
     async def _broadcast(cls, message: SocketMessage) -> None:
         """Send a message to all connected clients
 
