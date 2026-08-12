@@ -453,7 +453,8 @@ def read_and_parse_trident_config(file_path: str) -> CloudConfig:
         raise ValueError("|".join(errors))
 
     data = payload.get("connection")
-    logger.info("Found dataspace config: %s", data)
+    if bool(data.get("enabled", False)):
+        logger.info("Found dataspace config: %s@%s", str(data["username"]), str(data["domain"]))
 
     return CloudConfig(
         protocol=str(data["protocol"]).strip(),
