@@ -17,6 +17,7 @@ from icoapi.api import app
 from icoapi.models.globals import get_trident_client
 from icoapi.models.trident import RemoteObjectDetails
 from icoapi.scripts.file_handling import get_measurement_dir
+from icoapi.scripts.measurement import open_metadata_storage
 
 # -- Fixtures -----------------------------------------------------------------
 
@@ -756,6 +757,34 @@ class TestFileRoutes:
         response = client.delete(f"files/{prefix}_meta/analyze.hdf5")
 
         assert response.status_code == 200
+
+    def test_meta_includes_start_supply_voltage_when_present(
+        self,
+        client,
+        metadata_hdf5_file: Path,
+    ) -> None:
+        """The start_supply_voltage attribute should round-trip as a float"""
+
+        with open_metadata_storage(metadata_hdf5_file) as storage:
+            storage["start_supply_voltage"] = "3.3"
+
+        meta = client.get("files/analyze/meta/analyze.hdf5").json()
+
+        assert meta["acceleration"]["attributes"]["start_supply_voltage"] == 3.3
+        assert isinstance(
+            meta["acceleration"]["attributes"]["start_supply_voltage"], float
+        )
+
+    def test_meta_omits_start_supply_voltage_when_absent(
+        self,
+        client,
+        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+    ) -> None:
+        """Older files without the attribute should simply omit it"""
+
+        meta = client.get("files/analyze/meta/analyze.hdf5").json()
+
+        assert "start_supply_voltage" not in meta["acceleration"]["attributes"]
 
     @mark.parametrize("prefix", ["pre", "post"])
     def test_meta_not_found(self, client, prefix: str) -> None:

@@ -97,6 +97,18 @@ async def start_measurement(
         measurement_state.tool_name = "noname"
         logger.error("Tool not found!")
 
+    try:
+        measurement_state.start_supply_voltage = (
+            await system.sensor_node.get_supply_voltage()
+        )
+        logger.debug(
+            "Supply voltage at measurement start: %sV",
+            measurement_state.start_supply_voltage,
+        )
+    except (AttributeError, NoResponseError):
+        measurement_state.start_supply_voltage = None
+        logger.error("Could not read supply voltage at measurement start!")
+
     measurement_state.task = asyncio.create_task(
         run_measurement(
             system, instructions, measurement_state, general_messenger

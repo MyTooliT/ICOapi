@@ -118,6 +118,7 @@ class MeasurementState:
         self.name: str | None = None
         self.start_time: str | None = None
         self.tool_name: str | None = None
+        self.start_supply_voltage: float | None = None
         self.instructions: MeasurementInstructions | None = None
         self.stop_flag = False
         self.wait_for_post_meta = False
@@ -134,6 +135,7 @@ class MeasurementState:
         self.name = None
         self.start_time = None
         self.tool_name = None
+        self.start_supply_voltage = None
         self.instructions = None
         self.stop_flag = False
         self.wait_for_post_meta = False
@@ -149,6 +151,7 @@ class MeasurementState:
             name=self.name,
             start_time=self.start_time,
             tool_name=self.tool_name,
+            start_supply_voltage=self.start_supply_voltage,
             instructions=self.instructions,
         )
 

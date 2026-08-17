@@ -124,6 +124,7 @@ class TestMeasurement:
             "running",
             "start_time",
             "tool_name",
+            "start_supply_voltage",
         ):
             assert key in body
 
@@ -157,6 +158,9 @@ class TestMeasurement:
             measurement_instructions_single_channel["name"]
         )
         assert body["tool_name"] == test_sensor_node["name"]
+
+        assert isinstance(body["start_supply_voltage"], float)
+        assert body["start_supply_voltage"] > 0
 
         assert isinstance(body["start_time"], str)
         start_time = body["start_time"]

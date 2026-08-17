@@ -653,6 +653,10 @@ async def run_measurement(
             storage["adc_reference_voltage"] = (
                 f"{instructions.adc.reference_voltage}"
             )
+            if measurement_state.start_supply_voltage is not None:
+                storage["start_supply_voltage"] = (
+                    f"{measurement_state.start_supply_voltage}"
+                )
             if instructions.meta:
                 write_metadata(MetadataPrefix.PRE, instructions.meta, storage)
 

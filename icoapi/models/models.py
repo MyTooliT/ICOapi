@@ -297,6 +297,7 @@ class MeasurementStatus:
     name: Optional[str] = None
     start_time: Optional[str] = None
     tool_name: Optional[str] = None
+    start_supply_voltage: Optional[float] = None
     instructions: Optional[MeasurementInstructions] = None
 
 
