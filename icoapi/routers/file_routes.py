@@ -4,14 +4,14 @@ import json
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, AsyncGenerator
 from urllib.parse import quote
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.params import Depends
 from fastapi.responses import FileResponse, StreamingResponse
-from icotronic.measurement.storage import Storage
 from starlette.responses import PlainTextResponse
-from tables import HDF5ExtError, NoSuchNodeError, Node
+from tables import HDF5ExtError, NoSuchNodeError
 
 
 from icoapi.models.globals import get_trident_client
@@ -49,7 +49,11 @@ from icoapi.scripts.file_handling import (
     is_dangerous_filename,
 )
 
-from icoapi.scripts.measurement import write_metadata
+from icoapi.scripts.measurement import (
+    clear_metadata,
+    open_metadata_storage,
+    write_metadata,
+)
 
 router = APIRouter(prefix="/files", tags=["File Handling"])
 
@@ -426,7 +430,7 @@ async def get_file_meta(
 @router.post(
     "/post_meta/{name}",
     responses={
-        200: {"description": "Metadata successfully overwritten"},
+        200: {"description": "Metadata successfully saved"},
         404: HTTP_404_FILE_NOT_FOUND_SPEC,
     },
 )
@@ -435,26 +439,30 @@ async def overwrite_post_meta(
     metadata: Metadata,
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
 ):
-    """Update post metadata in measurement file"""
+    """Add or overwrite post metadata in measurement file
+
+    This also works for files that do not have any post metadata yet, and
+    for a `metadata.profile` that differs from whatever profile the file
+    previously had (any picture arrays belonging to the old metadata are
+    removed first).
+    """
 
     file_path = os.path.join(measurement_dir, name)
     if not os.path.isfile(file_path):
         raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
 
-    # we have the file and the metadata object
-    with Storage(file_path) as storage:  # pylint: disable=not-callable
-        try:
-            node: Node = storage.hdf.get_node("/acceleration")
-            del node.attrs["post_metadata"]
-        except NoSuchNodeError as error:
-            raise AccelerationDataNotFoundError from error
-        write_metadata(MetadataPrefix.POST, metadata, storage)
+    try:
+        with open_metadata_storage(Path(file_path)) as storage:
+            clear_metadata(MetadataPrefix.POST, storage)
+            write_metadata(MetadataPrefix.POST, metadata, storage)
+    except NoSuchNodeError as error:
+        raise AccelerationDataNotFoundError from error
 
 
 @router.post(
     "/pre_meta/{name}",
     responses={
-        200: {"description": "Metadata successfully overwritten"},
+        200: {"description": "Metadata successfully saved"},
         404: HTTP_404_FILE_NOT_FOUND_SPEC,
     },
 )
@@ -463,17 +471,69 @@ async def overwrite_pre_meta(
     metadata: Metadata,
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
 ):
-    """Update pre metadata in measurement file"""
+    """Add or overwrite pre metadata in measurement file
+
+    This also works for files that do not have any pre metadata yet, and
+    for a `metadata.profile` that differs from whatever profile the file
+    previously had (any picture arrays belonging to the old metadata are
+    removed first).
+    """
 
     file_path = os.path.join(measurement_dir, name)
     if not os.path.isfile(file_path):
         raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
 
-    # we have the file and the metadata object
-    with Storage(file_path) as storage:  # pylint: disable=not-callable
-        try:
-            node: Node = storage.hdf.get_node("/acceleration")
-            del node.attrs["pre_metadata"]
-        except NoSuchNodeError as error:
-            raise AccelerationDataNotFoundError from error
-        write_metadata(MetadataPrefix.PRE, metadata, storage)
+    try:
+        with open_metadata_storage(Path(file_path)) as storage:
+            clear_metadata(MetadataPrefix.PRE, storage)
+            write_metadata(MetadataPrefix.PRE, metadata, storage)
+    except NoSuchNodeError as error:
+        raise AccelerationDataNotFoundError from error
+
+
+@router.delete(
+    "/post_meta/{name}",
+    responses={
+        200: {"description": "Metadata deleted successfully"},
+        404: HTTP_404_FILE_NOT_FOUND_SPEC,
+    },
+)
+async def delete_post_meta(
+    name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+):
+    """Delete post metadata from measurement file, if any exists"""
+
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    try:
+        with open_metadata_storage(Path(file_path)) as storage:
+            clear_metadata(MetadataPrefix.POST, storage)
+    except NoSuchNodeError as error:
+        raise AccelerationDataNotFoundError from error
+
+
+@router.delete(
+    "/pre_meta/{name}",
+    responses={
+        200: {"description": "Metadata deleted successfully"},
+        404: HTTP_404_FILE_NOT_FOUND_SPEC,
+    },
+)
+async def delete_pre_meta(
+    name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+):
+    """Delete pre metadata from measurement file, if any exists"""
+
+    file_path = os.path.join(measurement_dir, name)
+    if not os.path.isfile(file_path):
+        raise HTTP_404_FILE_NOT_FOUND_EXCEPTION
+
+    try:
+        with open_metadata_storage(Path(file_path)) as storage:
+            clear_metadata(MetadataPrefix.PRE, storage)
+    except NoSuchNodeError as error:
+        raise AccelerationDataNotFoundError from error

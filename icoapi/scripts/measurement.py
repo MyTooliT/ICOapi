@@ -4,9 +4,12 @@ import asyncio
 import json
 import logging
 import os
+from contextlib import contextmanager
+from dataclasses import dataclass
 from itertools import repeat
 from pathlib import Path
 from time import monotonic
+from typing import Iterator, Protocol
 
 from icolyzer import iftlibrary
 from icostate import ICOsystem, State
@@ -17,9 +20,10 @@ from icotronic.can.streaming import (
     StreamingData,
     StreamingTimeoutError,
 )
-from icotronic.measurement.storage import Storage, StorageData
+from icotronic.measurement.storage import Storage
 import numpy as np
 from starlette.websockets import WebSocketDisconnect
+from tables import File, Filters, Node, open_file
 import tables.exceptions
 
 from icoapi.models.models import ADCValues
@@ -201,8 +205,67 @@ async def send_ift_values(
             logger.warning("Client must be disconnected, passing")
 
 
+# pylint: disable=too-few-public-methods
+
+
+class MetadataStorage(Protocol):
+    """Minimal interface required to read/write pre/post metadata
+
+    ``StorageData`` (used while a measurement is running) satisfies this
+    interface. ``ReopenedMetadataStorage`` (used to edit metadata on an
+    existing file, see :func:`open_metadata_storage`) is the other
+    implementation.
+    """
+
+    hdf: File
+    acceleration: Node
+
+    def __setitem__(self, key: str, value: str) -> None: ...  # noqa: E704
+
+
+@dataclass
+class ReopenedMetadataStorage:
+    """Metadata-only view of an HDF5 file, without requiring streaming data"""
+
+    hdf: File
+    acceleration: Node
+
+    def __setitem__(self, key: str, value: str) -> None:
+        self.acceleration.attrs[key] = value  # pylint: disable=no-member
+
+
+# pylint: enable=too-few-public-methods
+
+
+@contextmanager
+def open_metadata_storage(
+    measurement_file_path: Path,
+) -> Iterator[MetadataStorage]:
+    """Open an existing measurement file for metadata-only editing.
+
+    Unlike ``Storage(measurement_file_path)``, this does not require the
+    file to already contain any acceleration data rows, so metadata can
+    still be added to (or removed from) a measurement that stopped before
+    any data was recorded (e.g. due to a hardware disconnect or timeout).
+
+    :raises NoSuchNodeError: if the file has no ``/acceleration`` node
+    """
+
+    hdf = open_file(
+        measurement_file_path,
+        mode="a",
+        filters=Filters(4, "zlib"),
+        title="STH Measurement Data",
+    )
+    try:
+        acceleration = hdf.get_node("/acceleration")
+        yield ReopenedMetadataStorage(hdf, acceleration)
+    finally:
+        hdf.close()
+
+
 def write_metadata(
-    prefix: MetadataPrefix, metadata: Metadata, storage: StorageData
+    prefix: MetadataPrefix, metadata: Metadata, storage: MetadataStorage
 ) -> None:
     """Write metadata to storage object"""
 
@@ -215,6 +278,25 @@ def write_metadata(
     meta_dump = json.dumps(metadata.__dict__, default=lambda o: o.__dict__)
     storage[f"{prefix}_metadata"] = meta_dump
     logger.info("Added %s-measurement metadata", prefix)
+
+
+def clear_metadata(prefix: MetadataPrefix, storage: MetadataStorage) -> None:
+    """Remove existing metadata attribute and picture arrays for a prefix
+
+    This is safe to call even if no metadata was ever written for the given
+    prefix.
+    """
+
+    try:
+        del storage.acceleration.attrs[f"{prefix}_metadata"]
+    except KeyError:
+        pass
+
+    removal_prefix = f"{prefix}__"
+    for node in storage.hdf.list_nodes("/"):
+        node_name = node._v_name  # pylint: disable=protected-access
+        if node_name.startswith(removal_prefix):
+            storage.hdf.remove_node("/", node_name, recursive=True)
 
 
 def find_picture_parameters(meta: Metadata) -> list[str]:
@@ -232,7 +314,7 @@ def write_and_remove_picture_metadata(
     prefix: MetadataPrefix,
     picture_parameters: list[str],
     meta: Metadata,
-    storage: StorageData,
+    storage: MetadataStorage,
 ):
     """Write picture metadata to storage and remove it from metadata"""
 
@@ -273,7 +355,7 @@ def write_and_remove_picture_metadata(
 
 
 def write_image_array(
-    storage: StorageData, name: str, array: np.ndarray, overwrite: bool
+    storage: MetadataStorage, name: str, array: np.ndarray, overwrite: bool
 ):
     """Add image array to storage data"""
 
@@ -281,7 +363,7 @@ def write_image_array(
         storage.hdf.create_array(storage.hdf.root, name, array)
     except tables.exceptions.NodeError:
         if overwrite:
-            storage.hdf.remove_node("/acceleration", name, recursive=True)
+            storage.hdf.remove_node("/", name, recursive=True)
             storage.hdf.create_array(storage.hdf.root, name, array)
 
 
@@ -475,7 +557,7 @@ async def mark_measurement_stopped(
 
 
 async def request_and_receive_post_meta(
-    storage: StorageData,
+    storage: MetadataStorage,
     measurement_state: MeasurementState,
     general_messenger: GeneralMessenger,
 ) -> None:
@@ -510,7 +592,7 @@ async def request_post_meta_after_abnormal_stop(
         return
 
     try:
-        with Storage(measurement_file_path) as storage:
+        with open_metadata_storage(measurement_file_path) as storage:
             await request_and_receive_post_meta(
                 storage, measurement_state, general_messenger
             )

@@ -4,10 +4,18 @@
 
 from datetime import datetime
 from logging import getLogger
+from pathlib import Path
 from time import time
 
 from icostate import ADCConfiguration
+from icotronic.can.streaming import StreamingConfiguration
+from icotronic.measurement.storage import Storage
 from pytest import mark
+
+import numpy as np
+
+from icoapi.models.models import Metadata, MetadataPrefix
+from icoapi.scripts.measurement import write_image_array, write_metadata
 
 # -- Functions ----------------------------------------------------------------
 
@@ -31,6 +39,68 @@ def get_measurement_websocket_endpoint(
 
 
 # -- Classes ------------------------------------------------------------------
+
+
+class TestWriteMetadata:
+    """Direct unit tests for the metadata writing helpers"""
+
+    def test_write_image_array_overwrite(self, tmp_path: Path) -> None:
+        """``write_image_array`` should overwrite an existing node in place
+
+        Regression test: it used to try to remove the pre-existing array
+        node from the wrong HDF5 path (``/acceleration``, a table with no
+        children of its own) instead of ``/``, where ``create_array``
+        actually places the node. That raised ``NoSuchNodeError`` instead
+        of removing and replacing the array.
+        """
+
+        file_path = tmp_path / "image_array_overwrite.hdf5"
+
+        with Storage(
+            file_path, StreamingConfiguration(first=True)
+        ) as storage:
+            write_image_array(
+                storage, "post__pictures", np.array([b"hello"]), True
+            )
+            write_image_array(
+                storage, "post__pictures", np.array([b"world"]), True
+            )
+
+            picture_array = storage.hdf.get_node("/post__pictures")
+            assert picture_array.read().tolist() == [b"world"]
+
+    def test_write_metadata_with_picture_overwrite(
+        self, tmp_path: Path
+    ) -> None:
+        """Writing a picture parameter twice via `write_metadata` should
+        overwrite, not crash"""
+
+        file_path = tmp_path / "picture_overwrite.hdf5"
+
+        with Storage(
+            file_path, StreamingConfiguration(first=True)
+        ) as storage:
+            write_metadata(
+                MetadataPrefix.POST,
+                Metadata(
+                    version="1.0.0",
+                    profile="milling",
+                    parameters={"pictures": {"0": "aGVsbG8="}},
+                ),
+                storage,
+            )
+            write_metadata(
+                MetadataPrefix.POST,
+                Metadata(
+                    version="1.0.0",
+                    profile="milling",
+                    parameters={"pictures": {"0": "d29ybGQ="}},
+                ),
+                storage,
+            )
+
+            picture_array = storage.hdf.get_node("/post__pictures")
+            assert picture_array.read().tolist() == [b"d29ybGQ="]
 
 
 class TestMeasurement:

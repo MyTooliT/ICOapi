@@ -7,9 +7,11 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
+from icotronic.can.streaming import StreamingConfiguration
+from icotronic.measurement.storage import Storage
 import numpy as np
 import tables
-from pytest import fixture
+from pytest import fixture, mark
 
 from icoapi.api import app
 from icoapi.models.globals import get_trident_client
@@ -64,6 +66,22 @@ def fixture_analyze_hdf5_file(
         row["first"] = 2.5
         row.append()
         table.flush()
+
+    return hdf5_path
+
+
+@fixture(name="metadata_hdf5_file")
+def fixture_metadata_hdf5_file(temporary_measurement_dir: Path) -> Path:
+    """Create a measurement HDF5 file with a valid acceleration schema
+
+    Unlike ``analyze_hdf5_file``, this uses the real ``Storage`` writer, so
+    the file can also be reopened by ``Storage`` (with no channels given)
+    the same way the pre/post metadata routes do.
+    """
+
+    hdf5_path = temporary_measurement_dir / "analyze.hdf5"
+    with Storage(hdf5_path, StreamingConfiguration(first=True)):
+        pass
 
     return hdf5_path
 
@@ -638,3 +656,118 @@ class TestFileRoutes:
             "size": len(payload),
             "download_path": "files/analyze.hdf5/embedded/hello_txt",
         }]
+
+    @mark.parametrize("prefix", ["pre", "post"])
+    def test_meta_add_when_missing(
+        self,
+        client,
+        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+        prefix: str,
+    ) -> None:
+        """Adding metadata should work for a file that has none yet"""
+
+        response = client.post(
+            f"files/{prefix}_meta/analyze.hdf5",
+            json={
+                "version": "1.0.0",
+                "profile": "milling",
+                "parameters": {"person": "Jane"},
+            },
+        )
+
+        assert response.status_code == 200
+
+        meta = client.get("files/analyze/meta/analyze.hdf5").json()
+        assert meta["acceleration"]["attributes"][f"{prefix}_metadata"] == {
+            "version": "1.0.0",
+            "profile": "milling",
+            "parameters": {"person": "Jane"},
+        }
+
+    @mark.parametrize("prefix", ["pre", "post"])
+    def test_meta_overwrite_when_present(
+        self,
+        client,
+        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+        prefix: str,
+    ) -> None:
+        """Posting metadata again should replace the previous value"""
+
+        client.post(
+            f"files/{prefix}_meta/analyze.hdf5",
+            json={
+                "version": "1.0.0",
+                "profile": "milling",
+                "parameters": {"person": "Jane"},
+            },
+        )
+        response = client.post(
+            f"files/{prefix}_meta/analyze.hdf5",
+            json={
+                "version": "1.0.0",
+                "profile": "drilling",
+                "parameters": {"person": "John"},
+            },
+        )
+
+        assert response.status_code == 200
+
+        meta = client.get("files/analyze/meta/analyze.hdf5").json()
+        assert meta["acceleration"]["attributes"][f"{prefix}_metadata"] == {
+            "version": "1.0.0",
+            "profile": "drilling",
+            "parameters": {"person": "John"},
+        }
+
+    @mark.parametrize("prefix", ["pre", "post"])
+    def test_delete_meta_when_present(
+        self,
+        client,
+        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+        prefix: str,
+    ) -> None:
+        """Deleting metadata should remove the attribute from the file"""
+
+        client.post(
+            f"files/{prefix}_meta/analyze.hdf5",
+            json={
+                "version": "1.0.0",
+                "profile": "milling",
+                "parameters": {"person": "Jane"},
+            },
+        )
+
+        response = client.delete(f"files/{prefix}_meta/analyze.hdf5")
+
+        assert response.status_code == 200
+
+        meta = client.get("files/analyze/meta/analyze.hdf5").json()
+        assert f"{prefix}_metadata" not in meta["acceleration"]["attributes"]
+
+    @mark.parametrize("prefix", ["pre", "post"])
+    def test_delete_meta_when_missing(
+        self,
+        client,
+        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+        prefix: str,
+    ) -> None:
+        """Deleting metadata that was never set should not fail"""
+
+        response = client.delete(f"files/{prefix}_meta/analyze.hdf5")
+
+        assert response.status_code == 200
+
+    @mark.parametrize("prefix", ["pre", "post"])
+    def test_meta_not_found(self, client, prefix: str) -> None:
+        """Metadata endpoints should 404 for a non-existent file"""
+
+        post_response = client.post(
+            f"files/{prefix}_meta/does_not_exist.hdf5",
+            json={"version": "1.0.0", "profile": "milling", "parameters": {}},
+        )
+        delete_response = client.delete(
+            f"files/{prefix}_meta/does_not_exist.hdf5"
+        )
+
+        assert post_response.status_code == 404
+        assert delete_response.status_code == 404
