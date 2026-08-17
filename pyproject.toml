@@ -48,6 +48,7 @@ dev = [
   "sphinx-pyproject>=0.3",
   "sphinx_rtd_theme",
   "types-requests",
+  "pyinstaller>=6.22.1",
 ]
 test = [
   "anyio>=4.12.0",
