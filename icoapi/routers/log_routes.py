@@ -1,6 +1,7 @@
 """Routes for logging functionality"""
 
 import io
+import json
 import logging
 import os
 import re
@@ -25,6 +26,7 @@ from icoapi.utils.logging_setup import (
     LOG_BACKUP_COUNT,
     LOG_MAX_BYTES,
 )
+from icoapi.utils.system_info import get_system_info
 
 router = APIRouter(prefix="/logs", tags=["Logs"])
 
@@ -135,7 +137,7 @@ def download_log_file(file: str):
 
 
 @router.get("/all", response_class=StreamingResponse)
-async def download_logs_zip():
+async def download_logs_zip(include_system_info: bool = Query(False)):
     """Download log files as zipped file"""
 
     base_dir = os.path.dirname(LOG_PATH)
@@ -152,6 +154,11 @@ async def download_logs_zip():
         for file_name in log_files:
             file_path = os.path.join(base_dir, file_name)
             zip_file.write(file_path, arcname=file_name)
+
+        if include_system_info:
+            zip_file.writestr(
+                "system_info.json", json.dumps(get_system_info(), indent=2)
+            )
 
     zip_buffer.seek(0)  # Reset pointer to start of the file
 
