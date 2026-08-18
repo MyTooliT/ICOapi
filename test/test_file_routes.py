@@ -89,7 +89,7 @@ def fixture_metadata_hdf5_file(temporary_measurement_dir: Path) -> Path:
 
 # -- Tests --------------------------------------------------------------------
 
-
+# pylint: disable=too-many-public-methods
 class TestFileRoutes:
     """File route test methods"""
 
@@ -800,3 +800,4 @@ class TestFileRoutes:
 
         assert post_response.status_code == 404
         assert delete_response.status_code == 404
+# pylint: enable=too-many-public-methods
