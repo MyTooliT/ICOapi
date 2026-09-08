@@ -453,6 +453,23 @@ class Sensor(BaseModel):
         return volt_value * self.scaling_factor + self.offset
 
 
+class MeasuredSensor(Sensor):
+    """A sensor as recorded on a specific channel in a measurement file
+
+    `Sensor` plus the physical channel it was read from. Deliberately not a
+    field on `Sensor` itself - `Sensor` is a reusable calibration
+    definition, used in places where "which channel" is either meaningless
+    (the flat sensor catalog) or redundant (`PCBSensorConfiguration.channels`,
+    which is already keyed by channel number).
+
+    `channel_number` is optional (`None`) rather than required so that
+    files recorded before this field existed still parse - their `/sensors`
+    table simply has no such column.
+    """
+
+    channel_number: int | None = None
+
+
 @dataclass
 class PCBSensorConfiguration:
     """Sensor configuration for a PCB"""
@@ -524,7 +541,7 @@ class ParsedMetadata(BaseModel, JSONEncoder):
 
     acceleration: HDF5NodeInfo
     pictures: dict[str, list[str]]
-    sensors: list[Sensor]
+    sensors: list[MeasuredSensor]
     embedded_files: list[EmbeddedFileInfo]
 
 

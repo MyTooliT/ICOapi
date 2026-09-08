@@ -22,12 +22,12 @@ from icoapi.models.models import (
     FileCloudStatus,
     FileCloudDetails,
     FileListResponseModel,
+    MeasuredSensor,
     MeasurementFileDetails,
     Metadata,
     MetadataPrefix,
     ParsedMeasurement,
     ParsedMetadata,
-    Sensor,
 )
 from icoapi.models.trident import RemoteObjectDetails, StorageClient
 from icoapi.scripts.cloud_scripts import get_cloud_details
@@ -199,7 +199,9 @@ async def get_analyzed_file(
         for sensor_raw in sensors_raw:
             if "dimension" not in sensor_raw:
                 sensor_raw["dimension"] = ""
-        sensors: list[Sensor] = [Sensor(**sensor) for sensor in sensors_raw]
+        sensors: list[MeasuredSensor] = [
+            MeasuredSensor(**sensor) for sensor in sensors_raw
+        ]
         embedded_files = [
             embedded_file.model_copy(
                 update={
@@ -420,7 +422,7 @@ async def get_file_meta(
         acceleration=data.acceleration_meta,
         pictures=data.pictures,
         sensors=[
-            Sensor(**sensor)
+            MeasuredSensor(**sensor)
             for sensor in data.sensor_df.to_dict(orient="records")
         ],
         embedded_files=embedded_files,
