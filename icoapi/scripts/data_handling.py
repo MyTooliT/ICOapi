@@ -22,6 +22,10 @@ from icoapi.models.models import (
 )
 from icoapi.models.models import ADCValues
 from icoapi.scripts.config_helper import validate_dataspace_payload
+from icoapi.scripts.errors import (
+    HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_EXCEPTION,
+    HTTP_422_MISSING_INLINE_SENSOR_CHANNEL_EXCEPTION,
+)
 from icoapi.scripts.file_handling import (
     ensure_folder_exists,
     get_sensors_file_path,
@@ -312,10 +316,112 @@ def find_sensor_by_id(
     return None
 
 
+def get_inline_sensor_for_channel(
+    channel_instruction: MeasurementInstructionChannel,
+    sensor_configuration: PCBSensorConfiguration,
+) -> Optional[Sensor]:
+    """Get sensor for a channel from an inline sensor configuration
+
+    Unlike :func:`get_sensor_for_channel`, this never reads
+    ``sensors.yaml`` - the inline configuration is the only source
+    consulted.
+    """
+
+    if channel_instruction.channel_number == 0:
+        logger.info("Disabled channel; return None")
+        return None
+
+    sensor = sensor_configuration.channels.get(channel_instruction.channel_number)
+    if sensor is not None:
+        logger.debug(
+            "Resolved channel %s from inline sensor configuration <%s>",
+            channel_instruction.channel_number,
+            sensor_configuration.configuration_id,
+        )
+        return sensor
+
+    logger.error(
+        "Inline sensor configuration <%s> has no entry for channel %s.",
+        sensor_configuration.configuration_id,
+        channel_instruction.channel_number,
+    )
+    return None
+
+
+def find_missing_inline_channel(
+    instructions: MeasurementInstructions,
+) -> Optional[int]:
+    """Find a streaming channel missing from an inline sensor configuration
+
+    Returns the first non-zero channel number referenced by `first`,
+    `second` or `third` that is absent from
+    `instructions.sensor_configuration.channels`, or `None` if
+    `sensor_configuration` is absent or every referenced channel is present.
+    """
+
+    if instructions.sensor_configuration is None:
+        return None
+
+    channels = instructions.sensor_configuration.channels
+    for channel_instruction in (
+        instructions.first,
+        instructions.second,
+        instructions.third,
+    ):
+        if (
+            channel_instruction.channel_number != 0
+            and channel_instruction.channel_number not in channels
+        ):
+            return channel_instruction.channel_number
+
+    return None
+
+
+def is_inline_sensor_config_required() -> bool:
+    """Whether `REQUIRE_INLINE_SENSOR_CONFIG` mandates inline sensor config
+
+    Read fresh on every call (not cached at import time), so tests and
+    deployments can change it without restarting the process.
+    """
+
+    return os.getenv("REQUIRE_INLINE_SENSOR_CONFIG", "0") == "1"
+
+
+def validate_inline_sensor_configuration(
+    instructions: MeasurementInstructions,
+) -> None:
+    """Validate a measurement request's inline sensor configuration
+
+    Shared by `/measurement/start` and `/measurement/execute` so the
+    `REQUIRE_INLINE_SENSOR_CONFIG` guard and the missing-channel check can't
+    drift between the two entry points. Must run before any CAN traffic.
+
+    :raises HTTPException: (422) if inline sensor configuration is required
+        but absent, or if a streaming slot references a channel missing from
+        the inline configuration that was supplied.
+    """
+
+    if (
+        instructions.sensor_configuration is None
+        and is_inline_sensor_config_required()
+    ):
+        raise HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_EXCEPTION
+
+    missing_channel = find_missing_inline_channel(instructions)
+    if missing_channel is not None:
+        raise HTTP_422_MISSING_INLINE_SENSOR_CHANNEL_EXCEPTION(missing_channel)
+
+
 def get_sensor_for_channel(
     channel_instruction: MeasurementInstructionChannel,
+    sensor_configuration: Optional[PCBSensorConfiguration] = None,
 ) -> Optional[Sensor]:
     """Get sensor for a specific measurement channel"""
+
+    if sensor_configuration is not None:
+        return get_inline_sensor_for_channel(
+            channel_instruction, sensor_configuration
+        )
 
     sensors = get_sensors()
 
@@ -484,11 +590,15 @@ class MeasurementSensorInfo:
 
     def __init__(self, instructions: MeasurementInstructions):
         super().__init__()
-        self.first_channel_sensor = get_sensor_for_channel(instructions.first)
-        self.second_channel_sensor = get_sensor_for_channel(
-            instructions.second
+        self.first_channel_sensor = get_sensor_for_channel(
+            instructions.first, instructions.sensor_configuration
         )
-        self.third_channel_sensor = get_sensor_for_channel(instructions.third)
+        self.second_channel_sensor = get_sensor_for_channel(
+            instructions.second, instructions.sensor_configuration
+        )
+        self.third_channel_sensor = get_sensor_for_channel(
+            instructions.third, instructions.sensor_configuration
+        )
         assert isinstance(instructions.adc, ADCValues)
         assert isinstance(instructions.adc.reference_voltage, float)
         self.voltage_scaling = get_voltage_from_raw(
