@@ -33,7 +33,7 @@ from icoapi.scripts.errors import (
     HTTP_504_MEASUREMENT_TIMEOUT_SPEC,
 )
 
-from icoapi.scripts.data_handling import validate_inline_sensor_configuration
+from icoapi.scripts.data_handling import resolve_measurement_channels
 from icoapi.scripts.measurement import (
     measurement_preparations,
     run_measurement,
@@ -53,10 +53,10 @@ async def start_measurement(
 ):
     """Start measurement"""
 
-    validate_inline_sensor_configuration(instructions)
+    resolved_channels = resolve_measurement_channels(instructions)
 
     try:
-        await measurement_preparations(system, instructions)
+        await measurement_preparations(system, instructions, resolved_channels)
     except UnsupportedFeatureException as exc:
         raise HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION from exc
     except IncorrectStateError as exc:
@@ -114,7 +114,11 @@ async def start_measurement(
 
     measurement_state.task = asyncio.create_task(
         run_measurement(
-            system, instructions, measurement_state, general_messenger
+            system,
+            instructions,
+            resolved_channels,
+            measurement_state,
+            general_messenger,
         )
     )
     logger.info(

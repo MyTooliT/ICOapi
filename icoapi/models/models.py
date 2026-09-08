@@ -110,9 +110,14 @@ class ADCValues:
 
 @dataclass
 class MeasurementInstructionChannel:
-    """Data model for measurement instruction channel definition"""
+    """Data model for measurement instruction channel definition
 
-    channel_number: int
+    `sensor_id` is the only client-supplied identifier for a streaming
+    slot - `None` means the slot is disabled. The channel number a sensor
+    lives on is a hardware routing detail resolved server-side (see
+    `ResolvedChannel`), never supplied by the client.
+    """
+
     sensor_id: Optional[str]
 
 
@@ -162,8 +167,9 @@ class MeasurementInstructions:
         adc (ADCValues): ADC settings
         meta (Metadata): Pre-measurement metadata
         sensor_configuration (PCBSensorConfiguration): Inline sensor
-            configuration. When present, sensor resolution for `first`,
-            `second` and `third` uses this instead of `sensors.yaml`.
+            configuration. When present, sensor_id resolution for `first`,
+            `second` and `third` uses this instead of `sensors.yaml`'s
+            default configuration.
     """
 
     name: str | None
@@ -455,6 +461,33 @@ class PCBSensorConfiguration:
     configuration_name: str
     channels: dict[int, Sensor]
     configuration_hash: str | None = None
+
+
+@dataclass
+class ResolvedChannel:
+    """A streaming slot's `sensor_id` resolved to a channel number and Sensor
+
+    `channel_number` is the hardware channel to route to this slot; 0 means
+    disabled. `sensor` is `None` iff `channel_number` is 0.
+    """
+
+    channel_number: int
+    sensor: Sensor | None
+
+
+@dataclass
+class ResolvedMeasurementChannels:
+    """The three streaming slots, each resolved to a channel and Sensor
+
+    Produced once per measurement request (see
+    `data_handling.resolve_measurement_channels`) and reused for both
+    hardware routing and value conversion, instead of each being derived
+    independently.
+    """
+
+    first: ResolvedChannel
+    second: ResolvedChannel
+    third: ResolvedChannel
 
 
 @dataclass

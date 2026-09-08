@@ -14,17 +14,19 @@ from icotronic.measurement.storage import StorageData
 
 from icoapi.models.models import (
     EmbeddedFileInfo,
-    HDF5NodeInfo, MeasurementInstructionChannel,
+    HDF5NodeInfo,
     MeasurementInstructions,
     MetadataPrefix, ParsedHDF5FileContent, Sensor,
     PCBSensorConfiguration,
+    ResolvedChannel,
+    ResolvedMeasurementChannels,
     CloudConfig,
 )
 from icoapi.models.models import ADCValues
 from icoapi.scripts.config_helper import validate_dataspace_payload
 from icoapi.scripts.errors import (
     HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_EXCEPTION,
-    HTTP_422_MISSING_INLINE_SENSOR_CHANNEL_EXCEPTION,
+    HTTP_422_UNKNOWN_SENSOR_ID_EXCEPTION,
 )
 from icoapi.scripts.file_handling import (
     ensure_folder_exists,
@@ -290,168 +292,6 @@ def write_sensor_defaults(
         )
 
 
-def find_sensor_by_id(
-    sensors: List[Sensor], sensor_id: str
-) -> Optional[Sensor]:
-    """
-    Finds a sensor by its ID from the list of sensors.
-
-    Args:
-    - sensors (List[Sensor]): The list of Sensor objects.
-    - sensor_id (str): The ID of the sensor to find.
-
-    Returns:
-    - Optional[Sensor]: The Sensor object with the matching ID, or None if not found.
-    """
-    for sensor in sensors:
-        if sensor.sensor_id == sensor_id:
-            logger.debug(
-                "Found sensor with ID %s: %s | k2: %s | d2: %s",
-                sensor.sensor_id,
-                sensor.name,
-                sensor.scaling_factor,
-                sensor.offset,
-            )
-            return sensor
-    return None
-
-
-def get_raw_default_sensor() -> Sensor:
-    """Fallback sensor used when no valid sensor can be resolved
-
-    A generic sensor over the full ADC voltage range, interpreted as a raw
-    percentage - used when neither `sensor_id` nor `channel_number` resolve
-    to a real sensor.
-    """
-
-    return Sensor(
-        name="Raw",
-        sensor_type=None,
-        sensor_id="raw_default_01",
-        unit="-",
-        phys_min=-100,
-        phys_max=100,
-        volt_min=0,
-        volt_max=3.3,
-        dimension="Raw",
-    )
-
-
-def get_inline_sensor_for_channel(
-    channel_instruction: MeasurementInstructionChannel,
-    sensor_configuration: PCBSensorConfiguration,
-) -> Optional[Sensor]:
-    """Get sensor for a channel from an inline sensor configuration
-
-    Unlike :func:`get_sensor_for_channel`'s file-backed branch, this never
-    reads ``sensors.yaml`` - the inline configuration is the only source
-    consulted. Resolution order: `sensor_id` (if given) takes precedence
-    over `channel_number`.
-
-    Deliberately does **not** fall back to a raw default sensor the way the
-    file-backed branch does: the inline configuration and the channel
-    selection referencing it arrive in the same, single request body, so an
-    unresolvable channel can only be a bug in that request - not external
-    file drift a raw default would be excusing. Callers are expected to
-    reject such a request up front with `validate_inline_sensor_configuration`
-    before any CAN traffic; reaching an unresolvable channel here means that
-    guard was skipped or has drifted out of sync with this function, so it
-    fails loudly instead of masking the problem with fabricated data.
-
-    :raises ValueError: if neither `sensor_id` nor `channel_number` resolves
-        to a sensor in `sensor_configuration`.
-    """
-
-    if channel_instruction.channel_number == 0:
-        logger.info("Disabled channel; return None")
-        return None
-
-    inline_sensors = list(sensor_configuration.channels.values())
-
-    if channel_instruction.sensor_id:
-        sensor = find_sensor_by_id(
-            inline_sensors, channel_instruction.sensor_id
-        )
-        if sensor is not None:
-            logger.debug(
-                "Resolved channel %s from inline sensor configuration <%s>"
-                " by sensor ID %s",
-                channel_instruction.channel_number,
-                sensor_configuration.configuration_id,
-                channel_instruction.sensor_id,
-            )
-            return sensor
-
-        logger.error(
-            "Inline sensor configuration <%s> has no sensor with ID %s.",
-            sensor_configuration.configuration_id,
-            channel_instruction.sensor_id,
-        )
-
-    sensor = sensor_configuration.channels.get(
-        channel_instruction.channel_number
-    )
-    if sensor is not None:
-        logger.debug(
-            "Resolved channel %s from inline sensor configuration <%s> by"
-            " channel number",
-            channel_instruction.channel_number,
-            sensor_configuration.configuration_id,
-        )
-        return sensor
-
-    raise ValueError(
-        "Inline sensor configuration "
-        f"<{sensor_configuration.configuration_id}> has no entry for "
-        f"channel {channel_instruction.channel_number} and no matching "
-        f"sensor_id <{channel_instruction.sensor_id}> - this should have "
-        "been rejected by validate_inline_sensor_configuration() before"
-        " any CAN traffic."
-    )
-
-
-def find_missing_inline_channel(
-    instructions: MeasurementInstructions,
-) -> Optional[int]:
-    """Find a streaming channel missing from an inline sensor configuration
-
-    Mirrors `get_inline_sensor_for_channel`'s resolution order: a channel
-    counts as present if either its `channel_number` is a key in
-    `instructions.sensor_configuration.channels`, or its `sensor_id` (if
-    given) matches a sensor in that configuration.
-
-    Returns the first non-zero channel number referenced by `first`,
-    `second` or `third` that resolves to neither, or `None` if
-    `sensor_configuration` is absent or every referenced channel resolves.
-    """
-
-    if instructions.sensor_configuration is None:
-        return None
-
-    channels = instructions.sensor_configuration.channels
-    inline_sensors = list(channels.values())
-
-    for channel_instruction in (
-        instructions.first,
-        instructions.second,
-        instructions.third,
-    ):
-        if channel_instruction.channel_number == 0:
-            continue
-
-        if channel_instruction.channel_number in channels:
-            continue
-
-        if channel_instruction.sensor_id and find_sensor_by_id(
-            inline_sensors, channel_instruction.sensor_id
-        ):
-            continue
-
-        return channel_instruction.channel_number
-
-    return None
-
-
 def is_inline_sensor_config_required() -> bool:
     """Whether `REQUIRE_INLINE_SENSOR_CONFIG` mandates inline sensor config
 
@@ -462,18 +302,80 @@ def is_inline_sensor_config_required() -> bool:
     return os.getenv("REQUIRE_INLINE_SENSOR_CONFIG", "0") == "1"
 
 
-def validate_inline_sensor_configuration(
-    instructions: MeasurementInstructions,
-) -> None:
-    """Validate a measurement request's inline sensor configuration
+def get_active_channels(
+    sensor_configuration: Optional[PCBSensorConfiguration],
+) -> dict[int, Sensor]:
+    """Get the channel -> sensor mapping to resolve `sensor_id` against
 
-    Shared by `/measurement/start` and `/measurement/execute` so the
-    `REQUIRE_INLINE_SENSOR_CONFIG` guard and the missing-channel check can't
+    The inline configuration if given, otherwise `sensors.yaml`'s default
+    configuration.
+    """
+
+    if sensor_configuration is not None:
+        return sensor_configuration.channels
+
+    _, configurations, default_configuration_id = get_sensor_config_data()
+    for configuration in configurations:
+        if configuration.configuration_id == default_configuration_id:
+            return configuration.channels
+
+    logger.error(
+        "Default sensor configuration <%s> not found.",
+        default_configuration_id,
+    )
+    return {}
+
+
+def resolve_channel(
+    sensor_id: Optional[str], channels: dict[int, Sensor]
+) -> ResolvedChannel:
+    """Resolve a `sensor_id` to its channel number and Sensor within
+    `channels` (a configuration's channel -> sensor mapping).
+
+    `sensor_id is None` means the slot is disabled -
+    `ResolvedChannel(channel_number=0, sensor=None)`. A `sensor_id` that
+    doesn't match any sensor in `channels` is always a hard error: whether
+    `channels` came from an inline request body or from `sensors.yaml`, an
+    unresolvable `sensor_id` can only be a caller/configuration bug, never
+    something to gracefully degrade from - there is no independent hardware
+    channel to fall back to routing.
+
+    :raises HTTPException: (422) if `sensor_id` is given but matches no
+        sensor in `channels`.
+    """
+
+    if sensor_id is None:
+        return ResolvedChannel(channel_number=0, sensor=None)
+
+    for channel_number, sensor in channels.items():
+        if sensor.sensor_id == sensor_id:
+            logger.debug(
+                "Resolved sensor ID %s to channel %s", sensor_id,
+                channel_number,
+            )
+            return ResolvedChannel(
+                channel_number=channel_number, sensor=sensor
+            )
+
+    raise HTTP_422_UNKNOWN_SENSOR_ID_EXCEPTION(sensor_id)
+
+
+def resolve_measurement_channels(
+    instructions: MeasurementInstructions,
+) -> ResolvedMeasurementChannels:
+    """Resolve `sensor_id` on each streaming slot to a channel number and
+    Sensor - against the request's inline `sensor_configuration` if given,
+    otherwise against `sensors.yaml`'s default configuration.
+
+    This is the single place hardware routing (channel number) and value
+    conversion (Sensor) are both derived from - reuse the result rather than
+    resolving again. Shared by `/measurement/start` and
+    `/measurement/execute` so the `REQUIRE_INLINE_SENSOR_CONFIG` guard can't
     drift between the two entry points. Must run before any CAN traffic.
 
     :raises HTTPException: (422) if inline sensor configuration is required
-        but absent, or if a streaming slot references a channel missing from
-        the inline configuration that was supplied.
+        but absent, or if a `sensor_id` doesn't resolve to a sensor in the
+        active configuration.
     """
 
     if (
@@ -482,62 +384,13 @@ def validate_inline_sensor_configuration(
     ):
         raise HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_EXCEPTION
 
-    missing_channel = find_missing_inline_channel(instructions)
-    if missing_channel is not None:
-        raise HTTP_422_MISSING_INLINE_SENSOR_CHANNEL_EXCEPTION(missing_channel)
+    channels = get_active_channels(instructions.sensor_configuration)
 
-
-def get_sensor_for_channel(
-    channel_instruction: MeasurementInstructionChannel,
-    sensor_configuration: Optional[PCBSensorConfiguration] = None,
-) -> Optional[Sensor]:
-    """Get sensor for a specific measurement channel"""
-
-    if sensor_configuration is not None:
-        return get_inline_sensor_for_channel(
-            channel_instruction, sensor_configuration
-        )
-
-    sensors = get_sensors()
-
-    if channel_instruction.sensor_id:
-        logger.debug(
-            "Got sensor id %s for channel number %s",
-            channel_instruction.sensor_id,
-            channel_instruction.channel_number,
-        )
-        sensor = find_sensor_by_id(sensors, channel_instruction.sensor_id)
-        if sensor:
-            return sensor
-
-        logger.error(
-            "Could not find sensor with ID %s.", channel_instruction.sensor_id
-        )
-
-    logger.info(
-        "No sensor ID requested or not found for channel %s. Taking defaults.",
-        channel_instruction.channel_number,
+    return ResolvedMeasurementChannels(
+        first=resolve_channel(instructions.first.sensor_id, channels),
+        second=resolve_channel(instructions.second.sensor_id, channels),
+        third=resolve_channel(instructions.third.sensor_id, channels),
     )
-    if channel_instruction.channel_number in range(1, 11):
-        sensor = sensors[channel_instruction.channel_number - 1]
-        logger.info(
-            "Default sensor for channel %s: %s | k2: %s | d2: %s",
-            channel_instruction.channel_number,
-            sensor.name,
-            sensor.scaling_factor,
-            sensor.offset,
-        )
-        return sensor
-
-    if channel_instruction.channel_number == 0:
-        logger.info("Disabled channel; return None")
-        return None
-
-    logger.error(
-        "Could not get sensor for channel %s. Interpreting as percentage.",
-        channel_instruction.channel_number,
-    )
-    return get_raw_default_sensor()
 
 
 # pylint: disable=too-few-public-methods
@@ -653,22 +506,15 @@ class MeasurementSensorInfo:
     third_channel_sensor: Sensor | None
     voltage_scaling: float
 
-    def __init__(self, instructions: MeasurementInstructions):
+    def __init__(
+        self, resolved_channels: ResolvedMeasurementChannels, adc: ADCValues
+    ):
         super().__init__()
-        self.first_channel_sensor = get_sensor_for_channel(
-            instructions.first, instructions.sensor_configuration
-        )
-        self.second_channel_sensor = get_sensor_for_channel(
-            instructions.second, instructions.sensor_configuration
-        )
-        self.third_channel_sensor = get_sensor_for_channel(
-            instructions.third, instructions.sensor_configuration
-        )
-        assert isinstance(instructions.adc, ADCValues)
-        assert isinstance(instructions.adc.reference_voltage, float)
-        self.voltage_scaling = get_voltage_from_raw(
-            instructions.adc.reference_voltage
-        )
+        self.first_channel_sensor = resolved_channels.first.sensor
+        self.second_channel_sensor = resolved_channels.second.sensor
+        self.third_channel_sensor = resolved_channels.third.sensor
+        assert isinstance(adc.reference_voltage, float)
+        self.voltage_scaling = get_voltage_from_raw(adc.reference_voltage)
 
     def get_values(self):
         """Return sensors for channels and voltage scaling"""
