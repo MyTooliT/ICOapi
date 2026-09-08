@@ -506,3 +506,77 @@ HTTP_500_SUPPLY_VOLTAGE_SPEC = {
         }
     }
 }
+
+
+HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_EXCEPTION = HTTPException(
+    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+    detail=(
+        "This ICOapi instance requires inline sensor configuration"
+        " (REQUIRE_INLINE_SENSOR_CONFIG=1). Include `sensor_configuration`"
+        " in the request."
+    ),
+)
+HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_SPEC = {
+    "description": (
+        "This ICOapi instance requires inline sensor configuration."
+    ),
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+                "required": ["detail", "status_code"],
+            },
+            "example": {
+                "detail": (
+                    "This ICOapi instance requires inline sensor"
+                    " configuration (REQUIRE_INLINE_SENSOR_CONFIG=1)."
+                    " Include `sensor_configuration` in the request."
+                ),
+                "status_code": 422,
+            },
+        }
+    },
+}
+
+
+class HTTP_422_MISSING_INLINE_SENSOR_CHANNEL_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
+    """Inline sensor configuration is missing a channel used for streaming."""
+    def __init__(self, channel_number: int):
+        super().__init__(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=(
+                "Inline sensor configuration is missing channel"
+                f" {channel_number}, which is referenced by a streaming"
+                " slot."
+            ),
+        )
+
+
+HTTP_422_MISSING_INLINE_SENSOR_CHANNEL_SPEC = {
+    "description": (
+        "Inline sensor configuration is missing a channel used for"
+        " streaming."
+    ),
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+            },
+            "example": {
+                "detail": (
+                    "Inline sensor configuration is missing channel 3, which"
+                    " is referenced by a streaming slot."
+                ),
+                "status_code": 422,
+            },
+        }
+    },
+}

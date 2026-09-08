@@ -21,6 +21,7 @@ from icoapi.routers import (
     cloud_routes,
     log_routes,
 )
+from icoapi.scripts.data_handling import is_inline_sensor_config_required
 from icoapi.scripts.file_handling import (
     copy_config_files_if_not_exists,
     ensure_folder_exists,
@@ -120,6 +121,11 @@ def main():
 
     port = int(getenv("VITE_API_PORT", "33215"))
     host = getenv("VITE_API_HOSTNAME", "0.0.0.0")
+
+    logger.info(
+        "REQUIRE_INLINE_SENSOR_CONFIG=%s",
+        is_inline_sensor_config_required(),
+    )
 
     uvicorn.run("icoapi.api:app", host=host, port=port, log_config=None)
 

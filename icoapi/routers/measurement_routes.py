@@ -33,6 +33,7 @@ from icoapi.scripts.errors import (
     HTTP_504_MEASUREMENT_TIMEOUT_SPEC,
 )
 
+from icoapi.scripts.data_handling import validate_inline_sensor_configuration
 from icoapi.scripts.measurement import (
     measurement_preparations,
     run_measurement,
@@ -51,6 +52,8 @@ async def start_measurement(
     general_messenger=Depends(get_messenger),
 ):
     """Start measurement"""
+
+    validate_inline_sensor_configuration(instructions)
 
     try:
         await measurement_preparations(system, instructions)

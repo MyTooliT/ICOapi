@@ -7,17 +7,56 @@ from logging import getLogger
 from pathlib import Path
 from time import time
 
+from fastapi import HTTPException
 from icostate import ADCConfiguration
 from icotronic.can.streaming import StreamingConfiguration
 from icotronic.measurement.storage import Storage
-from pytest import mark
+from pytest import mark, raises
 
 import numpy as np
 
-from icoapi.models.models import Metadata, MetadataPrefix
+from icoapi.models.models import (
+    MeasurementInstructionChannel,
+    MeasurementInstructions,
+    Metadata,
+    MetadataPrefix,
+    PCBSensorConfiguration,
+    Sensor,
+)
+from icoapi.scripts.data_handling import validate_inline_sensor_configuration
 from icoapi.scripts.measurement import write_image_array, write_metadata
 
 # -- Functions ----------------------------------------------------------------
+
+
+def disabled_channel() -> MeasurementInstructionChannel:
+    """A disabled measurement channel instruction"""
+
+    return MeasurementInstructionChannel(channel_number=0, sensor_id=None)
+
+
+def build_instructions(
+    sensor_configuration: PCBSensorConfiguration | None = None,
+    first_channel_number: int = 0,
+) -> MeasurementInstructions:
+    """Build minimal measurement instructions for validation unit tests"""
+
+    return MeasurementInstructions(
+        name=None,
+        mac_address="00-11-22-33-44-55",
+        time=3,
+        first=MeasurementInstructionChannel(
+            channel_number=first_channel_number, sensor_id=None
+        ),
+        second=disabled_channel(),
+        third=disabled_channel(),
+        ift_requested=False,
+        ift_channel="",
+        ift_window_width=50,
+        adc=None,
+        meta=None,
+        sensor_configuration=sensor_configuration,
+    )
 
 
 def get_measurement_websocket_endpoint(
@@ -103,6 +142,80 @@ class TestWriteMetadata:
             assert picture_array.read().tolist() == [b"d29ybGQ="]
 
 
+class TestValidateInlineSensorConfiguration:
+    """Direct unit tests for `validate_inline_sensor_configuration`"""
+
+    def test_passes_when_not_required_and_absent(self, monkeypatch) -> None:
+        """No inline config and no strictness requirement - fine"""
+
+        monkeypatch.setenv("REQUIRE_INLINE_SENSOR_CONFIG", "0")
+        validate_inline_sensor_configuration(build_instructions())
+
+    def test_rejects_when_required_and_absent(self, monkeypatch) -> None:
+        """Strictness requires inline config; request has none"""
+
+        monkeypatch.setenv("REQUIRE_INLINE_SENSOR_CONFIG", "1")
+        with raises(HTTPException) as excinfo:
+            validate_inline_sensor_configuration(build_instructions())
+
+        assert excinfo.value.status_code == 422
+        assert "requires inline sensor configuration" in excinfo.value.detail
+
+    def test_passes_when_required_and_present(self, monkeypatch) -> None:
+        """Strictness requires inline config; request supplies one"""
+
+        monkeypatch.setenv("REQUIRE_INLINE_SENSOR_CONFIG", "1")
+
+        sensor = Sensor(
+            name="Test Sensor",
+            sensor_type=None,
+            sensor_id="test_sensor_01",
+            unit="-",
+            dimension="Test",
+            phys_min=0,
+            phys_max=1,
+            volt_min=0,
+            volt_max=3.3,
+        )
+        sensor_configuration = PCBSensorConfiguration(
+            configuration_id="test-config",
+            configuration_name="Test Config",
+            channels={1: sensor},
+        )
+
+        validate_inline_sensor_configuration(
+            build_instructions(
+                sensor_configuration=sensor_configuration,
+                first_channel_number=1,
+            )
+        )
+
+    def test_rejects_missing_channel_regardless_of_strictness(
+        self, monkeypatch
+    ) -> None:
+        """A channel missing from inline config is rejected even when
+        REQUIRE_INLINE_SENSOR_CONFIG is off - the two checks are independent"""
+
+        monkeypatch.setenv("REQUIRE_INLINE_SENSOR_CONFIG", "0")
+
+        sensor_configuration = PCBSensorConfiguration(
+            configuration_id="test-config",
+            configuration_name="Test Config",
+            channels={},
+        )
+
+        with raises(HTTPException) as excinfo:
+            validate_inline_sensor_configuration(
+                build_instructions(
+                    sensor_configuration=sensor_configuration,
+                    first_channel_number=1,
+                )
+            )
+
+        assert excinfo.value.status_code == 422
+        assert "missing channel 1" in excinfo.value.detail
+
+
 class TestMeasurement:
     """Measurement endpoint test methods"""
 
@@ -167,6 +280,90 @@ class TestMeasurement:
         timestamp = datetime.fromisoformat(start_time).timestamp()
         current_timestamp = time()
         assert current_timestamp - 10 <= timestamp <= current_timestamp
+
+    def test_measurement_start_missing_inline_sensor_channel(
+        self, measurement_prefix, client
+    ) -> None:
+        """`/start` should reject with 422 before any CAN traffic when a
+        streaming slot references a channel absent from an inline sensor
+        configuration"""
+
+        start = f"{measurement_prefix}/start"
+
+        sensor = {
+            "name": "Acceleration 100g",
+            "sensor_type": "ADXL1001",
+            "sensor_id": "acc100g_01",
+            "unit": "g",
+            "dimension": "Acceleration",
+            "phys_min": -100.0,
+            "phys_max": 100.0,
+            "volt_min": 0.33,
+            "volt_max": 2.97,
+        }
+
+        instructions = {
+            "name": "Test Measurement",
+            "mac_address": "00-11-22-33-44-55",
+            "time": 3,
+            "first": {"channel_number": 3, "sensor_id": None},
+            "second": {"channel_number": 0, "sensor_id": None},
+            "third": {"channel_number": 0, "sensor_id": None},
+            "ift_requested": False,
+            "ift_channel": "",
+            "ift_window_width": 50,
+            "adc": None,
+            "meta": None,
+            "wait_for_post_meta": False,
+            "disconnect_after_measurement": False,
+            "sensor_configuration": {
+                "configuration_id": "test-config",
+                "configuration_name": "Test Config",
+                "channels": {"1": sensor},
+            },
+        }
+
+        response = client.post(start, json=instructions)
+
+        assert response.status_code == 422
+        assert response.json()["detail"] == (
+            "Inline sensor configuration is missing channel 3, which is"
+            " referenced by a streaming slot."
+        )
+
+    def test_measurement_start_requires_inline_sensor_config(
+        self, measurement_prefix, client, monkeypatch
+    ) -> None:
+        """`/start` should reject with 422 before any CAN traffic when
+        REQUIRE_INLINE_SENSOR_CONFIG=1 and the request has no inline
+        `sensor_configuration`"""
+
+        monkeypatch.setenv("REQUIRE_INLINE_SENSOR_CONFIG", "1")
+
+        start = f"{measurement_prefix}/start"
+
+        instructions = {
+            "name": "Test Measurement",
+            "mac_address": "00-11-22-33-44-55",
+            "time": 3,
+            "first": {"channel_number": 0, "sensor_id": None},
+            "second": {"channel_number": 0, "sensor_id": None},
+            "third": {"channel_number": 0, "sensor_id": None},
+            "ift_requested": False,
+            "ift_channel": "",
+            "ift_window_width": 50,
+            "adc": None,
+            "meta": None,
+            "wait_for_post_meta": False,
+            "disconnect_after_measurement": False,
+        }
+
+        response = client.post(start, json=instructions)
+
+        assert response.status_code == 422
+        assert "requires inline sensor configuration" in (
+            response.json()["detail"]
+        )
 
     @mark.hardware
     def test_measurement_start_no_input(
