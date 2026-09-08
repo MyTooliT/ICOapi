@@ -45,6 +45,20 @@ VITE_API_WS_PROTOCOL=ws
 WEBSOCKET_UPDATE_RATE=300
 ```
 
+`REQUIRE_INLINE_SENSOR_CONFIG` controls whether a measurement request must
+carry its own `sensor_configuration` (used for headless/orchestrated
+deployments, where an upstream config service owns all configuration) or may
+fall back to the locally stored sensor configuration file (the default, used
+for interactive use via ICOweb). When set to `1`, `POST /measurement/start`
+and `POST /measurement/execute` reject a request without inline
+`sensor_configuration` with `422`, before any CAN traffic. The sensor
+configuration file itself is unaffected either way - it is still loaded,
+served, and restorable regardless of this setting.
+
+```ini
+REQUIRE_INLINE_SENSOR_CONFIG=0
+```
+
 ### File Storage Settings
 
 These settings determine where the measurement and configuration files are stored locally.
