@@ -682,18 +682,12 @@ async def run_measurement(
                 sensor_info = MeasurementSensorInfo(
                     resolved_channels, instructions.adc
                 )
-                (
-                    first_channel_sensor,
-                    second_channel_sensor,
-                    third_channel_sensor,
-                    _,
-                ) = sensor_info.get_values()
                 add_sensor_data_to_storage(
                     storage,
                     [
-                        first_channel_sensor,
-                        second_channel_sensor,
-                        third_channel_sensor,
+                        resolved_channels.first,
+                        resolved_channels.second,
+                        resolved_channels.third,
                     ],
                 )
 
@@ -707,11 +701,15 @@ async def run_measurement(
                         else ("dual" if enabled_channels == 2 else "tripple")
                     ),
                     ", ".join([
-                        f"Channel {channel} -> Sensor {sensor}"
-                        for channel, sensor in enumerate(
-                            sensor_configuration.values(), start=1
+                        f"{slot} -> channel {resolved.channel_number}"
+                        f" (sensor ID {resolved.sensor.sensor_id})"
+                        for slot, resolved in (
+                            ("first", resolved_channels.first),
+                            ("second", resolved_channels.second),
+                            ("third", resolved_channels.third),
                         )
-                        if sensor != 0
+                        if resolved.channel_number != 0
+                        and resolved.sensor is not None
                     ]),
                 )
 

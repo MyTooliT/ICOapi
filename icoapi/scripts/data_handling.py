@@ -9,7 +9,13 @@ import tables
 import yaml
 from fastapi import HTTPException
 
-from tables import Float32Col, IsDescription, NoSuchNodeError, StringCol
+from tables import (
+    Float32Col,
+    IsDescription,
+    NoSuchNodeError,
+    StringCol,
+    UInt8Col,
+)
 from icotronic.measurement.storage import StorageData
 
 from icoapi.models.models import (
@@ -302,28 +308,32 @@ def is_inline_sensor_config_required() -> bool:
     return os.getenv("REQUIRE_INLINE_SENSOR_CONFIG", "0") == "1"
 
 
-def get_active_channels(
+def get_active_sensor_configuration(
     sensor_configuration: Optional[PCBSensorConfiguration],
-) -> dict[int, Sensor]:
-    """Get the channel -> sensor mapping to resolve `sensor_id` against
+) -> PCBSensorConfiguration:
+    """Get the sensor configuration to resolve `sensor_id` against
 
     The inline configuration if given, otherwise `sensors.yaml`'s default
     configuration.
     """
 
     if sensor_configuration is not None:
-        return sensor_configuration.channels
+        return sensor_configuration
 
     _, configurations, default_configuration_id = get_sensor_config_data()
     for configuration in configurations:
         if configuration.configuration_id == default_configuration_id:
-            return configuration.channels
+            return configuration
 
     logger.error(
         "Default sensor configuration <%s> not found.",
         default_configuration_id,
     )
-    return {}
+    return PCBSensorConfiguration(
+        configuration_id=default_configuration_id,
+        configuration_name="",
+        channels={},
+    )
 
 
 def resolve_channel(
@@ -384,7 +394,12 @@ def resolve_measurement_channels(
     ):
         raise HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_EXCEPTION
 
-    channels = get_active_channels(instructions.sensor_configuration)
+    sensor_configuration = get_active_sensor_configuration(
+        instructions.sensor_configuration
+    )
+    logger.debug("Using sensor configuration: %s", sensor_configuration)
+
+    channels = sensor_configuration.channels
 
     return ResolvedMeasurementChannels(
         first=resolve_channel(instructions.first.sensor_id, channels),
@@ -404,6 +419,7 @@ class SensorDescription(IsDescription):
         itemsize=100
     )  # Fixed-size string for the sensor type
     sensor_id = StringCol(itemsize=100)  # Fixed-size string for the sensor ID
+    channel_number = UInt8Col()  # Physical channel this sensor was read from
     unit = StringCol(itemsize=10)  # Fixed-size string for the unit
     dimension = StringCol(itemsize=100)  # Fixed-size string for the unit
     phys_min = Float32Col()  # Float for physical minimum
@@ -418,9 +434,9 @@ class SensorDescription(IsDescription):
 
 
 def add_sensor_data_to_storage(
-    storage: StorageData, sensors: List[Sensor]
+    storage: StorageData, resolved_channels: List[ResolvedChannel]
 ) -> None:
-    """Add sensor data to storage object"""
+    """Add sensor and channel data to storage object"""
 
     if not storage.hdf:
         logger.error("Could not add sensors to storage; no storage found.")
@@ -433,13 +449,15 @@ def add_sensor_data_to_storage(
         title="Sensor Data",
     )
     count = 0
-    for sensor in sensors:
+    for resolved_channel in resolved_channels:
+        sensor = resolved_channel.sensor
         if sensor is None:
             continue
         row = table.row
         row["name"] = sensor.name
         row["sensor_type"] = sensor.sensor_type if sensor.sensor_type else ""
         row["sensor_id"] = sensor.sensor_id
+        row["channel_number"] = resolved_channel.channel_number
         row["unit"] = sensor.unit.encode()
         row["dimension"] = sensor.dimension.encode()
         row["phys_min"] = sensor.phys_min
