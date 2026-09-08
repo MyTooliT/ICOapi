@@ -38,6 +38,7 @@ from icoapi.models.models import (
     MeasurementInstructions,
     Metadata,
     MetadataPrefix,
+    ResolvedMeasurementChannels,
 )
 from icoapi.scripts.sth_scripts import disconnect_sth_devices
 
@@ -459,6 +460,7 @@ def get_sendable_data_and_apply_conversion(
 async def measurement_preparations(
     system: ICOsystem,
     instructions: MeasurementInstructions,
+    resolved_channels: ResolvedMeasurementChannels,
 ) -> None:
     """
     This function sets up all system settings.
@@ -467,6 +469,9 @@ async def measurement_preparations(
 
     :param system: CAN Network instance from API
     :param instructions: Measurement instructions from client
+    :param resolved_channels: `sensor_id`s from `instructions` already
+        resolved to channel numbers (see
+        `data_handling.resolve_measurement_channels`)
 
     :raises UnsupportedFeatureException:
         If the sensor node does not support the requested sensor configuration
@@ -491,9 +496,9 @@ async def measurement_preparations(
     # `StreamingConfiguration sets the active channels based on if the channel
     # number is > 0.`
     sensor_configuration = SensorConfiguration(
-        instructions.first.channel_number,
-        instructions.second.channel_number,
-        instructions.third.channel_number,
+        resolved_channels.first.channel_number,
+        resolved_channels.second.channel_number,
+        resolved_channels.third.channel_number,
     )
 
     # Write sensor configuration to the holder if possible / necessary.
@@ -607,6 +612,7 @@ async def request_post_meta_after_abnormal_stop(
 async def run_measurement(
     system: ICOsystem,
     instructions: MeasurementInstructions,
+    resolved_channels: ResolvedMeasurementChannels,
     measurement_state: MeasurementState,
     general_messenger: GeneralMessenger,
 ) -> None:
@@ -616,9 +622,9 @@ async def run_measurement(
     sample_rate = adc.sample_rate()
 
     sensor_configuration = SensorConfiguration(
-        instructions.first.channel_number,
-        instructions.second.channel_number,
-        instructions.third.channel_number,
+        resolved_channels.first.channel_number,
+        resolved_channels.second.channel_number,
+        resolved_channels.third.channel_number,
     )
     streaming_configuration = sensor_configuration.streaming_configuration()
 
@@ -672,19 +678,16 @@ async def run_measurement(
                 dataloss_sent_time = monotonic()
                 data_collected_for_send: list = []
 
-                sensor_info = MeasurementSensorInfo(instructions)
-                (
-                    first_channel_sensor,
-                    second_channel_sensor,
-                    third_channel_sensor,
-                    _,
-                ) = sensor_info.get_values()
+                assert isinstance(instructions.adc, ADCValues)
+                sensor_info = MeasurementSensorInfo(
+                    resolved_channels, instructions.adc
+                )
                 add_sensor_data_to_storage(
                     storage,
                     [
-                        first_channel_sensor,
-                        second_channel_sensor,
-                        third_channel_sensor,
+                        resolved_channels.first,
+                        resolved_channels.second,
+                        resolved_channels.third,
                     ],
                 )
 
@@ -698,11 +701,15 @@ async def run_measurement(
                         else ("dual" if enabled_channels == 2 else "tripple")
                     ),
                     ", ".join([
-                        f"Channel {channel} -> Sensor {sensor}"
-                        for channel, sensor in enumerate(
-                            sensor_configuration.values(), start=1
+                        f"{slot} -> channel {resolved.channel_number}"
+                        f" (sensor ID {resolved.sensor.sensor_id})"
+                        for slot, resolved in (
+                            ("first", resolved_channels.first),
+                            ("second", resolved_channels.second),
+                            ("third", resolved_channels.third),
                         )
-                        if sensor != 0
+                        if resolved.channel_number != 0
+                        and resolved.sensor is not None
                     ]),
                 )
 

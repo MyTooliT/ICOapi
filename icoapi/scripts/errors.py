@@ -543,23 +543,21 @@ HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_SPEC = {
 }
 
 
-class HTTP_422_MISSING_INLINE_SENSOR_CHANNEL_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
-    """Inline sensor configuration is missing a channel used for streaming."""
-    def __init__(self, channel_number: int):
+class HTTP_422_UNKNOWN_SENSOR_ID_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
+    """A requested sensor_id is not in the active sensor configuration."""
+    def __init__(self, sensor_id: str):
         super().__init__(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
-                "Inline sensor configuration is missing channel"
-                f" {channel_number}, which is referenced by a streaming"
-                " slot."
+                f"Sensor ID '{sensor_id}' does not exist in the active"
+                " sensor configuration."
             ),
         )
 
 
-HTTP_422_MISSING_INLINE_SENSOR_CHANNEL_SPEC = {
+HTTP_422_UNKNOWN_SENSOR_ID_SPEC = {
     "description": (
-        "Inline sensor configuration is missing a channel used for"
-        " streaming."
+        "A requested sensor_id is not in the active sensor configuration."
     ),
     "content": {
         "application/json": {
@@ -572,8 +570,8 @@ HTTP_422_MISSING_INLINE_SENSOR_CHANNEL_SPEC = {
             },
             "example": {
                 "detail": (
-                    "Inline sensor configuration is missing channel 3, which"
-                    " is referenced by a streaming slot."
+                    "Sensor ID 'acc100g_01' does not exist in the active"
+                    " sensor configuration."
                 ),
                 "status_code": 422,
             },
