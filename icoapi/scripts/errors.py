@@ -578,3 +578,83 @@ HTTP_422_UNKNOWN_SENSOR_ID_SPEC = {
         }
     },
 }
+
+
+class HTTP_EXECUTE_STEP_FAILED_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
+    """One step of `POST /measurement/execute` failed.
+
+    Reuses whatever status code the underlying failure would already map to
+    on the single-purpose endpoints (`/sth/connect`, `/sth/write-adc`,
+    `/measurement/start`) - only the step name is new information, added so
+    an orchestrator driving `execute` can tell which part of the sequence
+    failed without probing each endpoint individually.
+    """
+    def __init__(self, step: str, status_code: int, reason: str):
+        super().__init__(
+            status_code=status_code,
+            detail=f"/measurement/execute failed at step '{step}': {reason}",
+        )
+
+
+HTTP_EXECUTE_STEP_FAILED_SPEC = {
+    "description": "One step of `POST /measurement/execute` failed.",
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+            },
+            "example": {
+                "detail": (
+                    "/measurement/execute failed at step 'connect': STH "
+                    "could not be connected and must be out of reach or "
+                    "discharged."
+                ),
+                "status_code": 404,
+            },
+        }
+    },
+}
+
+
+class HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
+    """The sensor channel configuration read back from the STH doesn't
+    match what was just written - the hardware write did not take."""
+    def __init__(self, expected: str, actual: str):
+        super().__init__(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "Sensor channel configuration mismatch after write: "
+                f"expected {expected}, device reports {actual}."
+            ),
+        )
+
+
+HTTP_502_SENSOR_CONFIGURATION_MISMATCH_SPEC = {
+    "description": (
+        "The sensor channel configuration read back from the STH doesn't"
+        " match what was just written."
+    ),
+    "content": {
+        "application/json": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string"},
+                    "status_code": {"type": "integer"},
+                },
+            },
+            "example": {
+                "detail": (
+                    "Sensor channel configuration mismatch after write:"
+                    " expected M1: S1, M2: None, M3: None, device reports"
+                    " M1: S3, M2: None, M3: None."
+                ),
+                "status_code": 502,
+            },
+        }
+    },
+}

@@ -31,6 +31,9 @@ from icoapi.scripts.data_handling import (
     add_sensor_data_to_storage,
     MeasurementSensorInfo,
 )
+from icoapi.scripts.errors import (
+    HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION,
+)
 from icoapi.scripts.file_handling import get_measurement_dir
 from icoapi.models.globals import GeneralMessenger, MeasurementState
 from icoapi.models.models import (
@@ -82,6 +85,43 @@ async def write_sensor_config_if_required(
                 f"Sensor channel configuration “{sensor_configuration}” is "
                 "not supported by the sensor node"
             ) from exception
+
+
+async def verify_sensor_configuration_applied(
+    system: ICOsystem, expected: SensorConfiguration
+) -> None:
+    """Read the sensor channel configuration back from the STH and confirm
+    the *requested* channels match - defensive confirmation that a
+    `write_sensor_config_if_required` write actually took, rather than
+    trusting it silently. Does not, and cannot, verify that the physically
+    wired sensors match what the resolved configuration claims - only that
+    the hardware's own routing state agrees with what was requested.
+
+    Only slots `expected` sets to a real channel number are compared. Per
+    `SensorConfiguration.set_sensor_configuration`'s own documented CAN
+    semantics, a slot value of `0` doesn't mean "disable this channel" at
+    the hardware level - it means "leave this channel's current sensor
+    number unchanged". A disabled/unstreamed slot therefore has no
+    deterministic value to read back: it legitimately keeps whatever was
+    last written to it, including by a previous, unrelated measurement.
+    Comparing it anyway would fail this check for reasons that have nothing
+    to do with whether *this* request's channels were actually applied -
+    confirmed against real hardware, not a hypothetical.
+
+    :raises HTTPException: (502) if a requested (non-zero) channel doesn't
+        match what the device reports for that slot.
+    """
+
+    actual = await system.sensor_node.get_sensor_configuration()
+    mismatches = [
+        slot
+        for slot in ("first", "second", "third")
+        if expected[slot] != 0 and expected[slot] != actual[slot]
+    ]
+    if mismatches:
+        raise HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION(
+            expected=repr(expected), actual=repr(actual)
+        )
 
 
 def get_measurement_slices(

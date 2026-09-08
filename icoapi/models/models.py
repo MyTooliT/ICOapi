@@ -118,7 +118,7 @@ class MeasurementInstructionChannel:
     `ResolvedChannel`), never supplied by the client.
     """
 
-    sensor_id: Optional[str]
+    sensor_id: Optional[str] = None
 
 
 @dataclass
@@ -181,8 +181,8 @@ class MeasurementInstructions:
     ift_requested: bool
     ift_channel: str
     ift_window_width: int
-    adc: ADCValues | None
-    meta: Metadata | None
+    adc: ADCValues | None = None
+    meta: Metadata | None = None
     wait_for_post_meta: bool = False
     disconnect_after_measurement: bool = False
     sensor_configuration: PCBSensorConfiguration | None = None
@@ -477,7 +477,6 @@ class PCBSensorConfiguration:
     configuration_id: str
     configuration_name: str
     channels: dict[int, Sensor]
-    configuration_hash: str | None = None
 
 
 @dataclass

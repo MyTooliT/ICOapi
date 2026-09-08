@@ -15,6 +15,7 @@ from pytest import mark, raises
 
 import numpy as np
 
+from icoapi.models.globals import MeasurementSingleton
 from icoapi.models.models import (
     MeasurementInstructionChannel,
     MeasurementInstructions,
@@ -345,16 +346,19 @@ class TestMeasurement:
 
         start = f"{measurement_prefix}/start"
 
+        # Values are arbitrary placeholders - this test's `first.sensor_id`
+        # ("does-not-exist") never matches this entry, so its calibration
+        # doesn't need to be realistic, only schema-valid.
         sensor = {
-            "name": "Acceleration 100g",
+            "name": "Placeholder Sensor",
             "sensor_type": "ADXL1001",
-            "sensor_id": "acc100g_01",
+            "sensor_id": "placeholder",
             "unit": "g",
             "dimension": "Acceleration",
-            "phys_min": -100.0,
-            "phys_max": 100.0,
-            "volt_min": 0.33,
-            "volt_max": 2.97,
+            "phys_min": -1.0,
+            "phys_max": 1.0,
+            "volt_min": 0.0,
+            "volt_max": 1.0,
         }
 
         instructions = {
@@ -420,6 +424,77 @@ class TestMeasurement:
             response.json()["detail"]
         )
 
+    def test_measurement_execute_requires_inline_sensor_config(
+        self, measurement_prefix, client, monkeypatch
+    ) -> None:
+        """`/execute` should reject with 422 before any CAN traffic when
+        REQUIRE_INLINE_SENSOR_CONFIG=1 and the request has no inline
+        `sensor_configuration` - the same guard `/start` has, per the brief:
+        `execute` is the endpoint a headless orchestrator actually calls, so
+        gating only `/start` would leave it unprotected."""
+
+        monkeypatch.setenv("REQUIRE_INLINE_SENSOR_CONFIG", "1")
+
+        execute = f"{measurement_prefix}/execute"
+
+        instructions = {
+            "name": "Test Measurement",
+            "mac_address": "00-11-22-33-44-55",
+            "time": 3,
+            "first": {"sensor_id": None},
+            "second": {"sensor_id": None},
+            "third": {"sensor_id": None},
+            "ift_requested": False,
+            "ift_channel": "",
+            "ift_window_width": 50,
+            "adc": None,
+            "meta": None,
+            "wait_for_post_meta": False,
+            "disconnect_after_measurement": False,
+        }
+
+        response = client.post(execute, json=instructions)
+
+        assert response.status_code == 422
+        assert "requires inline sensor configuration" in (
+            response.json()["detail"]
+        )
+
+    def test_measurement_execute_rejects_while_already_running(
+        self, measurement_prefix, client
+    ) -> None:
+        """`/execute` should reject with 400 before touching the connection
+        at all if a measurement is already running - disconnecting or
+        rewriting ADC/sensor configuration on a live connection would
+        corrupt the in-progress measurement, not just fail cleanly."""
+
+        measurement_state = MeasurementSingleton.get_instance()
+        measurement_state.running = True
+        try:
+            execute = f"{measurement_prefix}/execute"
+
+            instructions = {
+                "name": "Test Measurement",
+                "mac_address": "00-11-22-33-44-55",
+                "time": 3,
+                "first": {"sensor_id": None},
+                "second": {"sensor_id": None},
+                "third": {"sensor_id": None},
+                "ift_requested": False,
+                "ift_channel": "",
+                "ift_window_width": 50,
+                "adc": None,
+                "meta": None,
+                "wait_for_post_meta": False,
+                "disconnect_after_measurement": False,
+            }
+
+            response = client.post(execute, json=instructions)
+
+            assert response.status_code == 400
+        finally:
+            measurement_state.running = False
+
     @mark.hardware
     def test_measurement_start_no_input(
         self,
@@ -483,6 +558,75 @@ class TestMeasurement:
         response = client.post(stop)
         assert response.status_code == 200
         assert response.json() is None
+
+    @mark.hardware
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    def test_measurement_execute(
+        self,
+        measurement_prefix,
+        sth_prefix,
+        test_sensor_node,
+        test_sensor_node_adc_configuration,
+        sensor_id,
+        client,
+    ) -> None:
+        """`/execute` should connect, configure and start a measurement in
+        one call - deliberately not using the `connect` fixture, since
+        connecting is exactly what `execute` is supposed to do itself.
+        Also exercises idempotent reuse: calling `execute` again for the
+        same MAC address (STH still connected after the first `/stop`,
+        which doesn't disconnect by default) should succeed without
+        erroring on a duplicate connect."""
+
+        execute = f"{measurement_prefix}/execute"
+        stop = f"{measurement_prefix}/stop"
+
+        instructions = {
+            "name": "Test Execute Measurement",
+            "mac_address": test_sensor_node["mac_address"],
+            "time": 3,
+            "first": {"sensor_id": sensor_id},
+            "second": {"sensor_id": None},
+            "third": {"sensor_id": None},
+            "ift_requested": False,
+            "ift_channel": "",
+            "ift_window_width": 50,
+            "adc": test_sensor_node_adc_configuration,
+            "meta": None,
+            "wait_for_post_meta": False,
+            "disconnect_after_measurement": False,
+        }
+
+        response = client.post(execute, json=instructions)
+        assert response.status_code == 200, response.text
+        assert (
+            response.json()["message"] == "Measurement started successfully."
+        )
+
+        status_response = client.get(measurement_prefix)
+        assert status_response.status_code == 200
+        assert status_response.json()["running"] is True
+
+        stop_response = client.post(stop)
+        assert stop_response.status_code == 200
+        assert stop_response.json() is None
+
+        # Idempotent reuse: STH is still connected to the same MAC (`/stop`
+        # doesn't disconnect unless `disconnect_after_measurement` is set) -
+        # `execute` should reuse the connection rather than erroring on a
+        # duplicate connect attempt.
+        response_again = client.post(execute, json=instructions)
+        assert response_again.status_code == 200
+        assert (
+            response_again.json()["message"]
+            == "Measurement started successfully."
+        )
+
+        stop_response_again = client.post(stop)
+        assert stop_response_again.status_code == 200
+        assert stop_response_again.json() is None
+
+        client.put(f"{sth_prefix}/disconnect")
 
     @mark.hardware
     def test_measurement_stop(
