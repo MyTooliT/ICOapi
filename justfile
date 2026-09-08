@@ -115,12 +115,9 @@ start-measurement: connect
 	  "name={{measurement_name}}" \
 	  "mac_address={{mac_address}}" \
 	  time=100 \
-	  first[channel_number]:=1 \
 	  first[sensor_id]=acc100g_01 \
-	  second[channel_number]:=0 \
-	  second[sensor_id]="" \
-	  third[channel_number]:=0 \
-	  third[sensor_id]="" \
+	  second[sensor_id]:=null \
+	  third[sensor_id]:=null \
 	  ift_requested:=true \
 	  ift_channel="first" \
 	  ift_window_width:=50 \

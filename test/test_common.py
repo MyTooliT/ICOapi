@@ -107,15 +107,13 @@ def check_state_measurement_data(
     first_channel = instructions["first"]
     assert isinstance(first_channel, dict)
     assert (
-        first_channel["channel_number"]
-        == measurement_instructions_single_channel["first"]["channel_number"]
+        first_channel["sensor_id"]
+        == measurement_instructions_single_channel["first"]["sensor_id"]
     )
-    assert isinstance(first_channel["sensor_id"], str)
 
     for number in ("second", "third"):
         channel = instructions[number]
         assert isinstance(channel, dict)
-        assert channel["channel_number"] == 0
         assert channel["sensor_id"] is None
 
 

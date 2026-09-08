@@ -27,7 +27,6 @@ def create_measurement_instructions(
             instructions[name] = value
 
     disabled = {
-        "channel_number": 0,
         "sensor_id": None,
     }
 
@@ -255,6 +254,43 @@ def sensor_id(sensor_name, client):
 
 
 @fixture
+def three_distinct_sensor_ids(client) -> list[str]:
+    """Sensor IDs of (at least) three channels in the active configuration
+
+    Fetched from the live default sensor configuration rather than
+    hardcoded, so this works against whatever tool holder is actually
+    connected. Each `sensor_id` resolves to its own channel number (see
+    `resolve_channel` in `icoapi/scripts/data_handling.py`), so distinct
+    sensor IDs are required to exercise distinct channels - unlike the old
+    channel_number-based instructions, a single sensor_id can no longer be
+    reused across slots to force multiple channels active at once.
+    """
+
+    response = client.get("sensor")
+    assert response.status_code == 200
+    body = response.json()
+
+    default_configuration_id = body["default_configuration_id"]
+    configuration = next(
+        config
+        for config in body["configurations"]
+        if config["configuration_id"] == default_configuration_id
+    )
+    channels = configuration["channels"]
+    assert len(channels) >= 3, (
+        "Active sensor configuration needs at least three channels for the"
+        " multi-channel measurement fixtures"
+    )
+
+    # Channel keys are strings in JSON; sort numerically for a stable pick.
+    ordered_channel_numbers = sorted(channels, key=int)
+    return [
+        channels[channel_number]["sensor_id"]
+        for channel_number in ordered_channel_numbers[:3]
+    ]
+
+
+@fixture
 def measurement_instructions_single_channel(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
@@ -263,10 +299,6 @@ def measurement_instructions_single_channel(
     node = connect
 
     first = {
-        # Use a different sensor channel number for the first measurement
-        # channel to make sure we execute the code for changing the sensor
-        # configuration.
-        "channel_number": 2,
         "sensor_id": sensor_id,
     }
 
@@ -288,7 +320,6 @@ def measurement_instructions_wait_for_meta(
     node = connect
 
     first = {
-        "channel_number": 1,
         "sensor_id": sensor_id,
     }
 
@@ -321,7 +352,6 @@ def measurement_instructions_ift_value(
     node = connect
 
     second = {
-        "channel_number": 2,
         "sensor_id": sensor_id,
     }
 
@@ -339,24 +369,25 @@ def measurement_instructions_ift_value(
 
 @fixture
 def measurement_instructions_three_channels(
-    test_sensor_node_adc_configuration, connect, sensor_id
+    test_sensor_node_adc_configuration, connect, three_distinct_sensor_ids
 ):
     """Tripple channel measurement instructions with activated IFT value"""
 
     node = connect
 
-    def get_sensor(channel: int) -> dict[str, Any]:
+    def get_sensor(sensor_id: str) -> dict[str, Any]:
         return {
-            "channel_number": channel,
             "sensor_id": sensor_id,
         }
+
+    first_id, second_id, third_id = three_distinct_sensor_ids
 
     instructions = create_measurement_instructions(
         mac_address=node["mac_address"],
         adc=test_sensor_node_adc_configuration,
-        first=get_sensor(2),
-        second=get_sensor(1),
-        third=get_sensor(5),
+        first=get_sensor(first_id),
+        second=get_sensor(second_id),
+        third=get_sensor(third_id),
         time=5,
         ift_requested=True,
         ift_channel="third",
