@@ -1,4 +1,6 @@
 """Data Model Information"""
+from __future__ import annotations
+
 import datetime
 from enum import unique, StrEnum
 from dataclasses import dataclass, field
@@ -177,10 +179,7 @@ class MeasurementInstructions:
     meta: Metadata | None
     wait_for_post_meta: bool = False
     disconnect_after_measurement: bool = False
-    # Forward reference: `PCBSensorConfiguration` is defined further down in
-    # this module, and this file does not use
-    # `from __future__ import annotations`.
-    sensor_configuration: "PCBSensorConfiguration | None" = None
+    sensor_configuration: PCBSensorConfiguration | None = None
 
 
 # pylint: enable=too-many-instance-attributes
