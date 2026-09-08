@@ -23,7 +23,10 @@ from icoapi.models.models import (
     PCBSensorConfiguration,
     Sensor,
 )
-from icoapi.scripts.data_handling import validate_inline_sensor_configuration
+from icoapi.scripts.data_handling import (
+    get_inline_sensor_for_channel,
+    validate_inline_sensor_configuration,
+)
 from icoapi.scripts.measurement import write_image_array, write_metadata
 
 # -- Functions ----------------------------------------------------------------
@@ -38,6 +41,7 @@ def disabled_channel() -> MeasurementInstructionChannel:
 def build_instructions(
     sensor_configuration: PCBSensorConfiguration | None = None,
     first_channel_number: int = 0,
+    first_sensor_id: str | None = None,
 ) -> MeasurementInstructions:
     """Build minimal measurement instructions for validation unit tests"""
 
@@ -46,7 +50,7 @@ def build_instructions(
         mac_address="00-11-22-33-44-55",
         time=3,
         first=MeasurementInstructionChannel(
-            channel_number=first_channel_number, sensor_id=None
+            channel_number=first_channel_number, sensor_id=first_sensor_id
         ),
         second=disabled_channel(),
         third=disabled_channel(),
@@ -214,6 +218,151 @@ class TestValidateInlineSensorConfiguration:
 
         assert excinfo.value.status_code == 422
         assert "missing channel 1" in excinfo.value.detail
+
+    def test_sensor_id_satisfies_check_without_matching_channel_number(
+        self, monkeypatch
+    ) -> None:
+        """`sensor_id` alone should satisfy the check even when
+        `channel_number` doesn't match any key in the inline config -
+        mirrors the resolver's sensor_id-takes-precedence order"""
+
+        monkeypatch.setenv("REQUIRE_INLINE_SENSOR_CONFIG", "0")
+
+        sensor = Sensor(
+            name="Test Sensor",
+            sensor_type=None,
+            sensor_id="test_sensor_01",
+            unit="-",
+            dimension="Test",
+            phys_min=0,
+            phys_max=1,
+            volt_min=0,
+            volt_max=3.3,
+        )
+        # Sensor is registered under channel 2, but the request asks for it
+        # on channel 5 by sensor_id.
+        sensor_configuration = PCBSensorConfiguration(
+            configuration_id="test-config",
+            configuration_name="Test Config",
+            channels={2: sensor},
+        )
+
+        validate_inline_sensor_configuration(
+            build_instructions(
+                sensor_configuration=sensor_configuration,
+                first_channel_number=5,
+                first_sensor_id="test_sensor_01",
+            )
+        )
+
+
+class TestGetInlineSensorForChannel:
+    """Direct unit tests for `get_inline_sensor_for_channel`"""
+
+    def test_disabled_channel_returns_none(self) -> None:
+        """channel_number 0 is always disabled, regardless of sensor_id"""
+
+        sensor_configuration = PCBSensorConfiguration(
+            configuration_id="test-config",
+            configuration_name="Test Config",
+            channels={},
+        )
+        result = get_inline_sensor_for_channel(
+            MeasurementInstructionChannel(channel_number=0, sensor_id=None),
+            sensor_configuration,
+        )
+        assert result is None
+
+    def test_sensor_id_takes_precedence_over_channel_number(self) -> None:
+        """A sensor_id match wins even when channel_number also resolves to
+        a (different) sensor"""
+
+        by_channel = Sensor(
+            name="By Channel",
+            sensor_type=None,
+            sensor_id="by_channel_01",
+            unit="-",
+            dimension="Test",
+            phys_min=0,
+            phys_max=1,
+            volt_min=0,
+            volt_max=3.3,
+        )
+        by_id = Sensor(
+            name="By ID",
+            sensor_type=None,
+            sensor_id="by_id_01",
+            unit="-",
+            dimension="Test",
+            phys_min=0,
+            phys_max=1,
+            volt_min=0,
+            volt_max=3.3,
+        )
+        sensor_configuration = PCBSensorConfiguration(
+            configuration_id="test-config",
+            configuration_name="Test Config",
+            channels={1: by_channel, 2: by_id},
+        )
+
+        result = get_inline_sensor_for_channel(
+            MeasurementInstructionChannel(
+                channel_number=1, sensor_id="by_id_01"
+            ),
+            sensor_configuration,
+        )
+
+        assert result is by_id
+
+    def test_falls_back_to_channel_number_without_sensor_id(self) -> None:
+        """No sensor_id given - resolve by channel_number as before"""
+
+        sensor = Sensor(
+            name="Test Sensor",
+            sensor_type=None,
+            sensor_id="test_sensor_01",
+            unit="-",
+            dimension="Test",
+            phys_min=0,
+            phys_max=1,
+            volt_min=0,
+            volt_max=3.3,
+        )
+        sensor_configuration = PCBSensorConfiguration(
+            configuration_id="test-config",
+            configuration_name="Test Config",
+            channels={1: sensor},
+        )
+
+        result = get_inline_sensor_for_channel(
+            MeasurementInstructionChannel(channel_number=1, sensor_id=None),
+            sensor_configuration,
+        )
+
+        assert result is sensor
+
+    def test_unresolvable_channel_raises(self) -> None:
+        """Neither sensor_id nor channel_number resolves - raises, rather
+        than silently substituting a raw default sensor. Unlike the
+        file-backed path, an inline configuration and the channel selection
+        referencing it arrive in the same request body, so an unresolvable
+        channel can only be a bug in that request, not external file drift.
+        In practice `validate_inline_sensor_configuration` rejects this case
+        with 422 before it is ever reached."""
+
+        sensor_configuration = PCBSensorConfiguration(
+            configuration_id="test-config",
+            configuration_name="Test Config",
+            channels={},
+        )
+
+        with raises(ValueError):
+            get_inline_sensor_for_channel(
+                MeasurementInstructionChannel(
+                    channel_number=5, sensor_id="does-not-exist"
+                ),
+                sensor_configuration,
+            )
 
 
 class TestMeasurement:
