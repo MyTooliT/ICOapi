@@ -316,36 +316,98 @@ def find_sensor_by_id(
     return None
 
 
+def get_raw_default_sensor() -> Sensor:
+    """Fallback sensor used when no valid sensor can be resolved
+
+    A generic sensor over the full ADC voltage range, interpreted as a raw
+    percentage - used when neither `sensor_id` nor `channel_number` resolve
+    to a real sensor.
+    """
+
+    return Sensor(
+        name="Raw",
+        sensor_type=None,
+        sensor_id="raw_default_01",
+        unit="-",
+        phys_min=-100,
+        phys_max=100,
+        volt_min=0,
+        volt_max=3.3,
+        dimension="Raw",
+    )
+
+
 def get_inline_sensor_for_channel(
     channel_instruction: MeasurementInstructionChannel,
     sensor_configuration: PCBSensorConfiguration,
 ) -> Optional[Sensor]:
     """Get sensor for a channel from an inline sensor configuration
 
-    Unlike :func:`get_sensor_for_channel`, this never reads
-    ``sensors.yaml`` - the inline configuration is the only source
-    consulted.
+    Unlike :func:`get_sensor_for_channel`'s file-backed branch, this never
+    reads ``sensors.yaml`` - the inline configuration is the only source
+    consulted. Resolution order: `sensor_id` (if given) takes precedence
+    over `channel_number`.
+
+    Deliberately does **not** fall back to a raw default sensor the way the
+    file-backed branch does: the inline configuration and the channel
+    selection referencing it arrive in the same, single request body, so an
+    unresolvable channel can only be a bug in that request - not external
+    file drift a raw default would be excusing. Callers are expected to
+    reject such a request up front with `validate_inline_sensor_configuration`
+    before any CAN traffic; reaching an unresolvable channel here means that
+    guard was skipped or has drifted out of sync with this function, so it
+    fails loudly instead of masking the problem with fabricated data.
+
+    :raises ValueError: if neither `sensor_id` nor `channel_number` resolves
+        to a sensor in `sensor_configuration`.
     """
 
     if channel_instruction.channel_number == 0:
         logger.info("Disabled channel; return None")
         return None
 
-    sensor = sensor_configuration.channels.get(channel_instruction.channel_number)
+    inline_sensors = list(sensor_configuration.channels.values())
+
+    if channel_instruction.sensor_id:
+        sensor = find_sensor_by_id(
+            inline_sensors, channel_instruction.sensor_id
+        )
+        if sensor is not None:
+            logger.debug(
+                "Resolved channel %s from inline sensor configuration <%s>"
+                " by sensor ID %s",
+                channel_instruction.channel_number,
+                sensor_configuration.configuration_id,
+                channel_instruction.sensor_id,
+            )
+            return sensor
+
+        logger.error(
+            "Inline sensor configuration <%s> has no sensor with ID %s.",
+            sensor_configuration.configuration_id,
+            channel_instruction.sensor_id,
+        )
+
+    sensor = sensor_configuration.channels.get(
+        channel_instruction.channel_number
+    )
     if sensor is not None:
         logger.debug(
-            "Resolved channel %s from inline sensor configuration <%s>",
+            "Resolved channel %s from inline sensor configuration <%s> by"
+            " channel number",
             channel_instruction.channel_number,
             sensor_configuration.configuration_id,
         )
         return sensor
 
-    logger.error(
-        "Inline sensor configuration <%s> has no entry for channel %s.",
-        sensor_configuration.configuration_id,
-        channel_instruction.channel_number,
+    raise ValueError(
+        "Inline sensor configuration "
+        f"<{sensor_configuration.configuration_id}> has no entry for "
+        f"channel {channel_instruction.channel_number} and no matching "
+        f"sensor_id <{channel_instruction.sensor_id}> - this should have "
+        "been rejected by validate_inline_sensor_configuration() before"
+        " any CAN traffic."
     )
-    return None
 
 
 def find_missing_inline_channel(
@@ -353,26 +415,39 @@ def find_missing_inline_channel(
 ) -> Optional[int]:
     """Find a streaming channel missing from an inline sensor configuration
 
+    Mirrors `get_inline_sensor_for_channel`'s resolution order: a channel
+    counts as present if either its `channel_number` is a key in
+    `instructions.sensor_configuration.channels`, or its `sensor_id` (if
+    given) matches a sensor in that configuration.
+
     Returns the first non-zero channel number referenced by `first`,
-    `second` or `third` that is absent from
-    `instructions.sensor_configuration.channels`, or `None` if
-    `sensor_configuration` is absent or every referenced channel is present.
+    `second` or `third` that resolves to neither, or `None` if
+    `sensor_configuration` is absent or every referenced channel resolves.
     """
 
     if instructions.sensor_configuration is None:
         return None
 
     channels = instructions.sensor_configuration.channels
+    inline_sensors = list(channels.values())
+
     for channel_instruction in (
         instructions.first,
         instructions.second,
         instructions.third,
     ):
-        if (
-            channel_instruction.channel_number != 0
-            and channel_instruction.channel_number not in channels
+        if channel_instruction.channel_number == 0:
+            continue
+
+        if channel_instruction.channel_number in channels:
+            continue
+
+        if channel_instruction.sensor_id and find_sensor_by_id(
+            inline_sensors, channel_instruction.sensor_id
         ):
-            return channel_instruction.channel_number
+            continue
+
+        return channel_instruction.channel_number
 
     return None
 
@@ -462,17 +537,7 @@ def get_sensor_for_channel(
         "Could not get sensor for channel %s. Interpreting as percentage.",
         channel_instruction.channel_number,
     )
-    return Sensor(
-        name="Raw",
-        sensor_type=None,
-        sensor_id="raw_default_01",
-        unit="-",
-        phys_min=-100,
-        phys_max=100,
-        volt_min=0,
-        volt_max=3.3,
-        dimension="Raw",
-    )
+    return get_raw_default_sensor()
 
 
 # pylint: disable=too-few-public-methods
