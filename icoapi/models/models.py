@@ -159,6 +159,9 @@ class MeasurementInstructions:
         ift_window_width (int): IFT window width
         adc (ADCValues): ADC settings
         meta (Metadata): Pre-measurement metadata
+        sensor_configuration (PCBSensorConfiguration): Inline sensor
+            configuration. When present, sensor resolution for `first`,
+            `second` and `third` uses this instead of `sensors.yaml`.
     """
 
     name: str | None
@@ -174,6 +177,10 @@ class MeasurementInstructions:
     meta: Metadata | None
     wait_for_post_meta: bool = False
     disconnect_after_measurement: bool = False
+    # Forward reference: `PCBSensorConfiguration` is defined further down in
+    # this module, and this file does not use
+    # `from __future__ import annotations`.
+    sensor_configuration: "PCBSensorConfiguration | None" = None
 
 
 # pylint: enable=too-many-instance-attributes
@@ -448,6 +455,7 @@ class PCBSensorConfiguration:
     configuration_id: str
     configuration_name: str
     channels: dict[int, Sensor]
+    configuration_hash: str | None = None
 
 
 @dataclass
