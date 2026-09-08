@@ -653,16 +653,36 @@ async def run_measurement(
             )
 
             storage["conversion"] = "true"
-            assert isinstance(instructions.adc, ADCValues)
-            assert isinstance(instructions.adc.reference_voltage, float)
 
-            storage["adc_reference_voltage"] = (
-                f"{instructions.adc.reference_voltage}"
-            )
+            # Sourced from `adc` (read back from the device above), not
+            # `instructions.adc` - `adc` reflects what was actually applied,
+            # including defaults for any field the client left unset, which
+            # `instructions.adc`'s own fields may not (they're Optional).
+            storage["adc_prescaler"] = f"{adc.prescaler}"
+            storage["adc_acquisition_time"] = f"{adc.acquisition_time}"
+            storage["adc_oversampling_rate"] = f"{adc.oversampling_rate}"
+            storage["adc_reference_voltage"] = f"{adc.reference_voltage}"
+
             if measurement_state.start_supply_voltage is not None:
                 storage["start_supply_voltage"] = (
                     f"{measurement_state.start_supply_voltage}"
                 )
+
+            # Device identity: which physical STH this data came from, and
+            # which STU it was connected through. `sensor_node_attributes` is
+            # set on connect and only cleared on disconnect, so it is
+            # guaranteed present here - `run_measurement` only ever runs
+            # while `SENSOR_NODE_CONNECTED`. The STU MAC has no cached
+            # equivalent, so it takes a live CAN request.
+            assert system.sensor_node_attributes is not None
+            storage["sth_mac_address"] = (
+                system.sensor_node_attributes.mac_address.format()
+            )
+            storage["tool_name"] = measurement_state.tool_name or ""
+            storage["stu_mac_address"] = (
+                await system.get_stu_mac_address()
+            ).format()
+
             if instructions.meta:
                 write_metadata(MetadataPrefix.PRE, instructions.meta, storage)
 
