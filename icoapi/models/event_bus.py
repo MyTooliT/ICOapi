@@ -175,6 +175,11 @@ class CompositeEventBus(EventBus):
 
         self._buses.append(bus)
 
+    def remove_bus(self, bus: EventBus) -> None:
+        """Remove a bus, it does not receive anything published afterwards"""
+
+        self._buses.remove(bus)
+
     async def _fan_out(
         self, action: Callable[[EventBus], Awaitable[None]]
     ) -> None:

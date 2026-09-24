@@ -107,6 +107,41 @@ LOG_LEVEL_UVICORN=INFO
 
 - `LOG_LEVEL_UVICORN` controls the log level for the [uvicorn](https://uvicorn.dev/) web server.
 
+### MQTT
+
+The API can publish its general state to an [MQTT](https://mqtt.org) broker, in addition to the `/state` WebSocket. MQTT is only used if **both** `MQTT_BROKER` and `MQTT_BASE_TOPIC` are set. If only one of them is set (or a value is invalid), MQTT stays disabled and the API logs an error.
+
+```sh
+MQTT_BROKER=broker.example.com
+MQTT_BASE_TOPIC=icodaq/line-3
+```
+
+- `MQTT_BROKER` is the host name of the broker.
+
+- `MQTT_BASE_TOPIC` is the topic below which everything is published. It is used exactly as given (only trailing `/` are removed) and must not contain the wildcards `+` or `#`. Use a topic that is unique for each device if multiple devices use the same broker.
+
+- `MQTT_PORT` sets the port of the broker (default: `1883`, or `8883` if `MQTT_TLS` is enabled).
+
+- `MQTT_USERNAME` and `MQTT_PASSWORD` set the credentials.
+
+- `MQTT_TLS` enables TLS if set to `1` (or `true`, `yes`, `on`). By default the CA certificates of the system are used. `MQTT_TLS_CA_CERTS`, `MQTT_TLS_CERTFILE` and `MQTT_TLS_KEYFILE` set the paths to a CA file and to the client certificate and key.
+
+- `MQTT_CLIENT_ID` sets the client ID (default: chosen by the broker).
+
+- `MQTT_KEEPALIVE` sets the keepalive in seconds (default: `60`).
+
+- `MQTT_BUFFER_SIZE` sets how many messages are kept while the broker is unreachable (default: `1000`). Messages that do not fit into the buffer are dropped and logged as a warning.
+
+The API publishes to the following topics:
+
+| Topic                              | Content                 | Retained |
+| ---------------------------------- | ----------------------- | -------- |
+| `<MQTT_BASE_TOPIC>/State`          | General state (as JSON) | yes      |
+
+The payload of the state topic is the same data as returned by `GET /api/v1/state`. The state is published again every time the API (re)connects to the broker. If the API stops, or loses the connection to the broker without disconnecting, the broker removes the retained state (an empty message is published on the topic), so an old state never claims that the API is still running.
+
+Clients only read from the broker, everything a client wants to tell the API goes through the REST API.
+
 ## Configuration Files
 
 The API currently works with 3 configuration files in the `.yaml` format:

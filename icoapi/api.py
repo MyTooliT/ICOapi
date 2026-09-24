@@ -37,6 +37,7 @@ from icoapi.models.globals import (
     get_messenger,
     setup_trident, get_dataspace_config,
 )
+from icoapi.models.mqtt_event_bus import create_mqtt_event_bus
 from icoapi.utils.logging_setup import setup_logging
 
 
@@ -48,6 +49,14 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
     See https://fastapi.tiangolo.com/advanced/events/#lifespan
     """
     MeasurementSingleton.create_instance_if_none()
+    mqtt_bus = create_mqtt_event_bus()
+    if mqtt_bus is not None:
+        try:
+            await mqtt_bus.start()
+            get_messenger().add_bus(mqtt_bus)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("MQTT is disabled: cannot start MQTT: %s", e)
+            mqtt_bus = None
     try:
         config = get_dataspace_config()
         if config.enabled:
@@ -64,9 +73,14 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
         await ICOsystemSingleton.create_instance_if_none()
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Error when initializing CAN connection: %s", e)
+    # Make sure that all event buses know the state after startup
+    await get_messenger().push_messenger_update()
     yield
     MeasurementSingleton.clear_clients()
     await ICOsystemSingleton.close_instance()
+    if mqtt_bus is not None:
+        get_messenger().remove_bus(mqtt_bus)
+        await mqtt_bus.close()
     await get_messenger().close()
 
 

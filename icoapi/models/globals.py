@@ -8,7 +8,11 @@ from starlette.websockets import WebSocket
 from icostate import CANInitError, ICOsystem
 from icostate.state import State
 
-from icoapi.models.event_bus import CompositeEventBus, WebSocketEventBus
+from icoapi.models.event_bus import (
+    CompositeEventBus,
+    EventBus,
+    WebSocketEventBus,
+)
 from icoapi.models.models import (
     Feature,
     MeasurementInstructions,
@@ -330,6 +334,18 @@ class GeneralMessenger:
         """Get the event bus for clients connected via WebSocket"""
 
         return cls._websocket_bus
+
+    @classmethod
+    def add_bus(cls, bus: EventBus) -> None:
+        """Publish everything to the given event bus too"""
+
+        cls._bus.add_bus(bus)
+
+    @classmethod
+    def remove_bus(cls, bus: EventBus) -> None:
+        """Stop publishing to the given event bus"""
+
+        cls._bus.remove_bus(bus)
 
     @classmethod
     async def push_messenger_update(cls):
