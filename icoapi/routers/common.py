@@ -1,6 +1,5 @@
 """Common endpoints"""
 
-import json
 import logging
 from typing import Annotated
 
@@ -16,7 +15,7 @@ from icoapi.models.globals import (
     get_messenger,
     get_trident_feature,
 )
-from icoapi.models.models import Feature, SocketMessage, SystemStateModel
+from icoapi.models.models import Feature, SystemStateModel
 from icoapi.scripts.file_handling import get_disk_space_in_gib
 
 router = APIRouter(tags=["General"])
@@ -54,7 +53,11 @@ async def state_websocket(
     websocket: WebSocket,
     messenger: Annotated[GeneralMessenger, Depends(get_messenger)],
 ):
-    """State WebSocket for general information about system state"""
+    """State WebSocket for general information about system state
+
+    The server pushes state updates to the client. Messages sent by the client
+    are ignored, use ``GET /state`` to request the current state.
+    """
 
     await websocket.accept()
     messenger.add_messenger(websocket)
@@ -62,10 +65,8 @@ async def state_websocket(
     try:
         await messenger.push_messenger_update()
 
+        # Only receive to notice when the client disconnects
         while True:
-            text = await websocket.receive_text()
-            msg = SocketMessage(**json.loads(text))
-            if msg.message == "get_state":
-                await messenger.push_messenger_update()
+            await websocket.receive_text()
     except WebSocketDisconnect:
         messenger.remove_messenger(websocket)

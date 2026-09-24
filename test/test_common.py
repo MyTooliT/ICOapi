@@ -7,8 +7,6 @@ from datetime import datetime, timedelta
 from logging import getLogger
 from typing import Any
 
-from netaddr import EUI
-from httpx import AsyncClient
 from httpx_ws import aconnect_ws, AsyncWebSocketSession
 from pytest import mark
 
@@ -49,31 +47,6 @@ async def get_websocket_messages(
         logger.debug("Retrieved WebSocket message: %s", message)
 
     return messages
-
-
-async def connect_and_disconnect_sensor_node(
-    sth_prefix: str,
-    async_client: AsyncClient,
-    ws_state: AsyncWebSocketSession,
-    mac_address: EUI,
-):
-    """Connect to and than disconnect from sensor node
-
-    Retrieves current state information from state WebSocket ``ws_state`` after
-    connection changes.
-    """
-
-    logger = getLogger(__name__)
-
-    logger.debug("Connect to sensor node")
-    await async_client.put(
-        f"{sth_prefix}/connect", json={"mac_address": mac_address}
-    )
-    get_state = {"message": "get_state"}
-    await ws_state.send_json(get_state)
-    logger.debug("Disconnect from sensor node")
-    await async_client.put(f"{sth_prefix}/disconnect")
-    await ws_state.send_json(get_state)
 
 
 def check_state_measurement_data(
@@ -163,29 +136,20 @@ class TestCommon:
 
     @mark.hardware
     async def test_state_websocket_connect(
-        self, state_prefix, sth_prefix, test_sensor_node, async_client
+        self, state_prefix, async_client
     ) -> None:
-        """Check WebSocket endpoint ``state`` while connecting/disconnecting"""
+        """Check that WebSocket endpoint ``state`` sends state on connect"""
 
         state = str(async_client.base_url).replace("http", "ws") + state_prefix
         logger = getLogger(__name__)
-        mac_address = test_sensor_node["mac_address"]
 
         ws: AsyncWebSocketSession
         async with aconnect_ws(state, async_client) as ws:
-            expected_number_messages = 3
-            async with TaskGroup() as task_group:
-                messages_task = task_group.create_task(
-                    get_websocket_messages(ws, expected_number_messages)
-                )
-                task_group.create_task(
-                    connect_and_disconnect_sensor_node(
-                        sth_prefix, async_client, ws, mac_address
-                    )
-                )
-                await messages_task
+            expected_number_messages = 1
+            messages = await get_websocket_messages(
+                ws, expected_number_messages
+            )
 
-        messages = messages_task.result()
         assert len(messages) == expected_number_messages
 
         logger.debug("Retrieved %d messages", len(messages))
