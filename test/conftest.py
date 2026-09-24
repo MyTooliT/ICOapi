@@ -312,38 +312,6 @@ def measurement_instructions_single_channel(
 
 
 @fixture
-def measurement_instructions_wait_for_meta(
-    test_sensor_node_adc_configuration, connect, sensor_id
-):
-    """Single channel measurement instructions"""
-
-    node = connect
-
-    first = {
-        "sensor_id": sensor_id,
-    }
-
-    instructions = create_measurement_instructions(
-        mac_address=node["mac_address"],
-        adc=test_sensor_node_adc_configuration,
-        first=first,
-        meta={
-            "version": "1.0",
-            "profile": "default",
-            "parameters": {
-                "Pre Test Metadata": {
-                    "value": "Pre Metadata",
-                    "unit": "string",
-                }
-            },
-        },
-        wait_for_post_meta=True,
-    )
-
-    return instructions
-
-
-@fixture
 def measurement_instructions_ift_value(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
@@ -405,11 +373,6 @@ def measurement_instructions_three_channels(
 exec(
     generate_measurement_fixture(
         "measurement_single_channel", "measurement_instructions_single_channel"
-    )
-)
-exec(
-    generate_measurement_fixture(
-        "measurement_wait_for_meta", "measurement_instructions_wait_for_meta"
     )
 )
 exec(

@@ -129,10 +129,10 @@ start-measurement: connect
 	  meta[profile]="" \
 	  meta[parameters]:={}
 
-# Add post-meta measurement data
+# Add post-meta measurement data to a measurement file, e.g. `just set-post-measurement-data <name>.hdf5`
 [group('http')]
-set-post-measurement-data:
-	http POST "{{http_url}}/measurement/post_meta" \
+set-post-measurement-data measurement_file:
+	http POST "{{http_url}}/files/post_meta/{{measurement_file}}" \
 	  version="1.0" \
 	  profile="default" \
 	  parameters[test_post_metadata]="something"

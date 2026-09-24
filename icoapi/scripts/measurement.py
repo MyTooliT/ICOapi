@@ -601,54 +601,6 @@ async def mark_measurement_stopped(
     await general_messenger.push_messenger_update()
 
 
-async def request_and_receive_post_meta(
-    storage: MetadataStorage,
-    measurement_state: MeasurementState,
-    general_messenger: GeneralMessenger,
-) -> None:
-    """Ask the client for post-measurement metadata and write it once received"""
-
-    logger.info("Waiting for post-measurement metadata")
-    await general_messenger.send_post_meta_request()
-    while measurement_state.post_meta is None:
-        await asyncio.sleep(1)
-    logger.info("Received post-measurement metadata")
-    await general_messenger.send_post_meta_completed()
-    write_metadata(MetadataPrefix.POST, measurement_state.post_meta, storage)
-
-
-async def request_post_meta_after_abnormal_stop(
-    measurement_file_path: Path,
-    measurement_state: MeasurementState,
-    general_messenger: GeneralMessenger,
-) -> None:
-    """
-    Still ask for post-measurement metadata after the measurement stopped
-    due to an error.
-
-    The success path below requests post-measurement metadata before the
-    measurement file is closed. When the measurement instead stops because
-    of an exception (e.g. a hardware disconnect or timeout), that code is
-    never reached, so the file is reopened here to give the user the same
-    opportunity to add post-measurement metadata.
-    """
-
-    if not measurement_state.wait_for_post_meta:
-        return
-
-    try:
-        with open_metadata_storage(measurement_file_path) as storage:
-            await request_and_receive_post_meta(
-                storage, measurement_state, general_messenger
-            )
-    except Exception:  # pylint: disable=broad-exception-caught
-        logger.exception(
-            "Failed to request/write post-measurement metadata for <%s>"
-            " after abnormal measurement stop",
-            measurement_file_path,
-        )
-
-
 async def run_measurement(
     system: ICOsystem,
     instructions: MeasurementInstructions,
@@ -860,44 +812,40 @@ async def run_measurement(
             if instructions.disconnect_after_measurement:
                 await disconnect_sth_devices(system)
 
-            await mark_measurement_stopped(measurement_state, general_messenger)
+        # The measurement file is closed at this point. Only now the
+        # measurement is reported as stopped, so clients that react to that
+        # (e.g. by adding post-measurement metadata to the file) do not
+        # collide with the still open file.
+        await mark_measurement_stopped(measurement_state, general_messenger)
 
-            # Send IFT value values at once after the measurement is finished.
-            if instructions.ift_requested:
-                # If only one channel is enabled then each streaming message
-                # contains 3 values for this channel. These values share the
-                # same timestamp. This means we have to replicate each
-                # timestamp 3 times to get a timestamp for every value.
-                # Note: In all other cases every message contains at most one
-                #       value for a specific channel, which means the number of
-                #       timestamps and number of values for the specific
-                #       channel should be the same.
-                if streaming_configuration.enabled_channels() == 1:
-                    trippeled_timestamps: list[float] = []
-                    for timestamp in timestamps:
-                        trippeled_timestamps.extend(repeat(timestamp, 3))
-                    timestamps = trippeled_timestamps
+        # Send IFT value values at once after the measurement is finished.
+        if instructions.ift_requested:
+            # If only one channel is enabled then each streaming message
+            # contains 3 values for this channel. These values share the
+            # same timestamp. This means we have to replicate each
+            # timestamp 3 times to get a timestamp for every value.
+            # Note: In all other cases every message contains at most one
+            #       value for a specific channel, which means the number of
+            #       timestamps and number of values for the specific
+            #       channel should be the same.
+            if streaming_configuration.enabled_channels() == 1:
+                trippeled_timestamps: list[float] = []
+                for timestamp in timestamps:
+                    trippeled_timestamps.extend(repeat(timestamp, 3))
+                timestamps = trippeled_timestamps
 
-                await send_ift_values(
-                    timestamps,
-                    ift_relevant_channel,
-                    instructions,
-                    measurement_state,
-                )
-                ift_sent = True
-
-            if measurement_state.wait_for_post_meta:
-                await request_and_receive_post_meta(
-                    storage, measurement_state, general_messenger
-                )
+            await send_ift_values(
+                timestamps,
+                ift_relevant_channel,
+                instructions,
+                measurement_state,
+            )
+            ift_sent = True
 
     except StreamingTimeoutError as e:
         logger.debug("Stream timeout error")
         await notify_clients_of_measurement_error(measurement_state, e)
         await mark_measurement_stopped(measurement_state, general_messenger)
-        await request_post_meta_after_abnormal_stop(
-            measurement_file_path, measurement_state, general_messenger
-        )
     except asyncio.CancelledError as e:
         logger.debug(
             "Measurement cancelled. IFT: requested <%s> | already sent: <%s>",
@@ -915,16 +863,10 @@ async def run_measurement(
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected")
         await mark_measurement_stopped(measurement_state, general_messenger)
-        await request_post_meta_after_abnormal_stop(
-            measurement_file_path, measurement_state, general_messenger
-        )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("Measurement stopped due to an unexpected error")
         await notify_clients_of_measurement_error(measurement_state, e)
         await mark_measurement_stopped(measurement_state, general_messenger)
-        await request_post_meta_after_abnormal_stop(
-            measurement_file_path, measurement_state, general_messenger
-        )
     finally:
         clients = len(measurement_state.clients)
         for client in measurement_state.clients:

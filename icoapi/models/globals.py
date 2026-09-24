@@ -121,9 +121,7 @@ class MeasurementState:
         self.start_supply_voltage: float | None = None
         self.instructions: MeasurementInstructions | None = None
         self.stop_flag = False
-        self.wait_for_post_meta = False
         self.pre_meta: Metadata | None = None
-        self.post_meta: Metadata | None = None
 
     async def reset(self) -> None:
         """Reset measurement"""
@@ -138,9 +136,7 @@ class MeasurementState:
         self.start_supply_voltage = None
         self.instructions = None
         self.stop_flag = False
-        self.wait_for_post_meta = False
         self.pre_meta = None
-        self.post_meta = None
         await get_messenger().push_messenger_update()
 
     def get_status(self) -> MeasurementStatus:
@@ -387,18 +383,6 @@ class GeneralMessenger:
 
         if (len(cls._clients)) > 0:
             logger.info("Pushed SystemState to %s clients.", len(cls._clients))
-
-    @classmethod
-    async def send_post_meta_request(cls):
-        """Send post measurement metadata"""
-
-        await cls._broadcast(SocketMessage(message="post_meta_request"))
-
-    @classmethod
-    async def send_post_meta_completed(cls):
-        """Send post measurement metadata completed"""
-
-        await cls._broadcast(SocketMessage(message="post_meta_completed"))
 
 
 def get_messenger():

@@ -237,8 +237,14 @@ This ensures that common metadata like machine tool, process or cutting
 parameters are set beforehand while keeping the option to require data after
 the fact, such as pictures or tool breakage reports.
 
-The pre-meta is sent with the measurement instructions while the post-meta is
-communicated via the open measurement WebSocket.
+The pre-meta is sent with the measurement instructions. The post-meta is added
+to the measurement file after the measurement has stopped, using the endpoint
+`POST /api/v1/files/post_meta/{name}` (where `name` is the file name including
+the `.hdf5` extension). The API state (`running`) only changes to `false` after
+the measurement file has been closed, so post-meta can be added immediately
+afterwards. The `wait_for_post_meta` measurement instruction is only a hint for
+clients that the user should be asked for post-meta; the API does not wait for
+it.
 
 (config:dataspace)=
 

@@ -19,7 +19,6 @@ from icoapi.models.models import (
     MeasurementStatus,
     ControlResponse,
     MeasurementInstructions,
-    Metadata,
     ResolvedMeasurementChannels,
 )
 from icoapi.utils.measurement_examples import EXECUTE_EXAMPLES
@@ -96,7 +95,6 @@ async def _begin_measurement(
 
     measurement_state.stop_flag = False
     measurement_state.name = filename
-    measurement_state.wait_for_post_meta = instructions.wait_for_post_meta
     measurement_state.start_time = start.isoformat()
     measurement_state.instructions = instructions
 
@@ -314,17 +312,6 @@ async def stop_measurement(
         )
     except TimeoutError as error:
         raise HTTP_504_MEASUREMENT_TIMEOUT_EXCEPTION from error
-
-
-@router.post("/post_meta")
-async def post_meta(
-    meta: Metadata,
-    measurement_state: MeasurementState = Depends(get_measurement_state),
-):
-    """Set post-measurement metadata"""
-
-    measurement_state.post_meta = meta
-    logger.info("Received and set post metadata")
 
 
 @router.get("", response_model=MeasurementStatus)
