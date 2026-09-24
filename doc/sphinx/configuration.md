@@ -107,6 +107,56 @@ LOG_LEVEL_UVICORN=INFO
 
 - `LOG_LEVEL_UVICORN` controls the log level for the [uvicorn](https://uvicorn.dev/) web server.
 
+(config:mqtt)=
+
+### MQTT
+
+The API can publish its general state to an [MQTT](https://mqtt.org) broker, in addition to the `/state` WebSocket. MQTT is only used if **both** `MQTT_BROKER` and `MQTT_BASE_TOPIC` are set. If only one of them is set (or a value is invalid), MQTT stays disabled and the API logs an error.
+
+```sh
+MQTT_BROKER=broker.example.com
+MQTT_BASE_TOPIC=icodaq/line-3
+```
+
+- `MQTT_BROKER` is the host name of the broker.
+
+- `MQTT_BASE_TOPIC` is the topic below which everything is published. It is used exactly as given (only trailing `/` are removed) and must not contain the wildcards `+` or `#`. Use a topic that is unique for each device if multiple devices use the same broker.
+
+- `MQTT_PORT` sets the port of the broker (default: `1883`, or `8883` if `MQTT_TLS` is enabled).
+
+- `MQTT_USERNAME` and `MQTT_PASSWORD` set the credentials.
+
+- `MQTT_TLS` enables TLS if set to `1` (or `true`, `yes`, `on`). By default the CA certificates of the system are used. `MQTT_TLS_CA_CERTS`, `MQTT_TLS_CERTFILE` and `MQTT_TLS_KEYFILE` set the paths to a CA file and to the client certificate and key.
+
+- `MQTT_CLIENT_ID` sets the client ID (default: chosen by the broker).
+
+- `MQTT_KEEPALIVE` sets the keepalive in seconds (default: `60`).
+
+- `MQTT_BUFFER_SIZE` sets how many messages are kept while the broker is unreachable (default: `1000`). Messages that do not fit into the buffer are dropped and logged as a warning.
+
+The API publishes to the following topics:
+
+| Topic                                       | Content                              | Retained |
+| ------------------------------------------- | ------------------------------------ | -------- |
+| `<MQTT_BASE_TOPIC>/State`                   | General state (as JSON)              | yes      |
+| `<MQTT_BASE_TOPIC>/Recording/Finished`      | A measurement finished (as JSON)     | no       |
+| `<MQTT_BASE_TOPIC>/Recording/Failed`        | A measurement failed (as JSON)       | no       |
+
+The payload of the state topic is the same data as returned by `GET /api/v1/state`. The state is published again every time the API (re)connects to the broker. If the API stops, or loses the connection to the broker without disconnecting, the broker removes the retained state (an empty message is published on the topic), so an old state never claims that the API is still running.
+
+The events about measurements are published with QoS 1. While the broker is unreachable they are kept (see `MQTT_BUFFER_SIZE`) and sent after the connection is restored. Their payload contains:
+
+- `name`: name of the measurement file
+- `size`: size of the measurement file in bytes
+- `url`: route to download the file with a `GET` request, e.g. `/api/v1/files/Test%20Measurement__2026-01-01_00-00-00.hdf5`. It does not contain the host: clients know the address of the device and add it.
+- `error` (only for `Failed`): the `type` and `message` of the error that stopped the measurement
+
+`size` and `url` are `null` if the measurement failed before the file was created. A measurement is `Finished` when it ends by reaching its time or by being stopped (`/api/v1/measurement/stop`). Every other end (streaming timeout, unexpected error, lost client connection, cancellation) is `Failed`, in which case the file (if it exists) contains the data measured until then. Requests that fail before the measurement starts (e.g. `/start` or `/execute` returning an error) do not publish an event.
+
+Both events refer to the measurement data. Post-measurement metadata can be added to the file afterwards (`POST /api/v1/files/post_meta/{name}`), so download the file again if you need the metadata.
+
+Clients only read from the broker, everything a client wants to tell the API goes through the REST API. The API is the only publisher below its base topic, so give the accounts of all other clients read-only (subscribe) access to that topic in the ACL of the broker. The published data contains no secrets (CAN readiness, disk capacity, cloud status and the measurement status).
+
 ## Configuration Files
 
 The API currently works with 3 configuration files in the `.yaml` format:
@@ -237,8 +287,14 @@ This ensures that common metadata like machine tool, process or cutting
 parameters are set beforehand while keeping the option to require data after
 the fact, such as pictures or tool breakage reports.
 
-The pre-meta is sent with the measurement instructions while the post-meta is
-communicated via the open measurement WebSocket.
+The pre-meta is sent with the measurement instructions. The post-meta is added
+to the measurement file after the measurement has stopped, using the endpoint
+`POST /api/v1/files/post_meta/{name}` (where `name` is the file name including
+the `.hdf5` extension). The API state (`running`) only changes to `false` after
+the measurement file has been closed, so post-meta can be added immediately
+afterwards. The `wait_for_post_meta` measurement instruction is only a hint for
+clients that the user should be asked for post-meta; the API does not wait for
+it.
 
 (config:dataspace)=
 

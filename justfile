@@ -44,6 +44,10 @@ test *options: check
 [group('test')]
 test-no-hardware: (test "-m 'not hardware'")
 
+# Run tests that need an MQTT broker (set `TEST_MQTT_BROKER` and, if required, `TEST_MQTT_PORT`, `TEST_MQTT_USERNAME`, `TEST_MQTT_PASSWORD`)
+[group('test')]
+test-mqtt: (test "-m mqtt")
+
 # Run API server
 [group('run')]
 run:
@@ -129,10 +133,10 @@ start-measurement: connect
 	  meta[profile]="" \
 	  meta[parameters]:={}
 
-# Add post-meta measurement data
+# Add post-meta measurement data to a measurement file, e.g. `just set-post-measurement-data <name>.hdf5`
 [group('http')]
-set-post-measurement-data:
-	http POST "{{http_url}}/measurement/post_meta" \
+set-post-measurement-data measurement_file:
+	http POST "{{http_url}}/files/post_meta/{{measurement_file}}" \
 	  version="1.0" \
 	  profile="default" \
 	  parameters[test_post_metadata]="something"

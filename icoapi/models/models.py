@@ -166,6 +166,11 @@ class MeasurementInstructions:
         ift_window_width (int): IFT window width
         adc (ADCValues): ADC settings
         meta (Metadata): Pre-measurement metadata
+        wait_for_post_meta (bool): Hint for clients that the user should be
+            asked for post-measurement metadata once the measurement has
+            stopped. The API does not wait for it: clients add it via
+            ``POST /files/post_meta/{name}`` (name including the ``.hdf5``
+            extension).
         sensor_configuration (PCBSensorConfiguration): Inline sensor
             configuration. When present, sensor_id resolution for `first`,
             `second` and `third` uses this instead of `sensors.yaml`'s

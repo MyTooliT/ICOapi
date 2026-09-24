@@ -2,18 +2,23 @@
 
 import asyncio
 import logging
-from typing import List
-from starlette.websockets import WebSocket, WebSocketDisconnect
+from typing import Any, List
+from starlette.websockets import WebSocket
 
 from icostate import CANInitError, ICOsystem
 from icostate.state import State
 
+from icoapi.models.event_bus import (
+    Channel,
+    CompositeEventBus,
+    EventBus,
+    WebSocketEventBus,
+)
 from icoapi.models.models import (
     Feature,
     MeasurementInstructions,
     MeasurementStatus,
     Metadata,
-    SocketMessage,
     SystemStateModel,
     CloudConfig,
 )
@@ -121,9 +126,7 @@ class MeasurementState:
         self.start_supply_voltage: float | None = None
         self.instructions: MeasurementInstructions | None = None
         self.stop_flag = False
-        self.wait_for_post_meta = False
         self.pre_meta: Metadata | None = None
-        self.post_meta: Metadata | None = None
 
     async def reset(self) -> None:
         """Reset measurement"""
@@ -138,9 +141,7 @@ class MeasurementState:
         self.start_supply_voltage = None
         self.instructions = None
         self.stop_flag = False
-        self.wait_for_post_meta = False
         self.pre_meta = None
-        self.post_meta = None
         await get_messenger().push_messenger_update()
 
     def get_status(self) -> MeasurementStatus:
@@ -306,102 +307,75 @@ async def setup_trident():
 # pylint: enable=missing-function-docstring
 
 
+async def build_system_state() -> SystemStateModel:
+    """Get the current general state of the API"""
+
+    measurement_state = await get_measurement_state()
+    cloud = await get_trident_feature()
+    return SystemStateModel(
+        can_ready=ICOsystemSingleton.has_instance(),
+        disk_capacity=get_disk_space_in_gib(),
+        cloud=cloud,
+        measurement_status=measurement_state.get_status(),
+    )
+
+
 class GeneralMessenger:
+    """Publish updates about the general state to all event buses
+
+    The state is built once and then published on every enabled event bus.
+    Clients only read from the buses, see :mod:`icoapi.models.event_bus`.
     """
-    This class servers as a handler for all clients which connect to the general state WebSocket.
-    """
 
-    _clients: List[WebSocket] = []
-    _push_lock: asyncio.Lock = asyncio.Lock()
+    _websocket_bus = WebSocketEventBus()
+    _bus = CompositeEventBus([_websocket_bus])
 
     @classmethod
-    def add_messenger(cls, messenger: WebSocket):
-        """Add messenger client"""
+    def websocket_bus(cls) -> WebSocketEventBus:
+        """Get the event bus for clients connected via WebSocket"""
 
-        cls._clients.append(messenger)
-        logger.info("Added WebSocket instance to general messenger list")
-
-    @classmethod
-    def remove_messenger(cls, messenger: WebSocket):
-        """Remove messenger client"""
-
-        try:
-            cls._clients.remove(messenger)
-            logger.info(
-                "Removed WebSocket instance from general messenger list"
-            )
-        except ValueError:
-            logger.warning(
-                "Tried removing WebSocket instance from general messenger list"
-                " but failed."
-            )
+        return cls._websocket_bus
 
     @classmethod
-    def clear_messengers(cls):
-        """Clear list of WebSocket clients"""
+    def add_bus(cls, bus: EventBus) -> None:
+        """Publish everything to the given event bus too"""
 
-        num_of_clients = len(cls._clients)
-        cls._clients.clear()
-        logger.info(
-            "Cleared %s clients from general messenger list", num_of_clients
-        )
+        cls._bus.add_bus(bus)
 
     @classmethod
-    async def _broadcast(cls, message: SocketMessage) -> None:
-        """Send a message to all connected clients
+    def remove_bus(cls, bus: EventBus) -> None:
+        """Stop publishing to the given event bus"""
 
-        Broadcasts are serialized, since concurrent sends on the same
-        WebSocket connection are not supported and can crash the connection.
-        Clients that fail to receive the message are dropped.
-        """
-
-        payload = message.model_dump()
-        async with cls._push_lock:
-            for client in list(cls._clients):
-                try:
-                    await client.send_json(payload)
-                except (RuntimeError, WebSocketDisconnect):
-                    logger.warning(
-                        "Dropping unresponsive WebSocket instance from"
-                        " general messenger list"
-                    )
-                    cls.remove_messenger(client)
+        cls._bus.remove_bus(bus)
 
     @classmethod
     async def push_messenger_update(cls):
-        """Push updates about general state to messenger clients"""
+        """Publish the current general state on all event buses"""
 
-        state = await get_measurement_state()
-        cloud = await get_trident_feature()
-        await cls._broadcast(
-            SocketMessage(
-                message="state",
-                data=SystemStateModel(
-                    can_ready=ICOsystemSingleton.has_instance(),
-                    disk_capacity=get_disk_space_in_gib(),
-                    cloud=cloud,
-                    measurement_status=state.get_status(),
-                ),
-            )
-        )
-
-        if (len(cls._clients)) > 0:
-            logger.info("Pushed SystemState to %s clients.", len(cls._clients))
+        await cls._bus.publish_state(await build_system_state())
 
     @classmethod
-    async def send_post_meta_request(cls):
-        """Send post measurement metadata"""
+    async def publish_event(
+        cls, channel: Channel, payload: dict[str, Any]
+    ) -> None:
+        """Publish a one-shot event on all event buses"""
 
-        await cls._broadcast(SocketMessage(message="post_meta_request"))
+        await cls._bus.publish_event(channel, payload)
 
     @classmethod
-    async def send_post_meta_completed(cls):
-        """Send post measurement metadata completed"""
+    async def close(cls):
+        """Close all event buses"""
 
-        await cls._broadcast(SocketMessage(message="post_meta_completed"))
+        await cls._bus.close()
 
 
 def get_messenger():
     """Get general messenger"""
 
     return GeneralMessenger()
+
+
+def get_websocket_event_bus() -> WebSocketEventBus:
+    """Get event bus for clients connected via WebSocket"""
+
+    return GeneralMessenger.websocket_bus()

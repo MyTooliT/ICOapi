@@ -3,7 +3,7 @@
 # -- Imports ------------------------------------------------------------------
 
 from re import match
-from typing import Any
+from typing import Any, Iterator
 
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
@@ -12,6 +12,28 @@ from netaddr import EUI
 from pytest import fixture
 
 from icoapi.api import app, setup_config
+from icoapi.models.event_bus import Channel, EventBus
+from icoapi.models.globals import GeneralMessenger
+from icoapi.models.models import SystemStateModel
+
+# -- Classes ------------------------------------------------------------------
+
+
+class RecordingEventBus(EventBus):
+    """Event bus that records everything published"""
+
+    def __init__(self) -> None:
+        self.states: list[SystemStateModel] = []
+        self.events: list[tuple[Channel, dict[str, Any]]] = []
+
+    async def publish_state(self, state: SystemStateModel) -> None:
+        self.states.append(state)
+
+    async def publish_event(
+        self, channel: Channel, payload: dict[str, Any]
+    ) -> None:
+        self.events.append((channel, payload))
+
 
 # -- Functions ----------------------------------------------------------------
 
@@ -220,6 +242,21 @@ def test_sensor_node_adc_configuration(sth_prefix, test_sensor_node, client):
 
 
 @fixture
+def recording_event_bus() -> Iterator[RecordingEventBus]:
+    """Record everything the API publishes on its event buses
+
+    Use this fixture before the fixtures that start a measurement.
+    """
+
+    bus = RecordingEventBus()
+    GeneralMessenger.add_bus(bus)
+
+    yield bus
+
+    GeneralMessenger.remove_bus(bus)
+
+
+@fixture
 def connect(sth_prefix, test_sensor_node, client):
     """Connect sensor node"""
 
@@ -312,38 +349,6 @@ def measurement_instructions_single_channel(
 
 
 @fixture
-def measurement_instructions_wait_for_meta(
-    test_sensor_node_adc_configuration, connect, sensor_id
-):
-    """Single channel measurement instructions"""
-
-    node = connect
-
-    first = {
-        "sensor_id": sensor_id,
-    }
-
-    instructions = create_measurement_instructions(
-        mac_address=node["mac_address"],
-        adc=test_sensor_node_adc_configuration,
-        first=first,
-        meta={
-            "version": "1.0",
-            "profile": "default",
-            "parameters": {
-                "Pre Test Metadata": {
-                    "value": "Pre Metadata",
-                    "unit": "string",
-                }
-            },
-        },
-        wait_for_post_meta=True,
-    )
-
-    return instructions
-
-
-@fixture
 def measurement_instructions_ift_value(
     test_sensor_node_adc_configuration, connect, sensor_id
 ):
@@ -405,11 +410,6 @@ def measurement_instructions_three_channels(
 exec(
     generate_measurement_fixture(
         "measurement_single_channel", "measurement_instructions_single_channel"
-    )
-)
-exec(
-    generate_measurement_fixture(
-        "measurement_wait_for_meta", "measurement_instructions_wait_for_meta"
     )
 )
 exec(

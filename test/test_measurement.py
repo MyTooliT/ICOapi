@@ -5,7 +5,7 @@
 from datetime import datetime
 from logging import getLogger
 from pathlib import Path
-from time import time
+from time import sleep, time
 
 from fastapi import HTTPException
 from icostate import ADCConfiguration
@@ -645,14 +645,23 @@ class TestMeasurement:
     def test_measurement_post_meta(
         self,
         measurement_prefix,
-        measurement_wait_for_meta,  # pylint: disable=unused-argument
+        measurement_single_channel,  # pylint: disable=unused-argument
         client,
     ) -> None:
-        """Test adding post metadata to measurement"""
+        """Test adding post metadata to file after measurement has stopped
+
+        The measurement is only reported as stopped after the measurement
+        file was closed. This means that post metadata can be added
+        immediately after the state changes to “not running”.
+        """
+
+        response = client.get(str(measurement_prefix))
+        assert response.status_code == 200
+        name = response.json()["name"]
+        assert name
 
         stream = get_measurement_websocket_endpoint(measurement_prefix, client)
 
-        data = None
         with client.websocket_connect(stream) as websocket:
             while data := websocket.receive_json():
                 message = data[0]
@@ -661,7 +670,10 @@ class TestMeasurement:
                 if message["dataloss"] is not None:
                     break
 
-        post_meta = f"{measurement_prefix}/post_meta"
+        timeout = time() + 15
+        while client.get(str(measurement_prefix)).json()["running"]:
+            assert time() < timeout, "Measurement did not stop in time"
+            sleep(0.1)
 
         metadata = {
             "version": "1.0",
@@ -671,8 +683,12 @@ class TestMeasurement:
             },
         }
 
-        response = client.post(post_meta, json=metadata)
+        file_name = f"{name}.hdf5"
+        response = client.post(f"files/post_meta/{file_name}", json=metadata)
         assert response.status_code == 200
+
+        meta = client.get(f"files/analyze/meta/{file_name}").json()
+        assert meta["acceleration"]["attributes"]["post_metadata"] == metadata
 
     @mark.hardware
     def test_measurement_stream_simple(

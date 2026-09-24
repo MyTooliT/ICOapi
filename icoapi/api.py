@@ -23,6 +23,7 @@ from icoapi.routers import (
 )
 from icoapi.scripts.data_handling import is_inline_sensor_config_required
 from icoapi.scripts.file_handling import (
+    API_PREFIX,
     copy_config_files_if_not_exists,
     ensure_folder_exists,
     get_application_dir,
@@ -34,8 +35,10 @@ from icoapi.scripts.file_handling import (
 from icoapi.models.globals import (
     MeasurementSingleton,
     ICOsystemSingleton,
+    get_messenger,
     setup_trident, get_dataspace_config,
 )
+from icoapi.models.mqtt_event_bus import create_mqtt_event_bus
 from icoapi.utils.logging_setup import setup_logging
 
 
@@ -47,6 +50,14 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
     See https://fastapi.tiangolo.com/advanced/events/#lifespan
     """
     MeasurementSingleton.create_instance_if_none()
+    mqtt_bus = create_mqtt_event_bus()
+    if mqtt_bus is not None:
+        try:
+            await mqtt_bus.start()
+            get_messenger().add_bus(mqtt_bus)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("MQTT is disabled: cannot start MQTT: %s", e)
+            mqtt_bus = None
     try:
         config = get_dataspace_config()
         if config.enabled:
@@ -63,21 +74,27 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
         await ICOsystemSingleton.create_instance_if_none()
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Error when initializing CAN connection: %s", e)
+    # Make sure that all event buses know the state after startup
+    await get_messenger().push_messenger_update()
     yield
     MeasurementSingleton.clear_clients()
     await ICOsystemSingleton.close_instance()
+    if mqtt_bus is not None:
+        get_messenger().remove_bus(mqtt_bus)
+        await mqtt_bus.close()
+    await get_messenger().close()
 
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(prefix="/api/v1", router=stu_routes.router)
-app.include_router(prefix="/api/v1", router=sth_routes.router)
-app.include_router(prefix="/api/v1", router=common.router)
-app.include_router(prefix="/api/v1", router=file_routes.router)
-app.include_router(prefix="/api/v1", router=cloud_routes.router)
-app.include_router(prefix="/api/v1", router=measurement_routes.router)
-app.include_router(prefix="/api/v1", router=log_routes.router)
-app.include_router(prefix="/api/v1", router=sensor_routes.router)
-app.include_router(prefix="/api/v1", router=config_routes.router)
+app.include_router(prefix=API_PREFIX, router=stu_routes.router)
+app.include_router(prefix=API_PREFIX, router=sth_routes.router)
+app.include_router(prefix=API_PREFIX, router=common.router)
+app.include_router(prefix=API_PREFIX, router=file_routes.router)
+app.include_router(prefix=API_PREFIX, router=cloud_routes.router)
+app.include_router(prefix=API_PREFIX, router=measurement_routes.router)
+app.include_router(prefix=API_PREFIX, router=log_routes.router)
+app.include_router(prefix=API_PREFIX, router=sensor_routes.router)
+app.include_router(prefix=API_PREFIX, router=config_routes.router)
 
 
 logger = logging.getLogger(__name__)

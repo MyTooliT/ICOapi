@@ -19,9 +19,27 @@ To run the tests run the following command:
 just test
 ```
 
+Tests are grouped with [pytest markers](https://docs.pytest.org/en/stable/how-to/mark.html):
+
+- `hardware`: tests that need the hardware described above. Run all other tests with `just test-no-hardware`.
+- `mqtt`: tests that need an [MQTT](https://mqtt.org) broker. They are skipped, unless you set the environment variable `TEST_MQTT_BROKER` (host name of the broker). `TEST_MQTT_PORT` (default: 1883), `TEST_MQTT_USERNAME` and `TEST_MQTT_PASSWORD` are optional. The tests publish to topics below `icodaq-test/<random ID>` and remove what they published. Run only these tests with `just test-mqtt`, for example with a temporary [Mosquitto](https://mosquitto.org) broker:
+
+  ```sh
+  docker run -d --rm --name test-mosquitto -p 127.0.0.1:18883:1883 eclipse-mosquitto:2 \
+    sh -c 'printf "listener 1883\nallow_anonymous true\n" > /tmp/m.conf && exec mosquitto -c /tmp/m.conf'
+  TEST_MQTT_BROKER=127.0.0.1 TEST_MQTT_PORT=18883 just test-mqtt
+  docker stop test-mosquitto
+  ```
+
 ## Guidelines
 
 These guidelines are a work-in-progress and aim to explain development decisions and support consistency.
+
+### WebSockets
+
+WebSockets are only used to **send** data from ICOapi to clients (state, measurement data, logs), never to receive data. Everything a client wants to tell ICOapi (commands, requests for data) goes through the REST API. Clients must not send messages over a WebSocket; the `/state` WebSocket ignores everything a client sends.
+
+This keeps a WebSocket interchangeable with other transports, such as [MQTT](config:mqtt), for publishing the same updates.
 
 ### Logging
 

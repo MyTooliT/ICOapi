@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from itertools import repeat
 from pathlib import Path
 from time import monotonic
-from typing import Iterator, Protocol
+from typing import Any, Iterator, Protocol
 
 from icolyzer import iftlibrary
 from icostate import ICOsystem, State
@@ -34,7 +34,11 @@ from icoapi.scripts.data_handling import (
 from icoapi.scripts.errors import (
     HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION,
 )
-from icoapi.scripts.file_handling import get_measurement_dir
+from icoapi.scripts.file_handling import (
+    get_file_download_route,
+    get_measurement_dir,
+)
+from icoapi.models.event_bus import Channel
 from icoapi.models.globals import GeneralMessenger, MeasurementState
 from icoapi.models.models import (
     DataValueModel,
@@ -601,52 +605,55 @@ async def mark_measurement_stopped(
     await general_messenger.push_messenger_update()
 
 
-async def request_and_receive_post_meta(
-    storage: MetadataStorage,
-    measurement_state: MeasurementState,
-    general_messenger: GeneralMessenger,
-) -> None:
-    """Ask the client for post-measurement metadata and write it once received"""
+def create_recording_payload(
+    measurement_file_path: Path, error: BaseException | None = None
+) -> dict[str, Any]:
+    """Create the payload of an event about a finished measurement
 
-    logger.info("Waiting for post-measurement metadata")
-    await general_messenger.send_post_meta_request()
-    while measurement_state.post_meta is None:
-        await asyncio.sleep(1)
-    logger.info("Received post-measurement metadata")
-    await general_messenger.send_post_meta_completed()
-    write_metadata(MetadataPrefix.POST, measurement_state.post_meta, storage)
+    Args:
 
+        measurement_file_path:
+            Path of the measurement file
 
-async def request_post_meta_after_abnormal_stop(
-    measurement_file_path: Path,
-    measurement_state: MeasurementState,
-    general_messenger: GeneralMessenger,
-) -> None:
-    """
-    Still ask for post-measurement metadata after the measurement stopped
-    due to an error.
+        error:
+            The error that stopped the measurement, if any
 
-    The success path below requests post-measurement metadata before the
-    measurement file is closed. When the measurement instead stops because
-    of an exception (e.g. a hardware disconnect or timeout), that code is
-    never reached, so the file is reopened here to give the user the same
-    opportunity to add post-measurement metadata.
+    Returns:
+
+        Dictionary with the name of the measurement file, its size in bytes
+        and the route to download it. The size and the route are ``None`` if
+        the file does not exist (e.g. because the measurement failed before
+        the file was created). The error (type and message) is only part of
+        the payload if there was an error.
+
     """
 
-    if not measurement_state.wait_for_post_meta:
-        return
+    name = measurement_file_path.name
+    payload: dict[str, Any] = {"name": name, "size": None, "url": None}
 
     try:
-        with open_metadata_storage(measurement_file_path) as storage:
-            await request_and_receive_post_meta(
-                storage, measurement_state, general_messenger
-            )
-    except Exception:  # pylint: disable=broad-exception-caught
-        logger.exception(
-            "Failed to request/write post-measurement metadata for <%s>"
-            " after abnormal measurement stop",
-            measurement_file_path,
-        )
+        payload["size"] = measurement_file_path.stat().st_size
+        payload["url"] = get_file_download_route(name)
+    except OSError:
+        pass
+
+    if error is not None:
+        payload["error"] = {"type": type(error).__name__, "message": str(error)}
+
+    return payload
+
+
+async def publish_recording_event(
+    general_messenger: GeneralMessenger,
+    channel: Channel,
+    measurement_file_path: Path,
+    error: BaseException | None = None,
+) -> None:
+    """Publish that the measurement finished (or failed) on all event buses"""
+
+    await general_messenger.publish_event(
+        channel, create_recording_payload(measurement_file_path, error)
+    )
 
 
 async def run_measurement(
@@ -860,43 +867,49 @@ async def run_measurement(
             if instructions.disconnect_after_measurement:
                 await disconnect_sth_devices(system)
 
-            await mark_measurement_stopped(measurement_state, general_messenger)
+        # The measurement file is closed at this point. Only now the
+        # measurement is reported as stopped, so clients that react to that
+        # (e.g. by adding post-measurement metadata to the file) do not
+        # collide with the still open file.
+        await mark_measurement_stopped(measurement_state, general_messenger)
 
-            # Send IFT value values at once after the measurement is finished.
-            if instructions.ift_requested:
-                # If only one channel is enabled then each streaming message
-                # contains 3 values for this channel. These values share the
-                # same timestamp. This means we have to replicate each
-                # timestamp 3 times to get a timestamp for every value.
-                # Note: In all other cases every message contains at most one
-                #       value for a specific channel, which means the number of
-                #       timestamps and number of values for the specific
-                #       channel should be the same.
-                if streaming_configuration.enabled_channels() == 1:
-                    trippeled_timestamps: list[float] = []
-                    for timestamp in timestamps:
-                        trippeled_timestamps.extend(repeat(timestamp, 3))
-                    timestamps = trippeled_timestamps
+        # Send IFT value values at once after the measurement is finished.
+        if instructions.ift_requested:
+            # If only one channel is enabled then each streaming message
+            # contains 3 values for this channel. These values share the
+            # same timestamp. This means we have to replicate each
+            # timestamp 3 times to get a timestamp for every value.
+            # Note: In all other cases every message contains at most one
+            #       value for a specific channel, which means the number of
+            #       timestamps and number of values for the specific
+            #       channel should be the same.
+            if streaming_configuration.enabled_channels() == 1:
+                trippeled_timestamps: list[float] = []
+                for timestamp in timestamps:
+                    trippeled_timestamps.extend(repeat(timestamp, 3))
+                timestamps = trippeled_timestamps
 
-                await send_ift_values(
-                    timestamps,
-                    ift_relevant_channel,
-                    instructions,
-                    measurement_state,
-                )
-                ift_sent = True
+            await send_ift_values(
+                timestamps,
+                ift_relevant_channel,
+                instructions,
+                measurement_state,
+            )
+            ift_sent = True
 
-            if measurement_state.wait_for_post_meta:
-                await request_and_receive_post_meta(
-                    storage, measurement_state, general_messenger
-                )
+        await publish_recording_event(
+            general_messenger, Channel.RECORDING_FINISHED, measurement_file_path
+        )
 
     except StreamingTimeoutError as e:
         logger.debug("Stream timeout error")
         await notify_clients_of_measurement_error(measurement_state, e)
         await mark_measurement_stopped(measurement_state, general_messenger)
-        await request_post_meta_after_abnormal_stop(
-            measurement_file_path, measurement_state, general_messenger
+        await publish_recording_event(
+            general_messenger,
+            Channel.RECORDING_FAILED,
+            measurement_file_path,
+            e,
         )
     except asyncio.CancelledError as e:
         logger.debug(
@@ -911,19 +924,31 @@ async def run_measurement(
                 instructions,
                 measurement_state,
             )
+        await publish_recording_event(
+            general_messenger,
+            Channel.RECORDING_FAILED,
+            measurement_file_path,
+            e,
+        )
         raise asyncio.CancelledError from e
-    except WebSocketDisconnect:
+    except WebSocketDisconnect as e:
         logger.info("WebSocket disconnected")
         await mark_measurement_stopped(measurement_state, general_messenger)
-        await request_post_meta_after_abnormal_stop(
-            measurement_file_path, measurement_state, general_messenger
+        await publish_recording_event(
+            general_messenger,
+            Channel.RECORDING_FAILED,
+            measurement_file_path,
+            e,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("Measurement stopped due to an unexpected error")
         await notify_clients_of_measurement_error(measurement_state, e)
         await mark_measurement_stopped(measurement_state, general_messenger)
-        await request_post_meta_after_abnormal_stop(
-            measurement_file_path, measurement_state, general_messenger
+        await publish_recording_event(
+            general_messenger,
+            Channel.RECORDING_FAILED,
+            measurement_file_path,
+            e,
         )
     finally:
         clients = len(measurement_state.clients)
