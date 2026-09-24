@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import List
+from typing import List, Sequence
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from icostate import CANInitError, ICOsystem
@@ -343,17 +343,19 @@ class GeneralMessenger:
         )
 
     @classmethod
-    async def _broadcast(cls, message: SocketMessage) -> None:
-        """Send a message to all connected clients
+    async def _send(
+        cls, message: SocketMessage, recipients: Sequence[WebSocket]
+    ) -> None:
+        """Send a message to the given clients
 
-        Broadcasts are serialized, since concurrent sends on the same
-        WebSocket connection are not supported and can crash the connection.
-        Clients that fail to receive the message are dropped.
+        Sends are serialized, since concurrent sends on the same WebSocket
+        connection are not supported and can crash the connection. Clients
+        that fail to receive the message are dropped.
         """
 
         payload = message.model_dump()
         async with cls._push_lock:
-            for client in list(cls._clients):
+            for client in list(recipients):
                 try:
                     await client.send_json(payload)
                 except (RuntimeError, WebSocketDisconnect):
@@ -364,25 +366,39 @@ class GeneralMessenger:
                     cls.remove_messenger(client)
 
     @classmethod
-    async def push_messenger_update(cls):
-        """Push updates about general state to messenger clients"""
+    async def _state_message(cls) -> SocketMessage:
+        """Create message containing the current general state"""
 
         state = await get_measurement_state()
         cloud = await get_trident_feature()
-        await cls._broadcast(
-            SocketMessage(
-                message="state",
-                data=SystemStateModel(
-                    can_ready=ICOsystemSingleton.has_instance(),
-                    disk_capacity=get_disk_space_in_gib(),
-                    cloud=cloud,
-                    measurement_status=state.get_status(),
-                ),
-            )
+        return SocketMessage(
+            message="state",
+            data=SystemStateModel(
+                can_ready=ICOsystemSingleton.has_instance(),
+                disk_capacity=get_disk_space_in_gib(),
+                cloud=cloud,
+                measurement_status=state.get_status(),
+            ),
         )
+
+    @classmethod
+    async def push_messenger_update(cls):
+        """Push updates about general state to messenger clients"""
+
+        await cls._send(await cls._state_message(), cls._clients)
 
         if (len(cls._clients)) > 0:
             logger.info("Pushed SystemState to %s clients.", len(cls._clients))
+
+    @classmethod
+    async def push_state_to(cls, client: WebSocket):
+        """Push the current general state to a single client
+
+        This is used to give a newly connected client the current state
+        without sending it to all other clients again.
+        """
+
+        await cls._send(await cls._state_message(), [client])
 
 
 def get_messenger():

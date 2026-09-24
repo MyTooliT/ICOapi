@@ -8,7 +8,7 @@ from logging import getLogger
 from typing import Any
 
 from httpx_ws import aconnect_ws, AsyncWebSocketSession
-from pytest import mark
+from pytest import mark, raises
 
 # -- Functions ----------------------------------------------------------------
 
@@ -133,6 +133,26 @@ class TestCommon:
         check_state_measurement_data(
             body, test_sensor_node, measurement_single_channel
         )
+
+    async def test_state_websocket_new_client_only(
+        self, state_prefix, async_client
+    ) -> None:
+        """Check that only a newly connected client receives the state"""
+
+        state = str(async_client.base_url).replace("http", "ws") + state_prefix
+
+        first: AsyncWebSocketSession
+        second: AsyncWebSocketSession
+        async with aconnect_ws(state, async_client) as first:
+            messages = await get_websocket_messages(first, 1)
+            assert messages[0]["message"] == "state"
+
+            async with aconnect_ws(state, async_client) as second:
+                messages = await get_websocket_messages(second, 1)
+                assert messages[0]["message"] == "state"
+
+                with raises(TimeoutError):
+                    await wait_for(first.receive_json(), timeout=0.5)
 
     @mark.hardware
     async def test_state_websocket_connect(

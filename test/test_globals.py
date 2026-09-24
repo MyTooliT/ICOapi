@@ -104,3 +104,55 @@ class TestGeneralMessenger:
 
         assert broken.send_attempts == 1
         assert len(healthy.messages) == 2
+
+    async def test_push_state_to_only_reaches_given_client(self) -> None:
+        """Pushing state to a single client must not reach other clients"""
+
+        new_client = FakeWebSocket()
+        other_client = FakeWebSocket()
+        add_fake_messenger(other_client)
+        add_fake_messenger(new_client)
+
+        await GeneralMessenger.push_state_to(
+            cast(WebSocket, cast(object, new_client))
+        )
+
+        assert len(new_client.messages) == 1
+        assert new_client.messages[0]["message"] == "state"
+        assert "can_ready" in new_client.messages[0]["data"]
+        assert not other_client.messages
+
+    async def test_push_state_to_is_serialized_with_pushes(self) -> None:
+        """Sending state to a single client must not interleave with pushes"""
+
+        client = FakeWebSocket()
+        add_fake_messenger(client)
+
+        push_count = 3
+        await asyncio.gather(
+            GeneralMessenger.push_state_to(
+                cast(WebSocket, cast(object, client))
+            ),
+            *(
+                GeneralMessenger.push_messenger_update()
+                for _ in range(push_count)
+            ),
+        )
+
+        assert len(client.messages) == push_count + 1
+
+    async def test_push_state_to_broken_client_is_dropped(self) -> None:
+        """A client that fails to receive the initial state is dropped"""
+
+        broken = FakeWebSocket(fail_after=0)
+        healthy = FakeWebSocket()
+        add_fake_messenger(broken)
+        add_fake_messenger(healthy)
+
+        await GeneralMessenger.push_state_to(
+            cast(WebSocket, cast(object, broken))
+        )
+        await GeneralMessenger.push_messenger_update()
+
+        assert broken.send_attempts == 1
+        assert len(healthy.messages) == 1

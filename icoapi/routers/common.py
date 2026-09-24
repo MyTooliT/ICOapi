@@ -63,7 +63,8 @@ async def state_websocket(
     messenger.add_messenger(websocket)
 
     try:
-        await messenger.push_messenger_update()
+        # Only the new client needs the current state
+        await messenger.push_state_to(websocket)
 
         # Only receive to notice when the client disconnects
         while True:
