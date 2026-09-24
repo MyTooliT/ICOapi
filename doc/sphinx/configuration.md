@@ -107,6 +107,8 @@ LOG_LEVEL_UVICORN=INFO
 
 - `LOG_LEVEL_UVICORN` controls the log level for the [uvicorn](https://uvicorn.dev/) web server.
 
+(config:mqtt)=
+
 ### MQTT
 
 The API can publish its general state to an [MQTT](https://mqtt.org) broker, in addition to the `/state` WebSocket. MQTT is only used if **both** `MQTT_BROKER` and `MQTT_BASE_TOPIC` are set. If only one of them is set (or a value is invalid), MQTT stays disabled and the API logs an error.
@@ -153,7 +155,7 @@ The events about measurements are published with QoS 1. While the broker is unre
 
 Both events refer to the measurement data. Post-measurement metadata can be added to the file afterwards (`POST /api/v1/files/post_meta/{name}`), so download the file again if you need the metadata.
 
-Clients only read from the broker, everything a client wants to tell the API goes through the REST API.
+Clients only read from the broker, everything a client wants to tell the API goes through the REST API. The API is the only publisher below its base topic, so give the accounts of all other clients read-only (subscribe) access to that topic in the ACL of the broker. The published data contains no secrets (CAN readiness, disk capacity, cloud status and the measurement status).
 
 ## Configuration Files
 

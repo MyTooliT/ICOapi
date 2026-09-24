@@ -35,6 +35,12 @@ Tests are grouped with [pytest markers](https://docs.pytest.org/en/stable/how-to
 
 These guidelines are a work-in-progress and aim to explain development decisions and support consistency.
 
+### WebSockets
+
+WebSockets are only used to **send** data from ICOapi to clients (state, measurement data, logs), never to receive data. Everything a client wants to tell ICOapi (commands, requests for data) goes through the REST API. Clients must not send messages over a WebSocket; the `/state` WebSocket ignores everything a client sends.
+
+This keeps a WebSocket interchangeable with other transports, such as [MQTT](config:mqtt), for publishing the same updates.
+
 ### Logging
 
 The application is set up to log _everything_. This is how the logging is set up.
