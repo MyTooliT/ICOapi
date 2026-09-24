@@ -5,6 +5,7 @@ import os
 import platform
 import sys
 from typing import Iterable, Tuple
+from urllib.parse import quote
 import shutil
 import re
 
@@ -23,6 +24,15 @@ from icoapi.models.models import (
 from icoapi.scripts.config_helper import CONFIG_FILE_DEFINITIONS
 
 logger = logging.getLogger(__name__)
+
+# Prefix of all routes of the API
+API_PREFIX = "/api/v1"
+
+
+def get_file_download_route(file_name: str) -> str:
+    """Get the route (without host) to download a measurement file"""
+
+    return f"{API_PREFIX}/files/{quote(file_name, safe='')}"
 
 
 def load_env_file():

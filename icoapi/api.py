@@ -23,6 +23,7 @@ from icoapi.routers import (
 )
 from icoapi.scripts.data_handling import is_inline_sensor_config_required
 from icoapi.scripts.file_handling import (
+    API_PREFIX,
     copy_config_files_if_not_exists,
     ensure_folder_exists,
     get_application_dir,
@@ -85,15 +86,15 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
 
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(prefix="/api/v1", router=stu_routes.router)
-app.include_router(prefix="/api/v1", router=sth_routes.router)
-app.include_router(prefix="/api/v1", router=common.router)
-app.include_router(prefix="/api/v1", router=file_routes.router)
-app.include_router(prefix="/api/v1", router=cloud_routes.router)
-app.include_router(prefix="/api/v1", router=measurement_routes.router)
-app.include_router(prefix="/api/v1", router=log_routes.router)
-app.include_router(prefix="/api/v1", router=sensor_routes.router)
-app.include_router(prefix="/api/v1", router=config_routes.router)
+app.include_router(prefix=API_PREFIX, router=stu_routes.router)
+app.include_router(prefix=API_PREFIX, router=sth_routes.router)
+app.include_router(prefix=API_PREFIX, router=common.router)
+app.include_router(prefix=API_PREFIX, router=file_routes.router)
+app.include_router(prefix=API_PREFIX, router=cloud_routes.router)
+app.include_router(prefix=API_PREFIX, router=measurement_routes.router)
+app.include_router(prefix=API_PREFIX, router=log_routes.router)
+app.include_router(prefix=API_PREFIX, router=sensor_routes.router)
+app.include_router(prefix=API_PREFIX, router=config_routes.router)
 
 
 logger = logging.getLogger(__name__)

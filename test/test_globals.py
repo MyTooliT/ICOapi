@@ -298,6 +298,26 @@ class TestCompositeEventBus:
 class TestGeneralMessenger:
     """Tests for ``GeneralMessenger``"""
 
+    async def test_added_bus_receives_state_and_events(self) -> None:
+        """Added buses must receive everything until they are removed"""
+
+        recording = RecordingEventBus()
+        GeneralMessenger.add_bus(recording)
+        try:
+            await GeneralMessenger.push_messenger_update()
+            await GeneralMessenger.publish_event(
+                Channel.RECORDING_FINISHED, {"name": "test.hdf5"}
+            )
+        finally:
+            GeneralMessenger.remove_bus(recording)
+        await GeneralMessenger.push_messenger_update()
+        await GeneralMessenger.publish_event(Channel.RECORDING_FAILED, {})
+
+        assert len(recording.states) == 1
+        assert recording.events == [
+            (Channel.RECORDING_FINISHED, {"name": "test.hdf5"})
+        ]
+
     def setup_method(self) -> None:
         """Start each test without WebSocket clients"""
 

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from itertools import repeat
 from pathlib import Path
 from time import monotonic
-from typing import Iterator, Protocol
+from typing import Any, Iterator, Protocol
 
 from icolyzer import iftlibrary
 from icostate import ICOsystem, State
@@ -34,7 +34,11 @@ from icoapi.scripts.data_handling import (
 from icoapi.scripts.errors import (
     HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION,
 )
-from icoapi.scripts.file_handling import get_measurement_dir
+from icoapi.scripts.file_handling import (
+    get_file_download_route,
+    get_measurement_dir,
+)
+from icoapi.models.event_bus import Channel
 from icoapi.models.globals import GeneralMessenger, MeasurementState
 from icoapi.models.models import (
     DataValueModel,
@@ -601,6 +605,57 @@ async def mark_measurement_stopped(
     await general_messenger.push_messenger_update()
 
 
+def create_recording_payload(
+    measurement_file_path: Path, error: BaseException | None = None
+) -> dict[str, Any]:
+    """Create the payload of an event about a finished measurement
+
+    Args:
+
+        measurement_file_path:
+            Path of the measurement file
+
+        error:
+            The error that stopped the measurement, if any
+
+    Returns:
+
+        Dictionary with the name of the measurement file, its size in bytes
+        and the route to download it. The size and the route are ``None`` if
+        the file does not exist (e.g. because the measurement failed before
+        the file was created). The error (type and message) is only part of
+        the payload if there was an error.
+
+    """
+
+    name = measurement_file_path.name
+    payload: dict[str, Any] = {"name": name, "size": None, "url": None}
+
+    try:
+        payload["size"] = measurement_file_path.stat().st_size
+        payload["url"] = get_file_download_route(name)
+    except OSError:
+        pass
+
+    if error is not None:
+        payload["error"] = {"type": type(error).__name__, "message": str(error)}
+
+    return payload
+
+
+async def publish_recording_event(
+    general_messenger: GeneralMessenger,
+    channel: Channel,
+    measurement_file_path: Path,
+    error: BaseException | None = None,
+) -> None:
+    """Publish that the measurement finished (or failed) on all event buses"""
+
+    await general_messenger.publish_event(
+        channel, create_recording_payload(measurement_file_path, error)
+    )
+
+
 async def run_measurement(
     system: ICOsystem,
     instructions: MeasurementInstructions,
@@ -842,10 +897,20 @@ async def run_measurement(
             )
             ift_sent = True
 
+        await publish_recording_event(
+            general_messenger, Channel.RECORDING_FINISHED, measurement_file_path
+        )
+
     except StreamingTimeoutError as e:
         logger.debug("Stream timeout error")
         await notify_clients_of_measurement_error(measurement_state, e)
         await mark_measurement_stopped(measurement_state, general_messenger)
+        await publish_recording_event(
+            general_messenger,
+            Channel.RECORDING_FAILED,
+            measurement_file_path,
+            e,
+        )
     except asyncio.CancelledError as e:
         logger.debug(
             "Measurement cancelled. IFT: requested <%s> | already sent: <%s>",
@@ -859,14 +924,32 @@ async def run_measurement(
                 instructions,
                 measurement_state,
             )
+        await publish_recording_event(
+            general_messenger,
+            Channel.RECORDING_FAILED,
+            measurement_file_path,
+            e,
+        )
         raise asyncio.CancelledError from e
-    except WebSocketDisconnect:
+    except WebSocketDisconnect as e:
         logger.info("WebSocket disconnected")
         await mark_measurement_stopped(measurement_state, general_messenger)
+        await publish_recording_event(
+            general_messenger,
+            Channel.RECORDING_FAILED,
+            measurement_file_path,
+            e,
+        )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("Measurement stopped due to an unexpected error")
         await notify_clients_of_measurement_error(measurement_state, e)
         await mark_measurement_stopped(measurement_state, general_messenger)
+        await publish_recording_event(
+            general_messenger,
+            Channel.RECORDING_FAILED,
+            measurement_file_path,
+            e,
+        )
     finally:
         clients = len(measurement_state.clients)
         for client in measurement_state.clients:

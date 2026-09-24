@@ -107,6 +107,9 @@ markers = [
     """hardware: marks tests as depending on ICOtronic hardware \
        (deselect with '-m "not hardware"')""",
     "hardware",
+    """mqtt: marks tests that need an MQTT broker \
+       (set TEST_MQTT_BROKER; deselect with '-m "not mqtt"')""",
+    "mqtt",
 ]
 testpaths = [
   "test"

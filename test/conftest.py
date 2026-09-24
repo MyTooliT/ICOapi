@@ -3,7 +3,7 @@
 # -- Imports ------------------------------------------------------------------
 
 from re import match
-from typing import Any
+from typing import Any, Iterator
 
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
@@ -12,6 +12,28 @@ from netaddr import EUI
 from pytest import fixture
 
 from icoapi.api import app, setup_config
+from icoapi.models.event_bus import Channel, EventBus
+from icoapi.models.globals import GeneralMessenger
+from icoapi.models.models import SystemStateModel
+
+# -- Classes ------------------------------------------------------------------
+
+
+class RecordingEventBus(EventBus):
+    """Event bus that records everything published"""
+
+    def __init__(self) -> None:
+        self.states: list[SystemStateModel] = []
+        self.events: list[tuple[Channel, dict[str, Any]]] = []
+
+    async def publish_state(self, state: SystemStateModel) -> None:
+        self.states.append(state)
+
+    async def publish_event(
+        self, channel: Channel, payload: dict[str, Any]
+    ) -> None:
+        self.events.append((channel, payload))
+
 
 # -- Functions ----------------------------------------------------------------
 
@@ -217,6 +239,21 @@ def test_sensor_node_adc_configuration(sth_prefix, test_sensor_node, client):
     client.put(f"{sth_prefix}/disconnect")
 
     return adc_configuration
+
+
+@fixture
+def recording_event_bus() -> Iterator[RecordingEventBus]:
+    """Record everything the API publishes on its event buses
+
+    Use this fixture before the fixtures that start a measurement.
+    """
+
+    bus = RecordingEventBus()
+    GeneralMessenger.add_bus(bus)
+
+    yield bus
+
+    GeneralMessenger.remove_bus(bus)
 
 
 @fixture

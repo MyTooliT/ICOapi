@@ -2,13 +2,14 @@
 
 import asyncio
 import logging
-from typing import List
+from typing import Any, List
 from starlette.websockets import WebSocket
 
 from icostate import CANInitError, ICOsystem
 from icostate.state import State
 
 from icoapi.models.event_bus import (
+    Channel,
     CompositeEventBus,
     EventBus,
     WebSocketEventBus,
@@ -352,6 +353,14 @@ class GeneralMessenger:
         """Publish the current general state on all event buses"""
 
         await cls._bus.publish_state(await build_system_state())
+
+    @classmethod
+    async def publish_event(
+        cls, channel: Channel, payload: dict[str, Any]
+    ) -> None:
+        """Publish a one-shot event on all event buses"""
+
+        await cls._bus.publish_event(channel, payload)
 
     @classmethod
     async def close(cls):

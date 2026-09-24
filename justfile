@@ -44,6 +44,10 @@ test *options: check
 [group('test')]
 test-no-hardware: (test "-m 'not hardware'")
 
+# Run tests that need an MQTT broker (set `TEST_MQTT_BROKER` and, if required, `TEST_MQTT_PORT`, `TEST_MQTT_USERNAME`, `TEST_MQTT_PASSWORD`)
+[group('test')]
+test-mqtt: (test "-m mqtt")
+
 # Run API server
 [group('run')]
 run:

@@ -134,11 +134,24 @@ MQTT_BASE_TOPIC=icodaq/line-3
 
 The API publishes to the following topics:
 
-| Topic                              | Content                 | Retained |
-| ---------------------------------- | ----------------------- | -------- |
-| `<MQTT_BASE_TOPIC>/State`          | General state (as JSON) | yes      |
+| Topic                                       | Content                              | Retained |
+| ------------------------------------------- | ------------------------------------ | -------- |
+| `<MQTT_BASE_TOPIC>/State`                   | General state (as JSON)              | yes      |
+| `<MQTT_BASE_TOPIC>/Recording/Finished`      | A measurement finished (as JSON)     | no       |
+| `<MQTT_BASE_TOPIC>/Recording/Failed`        | A measurement failed (as JSON)       | no       |
 
 The payload of the state topic is the same data as returned by `GET /api/v1/state`. The state is published again every time the API (re)connects to the broker. If the API stops, or loses the connection to the broker without disconnecting, the broker removes the retained state (an empty message is published on the topic), so an old state never claims that the API is still running.
+
+The events about measurements are published with QoS 1. While the broker is unreachable they are kept (see `MQTT_BUFFER_SIZE`) and sent after the connection is restored. Their payload contains:
+
+- `name`: name of the measurement file
+- `size`: size of the measurement file in bytes
+- `url`: route to download the file with a `GET` request, e.g. `/api/v1/files/Test%20Measurement__2026-01-01_00-00-00.hdf5`. It does not contain the host: clients know the address of the device and add it.
+- `error` (only for `Failed`): the `type` and `message` of the error that stopped the measurement
+
+`size` and `url` are `null` if the measurement failed before the file was created. A measurement is `Finished` when it ends by reaching its time or by being stopped (`/api/v1/measurement/stop`). Every other end (streaming timeout, unexpected error, lost client connection, cancellation) is `Failed`, in which case the file (if it exists) contains the data measured until then. Requests that fail before the measurement starts (e.g. `/start` or `/execute` returning an error) do not publish an event.
+
+Both events refer to the measurement data. Post-measurement metadata can be added to the file afterwards (`POST /api/v1/files/post_meta/{name}`), so download the file again if you need the metadata.
 
 Clients only read from the broker, everything a client wants to tell the API goes through the REST API.
 
