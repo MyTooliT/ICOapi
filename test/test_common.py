@@ -2,15 +2,23 @@
 
 # -- Imports ------------------------------------------------------------------
 
-from asyncio import TaskGroup, wait_for
+from asyncio import TaskGroup, sleep, wait_for
 from datetime import datetime, timedelta
 from logging import getLogger
 from typing import Any
 
 from httpx_ws import aconnect_ws, AsyncWebSocketSession
-from pytest import mark, raises
+from pytest import fixture, mark, raises
+
+from icoapi.models.globals import TridentHandler, get_messenger
 
 # -- Functions ----------------------------------------------------------------
+
+
+def get_state_url(state_prefix: str, async_client) -> str:
+    """Get URL of the state WebSocket"""
+
+    return str(async_client.base_url).replace("http", "ws") + state_prefix
 
 
 async def get_websocket_messages(
@@ -217,3 +225,137 @@ class TestCommon:
 
         assert response.status_code == 200
         assert response.json() is None
+
+
+class TestStateWebSocket:
+    """Tests for the state WebSocket that do not need any hardware
+
+    The tests only use what a client of the WebSocket sees. State changes are
+    triggered via the cloud state (``TridentHandler``), which pushes state
+    updates without any connected hardware.
+    """
+
+    @fixture(autouse=True)
+    async def reset_cloud_state(self):
+        """Start and end each test with the default cloud state"""
+
+        await TridentHandler.reset()
+        yield
+        await TridentHandler.reset()
+
+    async def test_payload(self, state_prefix, async_client) -> None:
+        """The state message should contain the same data as ``GET /state``"""
+
+        ws: AsyncWebSocketSession
+        async with aconnect_ws(
+            get_state_url(state_prefix, async_client), async_client
+        ) as ws:
+            messages = await get_websocket_messages(ws, 1)
+
+        message = messages[0]
+        assert message["message"] == "state"
+        data = message["data"]
+
+        assert isinstance(data["can_ready"], bool)
+        assert {"total", "available"} <= set(data["disk_capacity"])
+        assert data["cloud"]["enabled"] is False
+        assert data["cloud"]["healthy"] is False
+        measurement_status = data["measurement_status"]
+        assert measurement_status["running"] is False
+        for attribute in ("instructions", "name", "start_time", "tool_name"):
+            assert measurement_status[attribute] is None
+
+        response = await async_client.get(state_prefix)
+        assert response.status_code == 200
+        body = response.json()
+        for key in ("can_ready", "cloud", "measurement_status"):
+            assert data[key] == body[key]
+
+    async def test_late_subscriber_gets_current_state(
+        self, state_prefix, async_client
+    ) -> None:
+        """A client connecting later should get the latest state
+
+        Pushing state while no client is connected must not fail.
+        """
+
+        await TridentHandler.set_enabled()
+        await get_messenger().push_messenger_update()
+
+        ws: AsyncWebSocketSession
+        async with aconnect_ws(
+            get_state_url(state_prefix, async_client), async_client
+        ) as ws:
+            messages = await get_websocket_messages(ws, 1)
+
+        assert messages[0]["data"]["cloud"]["enabled"] is True
+
+    async def test_updates_arrive_in_order(
+        self, state_prefix, async_client
+    ) -> None:
+        """State updates should be received in the order they happened"""
+
+        ws: AsyncWebSocketSession
+        async with aconnect_ws(
+            get_state_url(state_prefix, async_client), async_client
+        ) as ws:
+            # Wait for initial message, to make sure the client is registered
+            await get_websocket_messages(ws, 1)
+
+            await TridentHandler.set_enabled()
+            await TridentHandler.set_health(True)
+            await TridentHandler.set_disabled()
+
+            messages = await get_websocket_messages(ws, 3)
+
+        assert [
+            (message["data"]["cloud"]["enabled"], message["data"]["cloud"]["healthy"])
+            for message in messages
+        ] == [(True, False), (True, True), (False, True)]
+
+    async def test_disconnected_client_does_not_affect_others(
+        self, state_prefix, async_client
+    ) -> None:
+        """Updates should still reach clients after another one disconnected"""
+
+        state = get_state_url(state_prefix, async_client)
+
+        first: AsyncWebSocketSession
+        second: AsyncWebSocketSession
+        async with aconnect_ws(state, async_client) as first:
+            await get_websocket_messages(first, 1)
+
+            async with aconnect_ws(state, async_client) as second:
+                await get_websocket_messages(second, 1)
+
+            await TridentHandler.set_enabled()
+            messages = await get_websocket_messages(first, 1)
+
+        assert messages[0]["data"]["cloud"]["enabled"] is True
+
+    async def test_client_messages_are_ignored(
+        self, state_prefix, async_client
+    ) -> None:
+        """Messages sent by the client should be ignored
+
+        They neither trigger a response nor should they break the connection.
+        """
+
+        ws: AsyncWebSocketSession
+        async with aconnect_ws(
+            get_state_url(state_prefix, async_client), async_client
+        ) as ws:
+            await get_websocket_messages(ws, 1)
+
+            await ws.send_json({"message": "get_state"})
+            await ws.send_text("This is not JSON")
+            await ws.send_bytes(b"\x00\x01")
+            # Give the server the chance to process the messages
+            await sleep(0.2)
+
+            await TridentHandler.set_enabled()
+            messages = await get_websocket_messages(ws, 1)
+
+        # The first message after the client messages must be the pushed
+        # update, not a response to one of the client messages
+        assert messages[0]["data"]["cloud"]["enabled"] is True

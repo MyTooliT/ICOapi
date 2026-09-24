@@ -5,7 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, status
 from fastapi.params import Depends
-from starlette.websockets import WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocket
 
 from icoapi.models.globals import (
     GeneralMessenger,
@@ -66,8 +66,9 @@ async def state_websocket(
         # Only the new client needs the current state
         await messenger.push_state_to(websocket)
 
-        # Only receive to notice when the client disconnects
-        while True:
-            await websocket.receive_text()
-    except WebSocketDisconnect:
+        # Ignore everything the client sends (text and binary messages), only
+        # receive to notice when the client disconnects
+        while (await websocket.receive())["type"] != "websocket.disconnect":
+            pass
+    finally:
         messenger.remove_messenger(websocket)
