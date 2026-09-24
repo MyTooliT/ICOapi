@@ -34,6 +34,7 @@ from icoapi.scripts.file_handling import (
 from icoapi.models.globals import (
     MeasurementSingleton,
     ICOsystemSingleton,
+    get_messenger,
     setup_trident, get_dataspace_config,
 )
 from icoapi.utils.logging_setup import setup_logging
@@ -66,6 +67,7 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
     yield
     MeasurementSingleton.clear_clients()
     await ICOsystemSingleton.close_instance()
+    await get_messenger().close()
 
 
 app = FastAPI(lifespan=lifespan)
