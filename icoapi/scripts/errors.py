@@ -658,3 +658,53 @@ HTTP_502_SENSOR_CONFIGURATION_MISMATCH_SPEC = {
         }
     },
 }
+
+
+def _error_spec(description: str, status_code: int) -> dict:
+    """Create OpenAPI response specification for an error"""
+
+    return {
+        "description": description,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "detail": {"type": "string"},
+                        "status_code": {"type": "integer"},
+                    },
+                    "required": ["detail", "status_code"],
+                },
+                "example": {
+                    "detail": description,
+                    "status_code": status_code,
+                },
+            }
+        },
+    }
+
+
+HTTP_503_CAN_NOT_CONNECTED_EXCEPTION = HTTPException(
+    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+    detail="No CAN network connected.",
+)
+HTTP_503_CAN_NOT_CONNECTED_SPEC = _error_spec(
+    "No CAN network connected.", status.HTTP_503_SERVICE_UNAVAILABLE
+)
+
+HTTP_502_CAN_INIT_EXCEPTION = HTTPException(
+    status_code=status.HTTP_502_BAD_GATEWAY,
+    detail="The CAN network could not be opened.",
+)
+HTTP_502_CAN_INIT_SPEC = _error_spec(
+    "The CAN network could not be opened or the STU did not respond.",
+    status.HTTP_502_BAD_GATEWAY,
+)
+
+HTTP_404_CAN_NETWORK_NOT_FOUND_EXCEPTION = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND,
+    detail="The requested CAN network was not found.",
+)
+HTTP_404_CAN_NETWORK_NOT_FOUND_SPEC = _error_spec(
+    "The requested CAN network was not found.", status.HTTP_404_NOT_FOUND
+)

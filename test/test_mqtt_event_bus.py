@@ -352,7 +352,7 @@ class TestMQTTEventBus:
         assert not fake.published
 
         first = await build_system_state()
-        second = first.model_copy(update={"can_ready": not first.can_ready})
+        second = first.model_copy(update={"can_network_found": not first.can_network_found})
         await bus.publish_state(first)
         await bus.publish_state(second)
         fake.published.clear()
@@ -496,11 +496,11 @@ class TestLifespan:
     def disable_hardware(monkeypatch: MonkeyPatch) -> None:
         """Start the application without CAN connection and cloud"""
 
-        async def nothing(*_arguments: Any) -> None:
+        async def nothing(*_arguments: Any, **_keywords: Any) -> None:
             """Do nothing"""
 
         monkeypatch.setattr(
-            api.ICOsystemSingleton, "create_instance_if_none", nothing
+            api.ICOsystemSingleton, "startup", nothing
         )
         monkeypatch.setattr(api.ICOsystemSingleton, "close_instance", nothing)
         monkeypatch.setattr(

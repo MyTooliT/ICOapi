@@ -14,6 +14,7 @@ from icoapi.models.globals import (
     get_websocket_event_bus,
 )
 from icoapi.models.models import SystemStateModel
+from icoapi.scripts.can_scripts import is_can_autoconnect
 
 router = APIRouter(tags=["General"])
 
@@ -29,10 +30,24 @@ async def state() -> SystemStateModel:
 
 @router.put("/reset-can", status_code=status.HTTP_200_OK)
 async def reset_can():
-    """Reset CAN connection"""
+    """Reset CAN connection
 
-    await ICOsystemSingleton.close_instance()
-    await ICOsystemSingleton.create_instance_if_none()
+    Disconnects and searches for CAN networks again. The API reconnects to the
+    network it was connected to before, if that network is still available. If
+    it was not connected, it only reconnects if autoconnect is enabled.
+    """
+
+    previous = ICOsystemSingleton.selected
+    await ICOsystemSingleton.disconnect()
+    if previous is None:
+        await ICOsystemSingleton.startup(autoconnect=is_can_autoconnect())
+        return
+
+    await ICOsystemSingleton.scan()
+    try:
+        await ICOsystemSingleton.connect(previous)
+    except Exception as error:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        logger.error("Cannot reconnect to CAN network: %s", error)
 
 
 @router.websocket("/state")

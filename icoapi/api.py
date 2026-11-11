@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from icoapi.routers import (
+    can_routes,
     config_routes,
     sensor_routes,
     stu_routes,
@@ -21,6 +22,7 @@ from icoapi.routers import (
     cloud_routes,
     log_routes,
 )
+from icoapi.scripts.can_scripts import is_can_autoconnect
 from icoapi.scripts.data_handling import is_inline_sensor_config_required
 from icoapi.scripts.file_handling import (
     API_PREFIX,
@@ -70,10 +72,7 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("Error when setting up Trident: %s", e)
-    try:
-        await ICOsystemSingleton.create_instance_if_none()
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error("Error when initializing CAN connection: %s", e)
+    await ICOsystemSingleton.startup(autoconnect=is_can_autoconnect())
     # Make sure that all event buses know the state after startup
     await get_messenger().push_messenger_update()
     yield
@@ -86,6 +85,7 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(prefix=API_PREFIX, router=can_routes.router)
 app.include_router(prefix=API_PREFIX, router=stu_routes.router)
 app.include_router(prefix=API_PREFIX, router=sth_routes.router)
 app.include_router(prefix=API_PREFIX, router=common.router)

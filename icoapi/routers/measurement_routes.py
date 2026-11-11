@@ -26,6 +26,7 @@ from icoapi.models.globals import (
     get_messenger,
     get_system,
     get_measurement_state,
+    ICOsystemSingleton,
     MeasurementState,
     ICOsystem,
 )
@@ -34,6 +35,7 @@ from icoapi.scripts.errors import (
     HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION,
     HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
+    HTTP_503_CAN_NOT_CONNECTED_SPEC,
     HTTP_504_MEASUREMENT_TIMEOUT_EXCEPTION,
     HTTP_504_MEASUREMENT_TIMEOUT_SPEC,
     HTTP_EXECUTE_STEP_FAILED_EXCEPTION,
@@ -141,7 +143,11 @@ async def _begin_measurement(
     )
 
 
-@router.post("/start", response_model=ControlResponse)
+@router.post(
+    "/start",
+    response_model=ControlResponse,
+    responses={503: HTTP_503_CAN_NOT_CONNECTED_SPEC},
+)
 async def start_measurement(
     instructions: MeasurementInstructions,
     system: ICOsystem = Depends(get_system),
@@ -159,6 +165,7 @@ async def start_measurement(
     except IncorrectStateError as exc:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION from exc
     except NoResponseError as exc:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from exc
     except AssertionError as exc:
         raise HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION from exc
@@ -192,6 +199,7 @@ async def _run_execute_step[T](step: str, awaitable: Awaitable[T]) -> T:
             step, status.HTTP_404_NOT_FOUND, str(exc)
         ) from exc
     except NoResponseError as exc:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_EXECUTE_STEP_FAILED_EXCEPTION(
             step, status.HTTP_502_BAD_GATEWAY, str(exc)
         ) from exc
@@ -201,7 +209,11 @@ async def _run_execute_step[T](step: str, awaitable: Awaitable[T]) -> T:
         ) from exc
 
 
-@router.post("/execute", response_model=ControlResponse)
+@router.post(
+    "/execute",
+    response_model=ControlResponse,
+    responses={503: HTTP_503_CAN_NOT_CONNECTED_SPEC},
+)
 async def execute_measurement(
     instructions: Annotated[
         MeasurementInstructions, Body(openapi_examples=EXECUTE_EXAMPLES)

@@ -187,7 +187,7 @@ class TestMQTTBroker:
 
         bus = create_bus()
         first = await build_system_state()
-        second = first.model_copy(update={"can_ready": not first.can_ready})
+        second = first.model_copy(update={"can_network_found": not first.can_network_found})
 
         await bus.start()
         await bus.publish_state(first)

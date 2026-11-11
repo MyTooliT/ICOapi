@@ -38,3 +38,13 @@ http POST 'http://localhost:33215/api/v1/stu/connected' name='STU 1'
 ```sh
 http PUT 'http://localhost:33215/api/v1/sth/disconnect'
 ```
+
+## Search and Connect to a CAN Network
+
+```sh
+http GET 'http://localhost:33215/api/v1/can/networks'
+http PUT 'http://localhost:33215/api/v1/can/connect' interface=pcan channel=PCAN_USBBUS1
+http PUT 'http://localhost:33215/api/v1/can/disconnect'
+```
+
+If you do not specify a network, `PUT /can/connect` uses the default network for your platform (or else the first network found). To connect on startup, set the environment variable `ICOAPI_CAN_AUTOCONNECT=1`.

@@ -7,6 +7,7 @@ from icotronic.can.error import ErrorResponseError, NoResponseError
 
 from icoapi.models.models import STUDeviceResponseModel
 from icoapi.models.globals import (
+    ICOsystemSingleton,
     MeasurementState,
     get_measurement_state,
     get_system,
@@ -17,11 +18,13 @@ from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_SPEC,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
     HTTP_502_CAN_NO_RESPONSE_SPEC,
+    HTTP_503_CAN_NOT_CONNECTED_SPEC,
 )
 
 router = APIRouter(
     prefix="/stu",
     tags=["Stationary Transceiver Unit (STU)"],
+    responses={503: HTTP_503_CAN_NOT_CONNECTED_SPEC},
 )
 
 
@@ -32,9 +35,12 @@ async def stu(
     """Get available STU"""
 
     try:
-        return await get_stu(system)
+        stu_devices = await get_stu(system)
     except NoResponseError as error:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
+    await ICOsystemSingleton.refresh_stu_connected(True)
+    return stu_devices
 
 
 @router.put(
@@ -68,9 +74,7 @@ async def stu_reset(
     response_model=bool,
     responses={
         200: {
-            "description": (
-                "Returns true if the STU is connected, false otherwise."
-            ),
+            "description": ("Returns true if the STU is connected, false otherwise."),
             "content": {
                 "application/json": {
                     "schema": {"type": "boolean"},
@@ -85,6 +89,9 @@ async def stu_connected(system: ICOsystem = Depends(get_system)):
     """Check if the STU is connected to a sensor device"""
 
     try:
-        return await system.is_sensor_node_connected()
+        connected = await system.is_sensor_node_connected()
     except (AttributeError, ErrorResponseError, NoResponseError) as error:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
+    await ICOsystemSingleton.refresh_stu_connected(True)
+    return connected

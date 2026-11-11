@@ -7,6 +7,7 @@ from starlette.websockets import WebSocket
 
 from icostate import CANInitError, ICOsystem
 from icostate.state import State
+from icotronic.can.error import ErrorResponseError, NoResponseError
 
 from icoapi.models.event_bus import (
     Channel,
@@ -15,6 +16,8 @@ from icoapi.models.event_bus import (
     WebSocketEventBus,
 )
 from icoapi.models.models import (
+    CANNetwork,
+    CANStatus,
     Feature,
     MeasurementInstructions,
     MeasurementStatus,
@@ -24,6 +27,13 @@ from icoapi.models.models import (
 )
 from icoapi.models.trident import StorageClient
 from icoapi.scripts.data_handling import read_and_parse_trident_config
+from icoapi.scripts.can_scripts import (
+    UnknownCANNetworkError,
+    discover_can_networks,
+    get_default_can_configuration,
+    select_can_network,
+)
+from icoapi.scripts.errors import HTTP_503_CAN_NOT_CONNECTED_EXCEPTION
 from icoapi.scripts.file_handling import (
     get_dataspace_file_path,
     get_disk_space_in_gib,
@@ -42,6 +52,11 @@ class ICOsystemSingleton:
     behavior, but unintuitive for a dashboard where the user should feel like
     continuously working with devices.
 
+    The wrapper also keeps track of the available CAN networks. Searching for
+    networks (:meth:`scan`) and connecting to one (:meth:`connect`) are
+    separate steps. A connection is only established on request or at startup
+    in headless mode (see :meth:`startup`).
+
     Dependency injection: See https://fastapi.tiangolo.com/tutorial/dependencies/
     """
 
@@ -49,48 +64,202 @@ class ICOsystemSingleton:
     _lock = asyncio.Lock()
     _messengers: list[WebSocket] = []
 
+    status = CANStatus.NO_NETWORK
+    networks: list[CANNetwork] = []
+    selected: CANNetwork | None = None
+    error: str | None = None
+    stu_connected = False
+
     @classmethod
-    async def create_instance_if_none(cls):
-        """Create singleton if it does not exist already"""
+    async def _scan(cls) -> None:
+        """Search for CAN networks (caller must hold the lock)"""
+
+        cls.networks = await discover_can_networks()
+        logger.info("Found CAN networks: %s", cls.networks)
+        if cls._instance is None and cls.status != CANStatus.ERROR:
+            cls.status = (
+                CANStatus.NETWORK_FOUND
+                if cls.networks
+                else CANStatus.NO_NETWORK
+            )
+
+    @classmethod
+    async def scan(cls) -> list[CANNetwork]:
+        """Search for CAN networks"""
+
+        async with cls._lock:
+            if cls.status == CANStatus.ERROR:
+                cls.status = CANStatus.NO_NETWORK
+            await cls._scan()
+        await get_messenger().push_messenger_update()
+        return list(cls.networks)
+
+    @classmethod
+    async def _teardown(cls) -> None:
+        """Close the connection (caller must hold the lock)"""
+
+        system = cls._instance
+        cls._instance = None
+        cls.stu_connected = False
+        cls.selected = None
+        if system is None:
+            return
+        logger.debug(
+            "Trying to disconnect CAN connection with ID <%s>", id(system)
+        )
         try:
-            async with cls._lock:
-                if cls._instance is None:
-                    cls._instance = ICOsystem()
-                    # STU Connection is required for any CAN communication
-                    await cls._instance.connect_stu()
-                    await get_messenger().push_messenger_update()
-                    logger.info(
-                        "Created ICOsystem instance with ID <%s>",
-                        id(cls._instance),
+            if system.state == State.STU_CONNECTED:
+                await system.disconnect_stu()
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logger.warning("Error while disconnecting from STU: %s", error)
+        logger.debug("Closed ICOsystem instance with ID <%s>", id(system))
+
+    @classmethod
+    async def connect(cls, network: CANNetwork | None = None) -> None:
+        """Connect to a CAN network and check that the STU responds
+
+        Args:
+
+            network:
+                The network to connect to. If not given, the network matching
+                the default configuration is used, or else the first one found.
+
+        Raises:
+
+            NoCANNetworkError: If there is no network to connect to
+            UnknownCANNetworkError: If the network was not found
+            CANInitError: If opening the network failed
+            NoResponseError: If the STU did not respond
+        """
+
+        async with cls._lock:
+            if cls._instance is not None:
+                await cls._teardown()
+
+            if not cls.networks:
+                await cls._scan()
+            if network is None:
+                network = select_can_network(cls.networks)
+            else:
+                known = [
+                    known
+                    for known in cls.networks
+                    if (known.interface, known.channel)
+                    == (network.interface, network.channel)
+                ]
+                if not known:
+                    cls.status = (
+                        CANStatus.NETWORK_FOUND
+                        if cls.networks
+                        else CANStatus.NO_NETWORK
                     )
-        except CANInitError as error:
-            logger.error("Cannot establish CAN connection: %s", error)
+                    raise UnknownCANNetworkError(
+                        f"CAN network <{network.interface}:{network.channel}>"
+                        " not found"
+                    )
+                network = known[0]
+
+            cls.status = CANStatus.CONNECTING
+            cls.selected = network
+            cls.error = None
+            await get_messenger().push_messenger_update()
+
+            system = ICOsystem()
+            configuration = get_default_can_configuration()
+            configuration.update(
+                interface=network.interface,
+                channel=network.channel,
+            )
+            if network.bitrate is not None:
+                configuration["bitrate"] = network.bitrate
+            system.connection.configuration = configuration
+
+            try:
+                await system.connect_stu()
+            except CANInitError as e:
+                logger.error("Cannot open CAN network: %s", e)
+                cls.status = CANStatus.ERROR
+                cls.error = str(e)
+                cls.selected = None
+                await get_messenger().push_messenger_update()
+                raise
+
+            try:
+                await system.get_stu_mac_address()
+            except (NoResponseError, ErrorResponseError) as e:
+                logger.error("STU does not respond: %s", e)
+                try:
+                    await system.disconnect_stu()
+                except Exception as error:  # pylint: disable=broad-exception-caught
+                    logger.warning("Error while closing network: %s", error)
+                cls.status = CANStatus.NETWORK_FOUND
+                cls.error = "The STU did not respond"
+                cls.selected = None
+                await get_messenger().push_messenger_update()
+                raise
+
+            cls._instance = system
+            cls.stu_connected = True
+            cls.status = CANStatus.CONNECTED
+            logger.info(
+                "Created ICOsystem instance with ID <%s> on <%s:%s>",
+                id(system),
+                network.interface,
+                network.channel,
+            )
+        await get_messenger().push_messenger_update()
+
+    @classmethod
+    async def disconnect(cls) -> None:
+        """Disconnect from the CAN network"""
+
+        async with cls._lock:
+            await cls._teardown()
+            cls.error = None
+            cls.status = (
+                CANStatus.NETWORK_FOUND if cls.networks else CANStatus.NO_NETWORK
+            )
+        await get_messenger().push_messenger_update()
+
+    @classmethod
+    async def startup(cls, autoconnect: bool = False) -> None:
+        """Search for CAN networks and connect once, if requested"""
+
+        try:
+            await cls.scan()
+            if autoconnect:
+                if cls.networks:
+                    await cls.connect()
+                else:
+                    logger.warning("Autoconnect: no CAN network found")
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logger.error("Cannot connect to CAN network: %s", error)
+
+    @classmethod
+    async def refresh_stu_connected(cls, connected: bool) -> None:
+        """Update whether the STU responds"""
+
+        if cls._instance is None or cls.stu_connected == connected:
+            return
+        cls.stu_connected = connected
+        await get_messenger().push_messenger_update()
 
     @classmethod
     async def get_instance(cls):
-        """Get singleton instance"""
+        """Get singleton instance (``None`` if not connected)"""
 
-        await cls.create_instance_if_none()
         return cls._instance
 
     @classmethod
     async def close_instance(cls):
-        """Close singleton instance"""
+        """Close singleton instance on shutdown"""
 
         async with cls._lock:
-            if cls._instance is not None:
-                logger.debug(
-                    "Trying to disconnect CAN connection with ID <%s>",
-                    id(cls._instance),
-                )
-                if cls._instance.state == State.STU_CONNECTED:
-                    await cls._instance.disconnect_stu()
-                await get_messenger().push_messenger_update()
-                logger.debug(
-                    "Closing ICOsystem instance with ID <%s>",
-                    id(cls._instance),
-                )
-                cls._instance = None
+            await cls._teardown()
+            cls.status = (
+                CANStatus.NETWORK_FOUND if cls.networks else CANStatus.NO_NETWORK
+            )
+        await get_messenger().push_messenger_update()
 
     @classmethod
     def has_instance(cls):
@@ -100,9 +269,16 @@ class ICOsystemSingleton:
 
 
 async def get_system() -> ICOsystem:
-    """Get ICOsystem singleton instance"""
+    """Get ICOsystem singleton instance
+
+    Raises:
+
+        HTTPException: If there is no connection to a CAN network
+    """
 
     icosystem = await ICOsystemSingleton.get_instance()
+    if icosystem is None:
+        raise HTTP_503_CAN_NOT_CONNECTED_EXCEPTION
     return icosystem
 
 
@@ -313,7 +489,15 @@ async def build_system_state() -> SystemStateModel:
     measurement_state = await get_measurement_state()
     cloud = await get_trident_feature()
     return SystemStateModel(
-        can_ready=ICOsystemSingleton.has_instance(),
+        can_network_found=len(ICOsystemSingleton.networks) > 0,
+        stu_connected=(
+            ICOsystemSingleton.has_instance()
+            and ICOsystemSingleton.stu_connected
+        ),
+        can_status=ICOsystemSingleton.status,
+        can_networks=list(ICOsystemSingleton.networks),
+        can_selected=ICOsystemSingleton.selected,
+        can_error=ICOsystemSingleton.error,
         disk_capacity=get_disk_space_in_gib(),
         cloud=cloud,
         measurement_status=measurement_state.get_status(),
