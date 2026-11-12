@@ -12,6 +12,7 @@ from httpx import ASGITransport, AsyncClient
 from icostate import CANInitError
 from icostate.state import State
 from icotronic.can.error import NoResponseError
+from netaddr import EUI
 from pytest import MonkeyPatch, fixture, mark, raises
 
 from icoapi.api import app
@@ -45,6 +46,7 @@ class FakeSystem:
         self.connection = SimpleNamespace(configuration={})
         self.state = State.DISCONNECTED
         self.disconnected = False
+        self.sensor_node_attributes = None
         FakeSystem.created.append(self)
 
     async def connect_stu(self) -> None:
@@ -406,6 +408,32 @@ class TestPlatformDiscovery:
 
         monkeypatch.setattr(can_scripts, "platform", "darwin")
         assert can_scripts.get_discovery_interfaces() == ["pcan"]
+
+
+class TestConnectedSTH:
+    """Test that the state reports the connected sensor device"""
+
+    async def test_state_reports_connected_sth(self, networks) -> None:
+        """A page reload must be able to learn about the STH from the state"""
+
+        networks.append(NETWORK_1)
+        await ICOsystemSingleton.connect()
+        assert (await build_system_state()).sth_connected is None
+
+        system = FakeSystem.created[-1]
+        system.sensor_node_attributes = SimpleNamespace(
+            name="Test-STH", mac_address=EUI("14-2D-41-D7-77-7D")
+        )
+        state = await build_system_state()
+
+        assert state.sth_connected is not None
+        assert state.sth_connected.name == "Test-STH"
+        assert state.sth_connected.mac_address == "14-2D-41-D7-77-7D"
+
+    async def test_no_sth_without_connection(self) -> None:
+        """Without CAN connection there is no sensor device"""
+
+        assert (await build_system_state()).sth_connected is None
 
 
 class TestResetCAN:

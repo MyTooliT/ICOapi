@@ -22,7 +22,11 @@ from icoapi.models.models import (
     STHRenameRequestModel,
     STHRenameResponseModel, SupplyVoltageResponseModel,
 )
-from icoapi.models.globals import ICOsystemSingleton, get_system
+from icoapi.models.globals import (
+    ICOsystemSingleton,
+    get_messenger,
+    get_system,
+)
 from icoapi.scripts.sth_scripts import (
     connect_sth_device_by_mac,
     disconnect_sth_devices,
@@ -145,6 +149,7 @@ async def sth_connect(
     except NoResponseError as error:
         await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
+    await get_messenger().push_messenger_update()
 
 
 @router.put(
@@ -160,12 +165,12 @@ async def sth_disconnect(system: ICOsystem = Depends(get_system)) -> None:
 
     try:
         await disconnect_sth_devices(system)
-        return None
     except IncorrectStateError as error:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
     except NoResponseError as error:
         await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
+    await get_messenger().push_messenger_update()
 
 
 @router.put(

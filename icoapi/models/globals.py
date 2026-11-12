@@ -18,6 +18,7 @@ from icoapi.models.event_bus import (
 from icoapi.models.models import (
     CANNetwork,
     CANStatus,
+    ConnectedSTHModel,
     Feature,
     MeasurementInstructions,
     MeasurementStatus,
@@ -31,6 +32,7 @@ from icoapi.scripts.can_scripts import (
     UnknownCANNetworkError,
     discover_can_networks,
     get_default_can_configuration,
+    is_can_autoconnect,
     select_can_network,
 )
 from icoapi.scripts.errors import HTTP_503_CAN_NOT_CONNECTED_EXCEPTION
@@ -40,6 +42,48 @@ from icoapi.scripts.file_handling import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _release_connection(system: Any) -> None:
+    """Release the CAN notifier and bus of a system, whatever its state
+
+    ``ICOsystem.disconnect_stu`` stops the notifier first and only then shuts
+    down the bus. If stopping the notifier fails (e.g. because the adapter was
+    unplugged) the bus is never shut down and the PCAN channel stays
+    initialized. Opening the channel again then fails until the adapter is
+    replugged. Thus we release both resources independently.
+    """
+
+    connection = getattr(system, "connection", None)
+    notifier = getattr(connection, "notifier", None)
+    bus = getattr(connection, "bus", None)
+
+    if notifier is not None:
+        try:
+            await asyncio.to_thread(notifier.stop)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logger.warning("Error while stopping CAN notifier: %s", error)
+    if bus is not None:
+        try:
+            await asyncio.to_thread(bus.shutdown)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logger.warning("Error while shutting down CAN bus: %s", error)
+    if connection is not None:
+        connection.notifier = None
+        connection.bus = None
+
+
+async def _flush_bus(system: Any) -> None:
+    """Drop stale frames in the driver queues, if the interface supports it"""
+
+    bus = getattr(getattr(system, "connection", None), "bus", None)
+    reset = getattr(bus, "reset", None)  # PCAN: ``PCAN_Reset`` clears queues
+    if reset is None:
+        return
+    try:
+        await asyncio.to_thread(reset)
+    except Exception as error:  # pylint: disable=broad-exception-caught
+        logger.warning("Cannot flush CAN buffers: %s", error)
 
 
 class ICOsystemSingleton:
@@ -112,6 +156,8 @@ class ICOsystemSingleton:
                 await system.disconnect_stu()
         except Exception as error:  # pylint: disable=broad-exception-caught
             logger.warning("Error while disconnecting from STU: %s", error)
+        # Make sure the adapter is released, even if the clean shutdown failed
+        await _release_connection(system)
         logger.debug("Closed ICOsystem instance with ID <%s>", id(system))
 
     @classmethod
@@ -177,6 +223,7 @@ class ICOsystemSingleton:
             try:
                 await system.connect_stu()
             except CANInitError as e:
+                await _release_connection(system)
                 logger.error("Cannot open CAN network: %s", e)
                 cls.status = CANStatus.ERROR
                 cls.error = str(e)
@@ -184,6 +231,7 @@ class ICOsystemSingleton:
                 await get_messenger().push_messenger_update()
                 raise
 
+            await _flush_bus(system)
             try:
                 await system.get_stu_mac_address()
             except (NoResponseError, ErrorResponseError) as e:
@@ -192,6 +240,7 @@ class ICOsystemSingleton:
                     await system.disconnect_stu()
                 except Exception as error:  # pylint: disable=broad-exception-caught
                     logger.warning("Error while closing network: %s", error)
+                await _release_connection(system)
                 cls.status = CANStatus.NETWORK_FOUND
                 cls.error = "The STU did not respond"
                 cls.selected = None
@@ -220,6 +269,25 @@ class ICOsystemSingleton:
                 CANStatus.NETWORK_FOUND if cls.networks else CANStatus.NO_NETWORK
             )
         await get_messenger().push_messenger_update()
+
+    @classmethod
+    async def reset(cls) -> None:
+        """Release the adapter, flush buffers and reconnect
+
+        Does in software what replugging the adapter does: the previous
+        connection is released completely, the driver gets a moment to free the
+        channel, networks are searched again and the previously selected
+        network is opened again (if there was one).
+        """
+
+        previous = cls.selected
+        await cls.disconnect()
+        await asyncio.sleep(0.5)
+        if previous is None:
+            await cls.startup(autoconnect=is_can_autoconnect())
+            return
+        await cls.scan()
+        await cls.connect(previous)
 
     @classmethod
     async def startup(cls, autoconnect: bool = False) -> None:
@@ -260,6 +328,17 @@ class ICOsystemSingleton:
                 CANStatus.NETWORK_FOUND if cls.networks else CANStatus.NO_NETWORK
             )
         await get_messenger().push_messenger_update()
+
+    @classmethod
+    def connected_sth(cls) -> ConnectedSTHModel | None:
+        """Get the sensor device the STU is connected to (if any)"""
+
+        attributes = getattr(cls._instance, "sensor_node_attributes", None)
+        if attributes is None:
+            return None
+        return ConnectedSTHModel(
+            name=attributes.name, mac_address=attributes.mac_address.format()
+        )
 
     @classmethod
     def has_instance(cls):
@@ -498,6 +577,7 @@ async def build_system_state() -> SystemStateModel:
         can_networks=list(ICOsystemSingleton.networks),
         can_selected=ICOsystemSingleton.selected,
         can_error=ICOsystemSingleton.error,
+        sth_connected=ICOsystemSingleton.connected_sth(),
         disk_capacity=get_disk_space_in_gib(),
         cloud=cloud,
         measurement_status=measurement_state.get_status(),

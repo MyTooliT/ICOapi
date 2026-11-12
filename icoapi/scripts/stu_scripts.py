@@ -20,6 +20,10 @@ async def reset_stu(system: ICOsystem) -> bool:
     """Reset STU"""
 
     try:
+        if system.sensor_node_attributes is not None:
+            # A reset is only possible without sensor node connection. The
+            # client may not know about the connection (e.g. after a reload).
+            await system.disconnect_sensor_node()
         await system.reset_stu()
         return True
     except NoResponseError:

@@ -372,6 +372,13 @@ class CANNetworksModel(BaseModel):
     error: str | None = None
 
 
+class ConnectedSTHModel(BaseModel):
+    """The sensor device the STU is currently connected to"""
+
+    name: str
+    mac_address: str
+
+
 class SystemStateModel(BaseModel, JSONEncoder):
     """Data model for API state"""
 
@@ -385,6 +392,12 @@ class SystemStateModel(BaseModel, JSONEncoder):
     can_networks: list[CANNetwork]
     can_selected: CANNetwork | None = None
     can_error: str | None = None
+    sth_connected: ConnectedSTHModel | None = None
+    """Sensor device the API is connected to (``None`` if there is none)
+
+    The API is the source of truth for this: clients must not remember the
+    connection on their own, since they lose it when the page is reloaded.
+    """
     disk_capacity: DiskCapacity
     measurement_status: MeasurementStatus
     cloud: Feature
