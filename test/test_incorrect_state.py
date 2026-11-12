@@ -11,15 +11,25 @@ class TestIncorrectState:
     """STH endpoint test methods"""
 
     @mark.hardware
-    def test_stu_reset_incorrect_state(
+    def test_stu_reset_while_connected(
         self,
         stu_prefix,
+        sth_prefix,
         connect,  # pylint: disable=unused-argument
         client,
     ) -> None:
-        """Test endpoint ``/reset`` in incorrect state (connected)"""
+        """Test endpoint ``/reset`` while connected to a sensor device
+
+        The reset only works without sensor device connection. The API
+        disconnects the sensor device first, since a client may not know about
+        the connection (e.g. after reloading the page).
+        """
 
         response = client.put(f"{stu_prefix}/reset")
+        assert response.status_code == 200
+
+        # The sensor device is disconnected now
+        response = client.put(f"{sth_prefix}/disconnect")
         assert response.status_code == 400
 
     @mark.hardware

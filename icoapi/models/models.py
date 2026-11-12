@@ -335,10 +335,69 @@ class Feature:
     manage_url: str | None = None
 
 
+@unique
+class CANStatus(StrEnum):
+    """Status of the CAN network connection"""
+
+    NO_NETWORK = "NO_NETWORK"
+    """No CAN network was found"""
+
+    NETWORK_FOUND = "NETWORK_FOUND"
+    """At least one CAN network was found, but the API is not connected"""
+
+    CONNECTING = "CONNECTING"
+    """The API is connecting to a CAN network"""
+
+    CONNECTED = "CONNECTED"
+    """The API is connected to a CAN network"""
+
+    ERROR = "ERROR"
+    """A CAN network was found, but connecting to it failed"""
+
+
+class CANNetwork(BaseModel):
+    """CAN network (interface and channel) that can be used by the API"""
+
+    interface: str
+    channel: str
+    bitrate: int | None = None
+
+
+class CANNetworksModel(BaseModel):
+    """Information about CAN networks and the current connection"""
+
+    status: CANStatus
+    networks: list[CANNetwork]
+    selected: CANNetwork | None = None
+    error: str | None = None
+
+
+class ConnectedSTHModel(BaseModel):
+    """The sensor device the STU is currently connected to"""
+
+    name: str
+    mac_address: str
+
+
 class SystemStateModel(BaseModel, JSONEncoder):
     """Data model for API state"""
 
-    can_ready: bool
+    can_network_found: bool
+    """At least one CAN network was found"""
+
+    stu_connected: bool
+    """The CAN network is open and the STU answered a request"""
+
+    can_status: CANStatus
+    can_networks: list[CANNetwork]
+    can_selected: CANNetwork | None = None
+    can_error: str | None = None
+    sth_connected: ConnectedSTHModel | None = None
+    """Sensor device the API is connected to (``None`` if there is none)
+
+    The API is the source of truth for this: clients must not remember the
+    connection on their own, since they lose it when the page is reloaded.
+    """
     disk_capacity: DiskCapacity
     measurement_status: MeasurementStatus
     cloud: Feature

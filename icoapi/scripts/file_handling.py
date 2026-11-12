@@ -47,8 +47,20 @@ def load_env_file():
         verbose=True,
         override=True,
     )
+    if not env_loaded and not is_bundled():
+        # Second try: project root (source checkout), independent of the
+        # working directory, e.g. when started from an IDE or ICOdaq
+        env_loaded = load_dotenv(
+            os.path.join(
+                os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                ),
+                ".env",
+            ),
+            override=True,
+        )
     if not env_loaded:
-        # Second try: configs directory
+        # Third try: configs directory
         logger.warning(
             "Environment variables not found in local directory. Trying to"
             " load from app data: %s",
@@ -58,7 +70,7 @@ def load_env_file():
             os.path.join(get_config_dir(), ".env"), verbose=True
         )
     if not env_loaded and is_bundled():
-        # Third try: we should be in the bundled state
+        # Fourth try: we should be in the bundled state
         bundle_dir = sys._MEIPASS  # pylint: disable=protected-access
         logger.warning(
             "Environment variables not found in local directory. Trying to"

@@ -2,11 +2,13 @@
 
 # -- Imports ------------------------------------------------------------------
 
+from os import environ
+from unittest.mock import AsyncMock, MagicMock
 from re import match
 from typing import Any, Iterator
 
 from fastapi.testclient import TestClient
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from httpx_ws.transport import ASGIWebSocketTransport
 from netaddr import EUI
 from pytest import fixture
@@ -14,7 +16,8 @@ from pytest import fixture
 from icoapi.api import app, setup_config
 from icoapi.models.event_bus import Channel, EventBus
 from icoapi.models.globals import GeneralMessenger
-from icoapi.models.models import SystemStateModel
+from icoapi.models.globals import ICOsystemSingleton
+from icoapi.models.models import CANNetwork, CANStatus, SystemStateModel
 
 # -- Classes ------------------------------------------------------------------
 
@@ -107,6 +110,51 @@ def {fixture_name}(
 # pylint: disable=redefined-outer-name
 
 
+def reset_can_state() -> None:
+    """Forget the CAN connection and networks of the API"""
+
+    # pylint: disable=protected-access
+    ICOsystemSingleton._instance = None
+    ICOsystemSingleton.status = CANStatus.NO_NETWORK
+    ICOsystemSingleton.networks = []
+    ICOsystemSingleton.selected = None
+    ICOsystemSingleton.error = None
+    ICOsystemSingleton.stu_connected = False
+
+
+@fixture
+def isolated_can_state() -> Iterator[None]:
+    """Start with an empty CAN state and restore the previous one afterwards
+
+    The API is started once for all tests that use ``client``. Tests that
+    change the CAN state must not take its connection away.
+    """
+
+    names = (
+        "_instance",
+        "status",
+        "networks",
+        "selected",
+        "error",
+        "stu_connected",
+    )
+    saved = {name: getattr(ICOsystemSingleton, name) for name in names}
+    reset_can_state()
+    yield
+    for name, value in saved.items():
+        setattr(ICOsystemSingleton, name, value)
+
+
+@fixture
+async def http() -> Any:
+    """HTTP client that does not run the application lifespan"""
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test/api/v1/"
+    ) as http_client:
+        yield http_client
+
+
 @fixture(scope="session")
 def anyio_backend():
     """Set default async backend"""
@@ -175,6 +223,7 @@ def client():
     """Test client used to communicate with API"""
 
     setup_config()
+    environ.setdefault("ICOAPI_CAN_AUTOCONNECT", "1")
 
     with TestClient(
         app=app,
@@ -183,11 +232,55 @@ def client():
         yield test_client
 
 
+@fixture(autouse=True)
+def fake_can_connection(request) -> Iterator[None]:
+    """Pretend to be connected to a CAN network in tests without hardware
+
+    Tests marked with ``hardware`` use the real connection.
+    """
+
+    uses_api = {"client", "async_client"} & set(request.fixturenames)
+    if not uses_api or request.node.get_closest_marker("hardware"):
+        yield
+        return
+
+    # Start the application first, since startup resets the CAN state
+    for name in ("client", "async_client"):
+        if name in request.fixturenames:
+            request.getfixturevalue(name)
+
+    # pylint: disable=protected-access
+    original = (
+        ICOsystemSingleton._instance,
+        ICOsystemSingleton.status,
+        ICOsystemSingleton.networks,
+        ICOsystemSingleton.stu_connected,
+    )
+    network = CANNetwork(interface="virtual", channel="test")
+    system = MagicMock()
+    system.is_sensor_node_connected = AsyncMock(return_value=False)
+    system.sensor_node_attributes = None
+    ICOsystemSingleton._instance = system
+    ICOsystemSingleton.status = CANStatus.CONNECTED
+    ICOsystemSingleton.networks = [network]
+    ICOsystemSingleton.stu_connected = True
+
+    yield
+
+    (
+        ICOsystemSingleton._instance,
+        ICOsystemSingleton.status,
+        ICOsystemSingleton.networks,
+        ICOsystemSingleton.stu_connected,
+    ) = original
+
+
 @fixture(scope="session")
 async def async_client():
     """Async test client used to communicate with API"""
 
     setup_config()
+    environ.setdefault("ICOAPI_CAN_AUTOCONNECT", "1")
 
     async with AsyncClient(
         transport=ASGIWebSocketTransport(app=app),

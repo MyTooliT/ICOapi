@@ -165,7 +165,7 @@ class TestWebSocketEventBus:
 
         assert len(new_client.messages) == 1
         assert new_client.messages[0]["message"] == "state"
-        assert "can_ready" in new_client.messages[0]["data"]
+        assert "can_network_found" in new_client.messages[0]["data"]
         assert not other_client.messages
 
     async def test_send_state_to_is_serialized_with_pushes(self) -> None:
@@ -341,6 +341,6 @@ class TestGeneralMessenger:
         assert len(client.messages) == 1
         message = client.messages[0]
         assert message["message"] == "state"
-        assert {"can_ready", "disk_capacity", "cloud", "measurement_status"} <= (
+        assert {"can_network_found", "disk_capacity", "cloud", "measurement_status"} <= (
             set(message["data"])
         )

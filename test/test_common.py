@@ -64,7 +64,7 @@ def check_state_measurement_data(
 ):
     """Check if the given state data for a running measurement is correct"""
 
-    assert data["can_ready"] is True
+    assert data["can_network_found"] is True
 
     measurement_status = data["measurement_status"]
     assert measurement_status["running"] is True
@@ -112,7 +112,7 @@ class TestCommon:
         assert response.status_code == 200
 
         body = response.json()
-        assert body["can_ready"] is True
+        assert body["can_network_found"] is True
 
         disk_capacity = body["disk_capacity"]
         assert disk_capacity["total"] >= disk_capacity["available"]
@@ -185,8 +185,8 @@ class TestCommon:
             assert "message" in message
             assert message["message"] == "state"
             assert "data" in message
-            assert "can_ready" in message["data"]
-            assert message["data"]["can_ready"] is True
+            assert "can_network_found" in message["data"]
+            assert message["data"]["can_network_found"] is True
             logger.debug("Message %d: %s", message_number, message)
 
     @mark.hardware
@@ -256,7 +256,7 @@ class TestStateWebSocket:
         assert message["message"] == "state"
         data = message["data"]
 
-        assert isinstance(data["can_ready"], bool)
+        assert isinstance(data["can_network_found"], bool)
         assert {"total", "available"} <= set(data["disk_capacity"])
         assert data["cloud"]["enabled"] is False
         assert data["cloud"]["healthy"] is False
@@ -268,7 +268,7 @@ class TestStateWebSocket:
         response = await async_client.get(state_prefix)
         assert response.status_code == 200
         body = response.json()
-        for key in ("can_ready", "cloud", "measurement_status"):
+        for key in ("can_network_found", "cloud", "measurement_status"):
             assert data[key] == body[key]
 
     async def test_late_subscriber_gets_current_state(

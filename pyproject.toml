@@ -24,6 +24,7 @@ dependencies = [
   "requests>=2.32.0,<3",
   "uvicorn[standard]>=0.35.0",
   "types-pyyaml (>=6.0.12.20250915,<7.0.0.0)",
+  "ruff>=0.17.4",
 ]
 description = """A REST and WebSocket API for the ICOtronic system using the \
                  Python FastAPI library"""
@@ -37,7 +38,7 @@ keywords = [
 name = "icoapi"
 readme = "README.md"
 requires-python = ">=3.12,<4"
-version = "0.2.1"
+version = "0.3.0"
 
 [project.optional-dependencies]
 dev = [

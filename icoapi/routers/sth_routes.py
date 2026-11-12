@@ -14,6 +14,7 @@ from icoapi.scripts.errors import (
     HTTP_404_STH_UNREACHABLE_SPEC,
     HTTP_500_SUPPLY_VOLTAGE_EXCEPTION, HTTP_500_SUPPLY_VOLTAGE_SPEC, HTTP_502_CAN_NO_RESPONSE_SPEC,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
+    HTTP_503_CAN_NOT_CONNECTED_SPEC,
 )
 from icoapi.models.models import (
     ADCValues,
@@ -21,7 +22,11 @@ from icoapi.models.models import (
     STHRenameRequestModel,
     STHRenameResponseModel, SupplyVoltageResponseModel,
 )
-from icoapi.models.globals import get_system
+from icoapi.models.globals import (
+    ICOsystemSingleton,
+    get_messenger,
+    get_system,
+)
 from icoapi.scripts.sth_scripts import (
     connect_sth_device_by_mac,
     disconnect_sth_devices,
@@ -36,6 +41,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/sth",
     tags=["Sensory Tool Holder (STH)"],
+    responses={503: HTTP_503_CAN_NOT_CONNECTED_SPEC},
 )
 
 
@@ -115,6 +121,7 @@ async def sth(
             STHDeviceResponseModel.from_network(device) for device in devices
         ]
     except NoResponseError as error:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -140,7 +147,9 @@ async def sth_connect(
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
+    await get_messenger().push_messenger_update()
 
 
 @router.put(
@@ -156,11 +165,12 @@ async def sth_disconnect(system: ICOsystem = Depends(get_system)) -> None:
 
     try:
         await disconnect_sth_devices(system)
-        return None
     except IncorrectStateError as error:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
     except NoResponseError as error:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
+    await get_messenger().push_messenger_update()
 
 
 @router.put(
@@ -186,6 +196,7 @@ async def sth_rename(
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -246,6 +257,7 @@ async def read_adc(system: ICOsystem = Depends(get_system)) -> ADCValues:
 
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION
     except NoResponseError as error:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -268,6 +280,7 @@ async def write_adc(
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
+        await ICOsystemSingleton.refresh_stu_connected(False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
