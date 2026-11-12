@@ -74,12 +74,38 @@ async def _begin_measurement(
     the sensor node got into `SENSOR_NODE_CONNECTED` with the right ADC and
     sensor configuration already applied, which is the only thing that
     differs between the two callers.
+
+    Several clients can start a measurement at the same time. The check
+    whether a measurement is running and marking the new one as running
+    happen under the lock of the measurement state, so only one of them
+    starts a measurement and the others get an error.
     """
+
+    async with measurement_state.lock:
+        return await _begin_measurement_locked(
+            instructions,
+            resolved_channels,
+            system,
+            measurement_state,
+            general_messenger,
+        )
+
+
+async def _begin_measurement_locked(
+    instructions: MeasurementInstructions,
+    resolved_channels: ResolvedMeasurementChannels,
+    system: ICOsystem,
+    measurement_state: MeasurementState,
+    general_messenger,
+) -> ControlResponse:
+    """Start the measurement (caller must hold the measurement state lock)"""
 
     if measurement_state.running:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION
 
-    start = datetime.datetime.now()
+    # With UTC offset, so that clients in other time zones (remote access)
+    # interpret the start time correctly. The file name uses local time.
+    start = datetime.datetime.now().astimezone()
     filename = start.strftime("%Y-%m-%d_%H-%M-%S")
 
     if instructions.name:

@@ -35,7 +35,10 @@ from icoapi.scripts.can_scripts import (
     is_can_autoconnect,
     select_can_network,
 )
-from icoapi.scripts.errors import HTTP_503_CAN_NOT_CONNECTED_EXCEPTION
+from icoapi.scripts.errors import (
+    HTTP_409_MEASUREMENT_RUNNING_EXCEPTION,
+    HTTP_503_CAN_NOT_CONNECTED_EXCEPTION,
+)
 from icoapi.scripts.simulation import SIMULATED_INTERFACE, SimulatedICOsystem
 from icoapi.scripts.file_handling import (
     get_dataspace_file_path,
@@ -401,7 +404,8 @@ class MeasurementState:
 
         self.task = None
         self.clients = []
-        self.lock = asyncio.Lock()
+        # Keep the lock: replacing it would let a waiting caller and a new one
+        # hold "the" lock at the same time
         self.running = False
         self.name = None
         self.start_time = None
@@ -468,6 +472,24 @@ async def get_measurement_state():
     """Get measurement singleton"""
 
     return MeasurementSingleton().get_instance()
+
+
+async def require_no_measurement() -> None:
+    """Reject a request while a measurement is running
+
+    Use as dependency of routes that would interfere with a running
+    measurement, e.g. by closing the CAN connection or by scanning the CAN
+    bus. Several clients can use the API at the same time, so the UI of one
+    client disabling such actions is not enough.
+
+    Raises:
+
+        HTTPException: 409, if a measurement is running
+
+    """
+
+    if MeasurementSingleton.get_instance().running:
+        raise HTTP_409_MEASUREMENT_RUNNING_EXCEPTION
 
 
 # pylint: disable=missing-function-docstring

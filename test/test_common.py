@@ -73,7 +73,9 @@ def check_state_measurement_data(
 
     assert isinstance(measurement_status["start_time"], str)
     start_time = datetime.fromisoformat(measurement_status["start_time"])
-    current_time = datetime.now()
+    # The start time includes the UTC offset
+    assert start_time.tzinfo is not None
+    current_time = datetime.now().astimezone()
     assert current_time - timedelta(seconds=30) <= start_time <= current_time
 
     assert measurement_status["tool_name"] == sensor_node_info["name"]

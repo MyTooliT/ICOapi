@@ -12,8 +12,10 @@ from icoapi.models.globals import (
     ICOsystemSingleton,
     build_system_state,
     get_websocket_event_bus,
+    require_no_measurement,
 )
 from icoapi.models.models import SystemStateModel
+from icoapi.scripts.errors import HTTP_409_MEASUREMENT_RUNNING_SPEC
 
 router = APIRouter(tags=["General"])
 
@@ -27,7 +29,12 @@ async def state() -> SystemStateModel:
     return await build_system_state()
 
 
-@router.put("/reset-can", status_code=status.HTTP_200_OK)
+@router.put(
+    "/reset-can",
+    status_code=status.HTTP_200_OK,
+    responses={409: HTTP_409_MEASUREMENT_RUNNING_SPEC},
+    dependencies=[Depends(require_no_measurement)],
+)
 async def reset_can():
     """Reset CAN connection
 

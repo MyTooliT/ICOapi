@@ -12,6 +12,7 @@ from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_SPEC,
     HTTP_404_STH_UNREACHABLE_EXCEPTION,
     HTTP_404_STH_UNREACHABLE_SPEC,
+    HTTP_409_MEASUREMENT_RUNNING_SPEC,
     HTTP_500_SUPPLY_VOLTAGE_EXCEPTION, HTTP_500_SUPPLY_VOLTAGE_SPEC, HTTP_502_CAN_NO_RESPONSE_SPEC,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
     HTTP_503_CAN_NOT_CONNECTED_SPEC,
@@ -26,6 +27,7 @@ from icoapi.models.globals import (
     ICOsystemSingleton,
     get_messenger,
     get_system,
+    require_no_measurement,
 )
 from icoapi.scripts.sth_scripts import (
     connect_sth_device_by_mac,
@@ -108,8 +110,11 @@ router = APIRouter(
                 }
             },
         },
+        409: HTTP_409_MEASUREMENT_RUNNING_SPEC,
         502: HTTP_502_CAN_NO_RESPONSE_SPEC,
     },
+    # Scanning would compete with the measurement for the CAN bus
+    dependencies=[Depends(require_no_measurement)],
 )
 async def sth(
     system: ICOsystem = Depends(get_system),

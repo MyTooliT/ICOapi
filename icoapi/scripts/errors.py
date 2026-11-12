@@ -684,6 +684,14 @@ def _error_spec(description: str, status_code: int) -> dict:
     }
 
 
+HTTP_409_MEASUREMENT_RUNNING_EXCEPTION = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail="Not possible while a measurement is running.",
+)
+HTTP_409_MEASUREMENT_RUNNING_SPEC = _error_spec(
+    "Not possible while a measurement is running.", status.HTTP_409_CONFLICT
+)
+
 HTTP_503_CAN_NOT_CONNECTED_EXCEPTION = HTTPException(
     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
     detail="No CAN network connected.",

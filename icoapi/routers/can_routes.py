@@ -1,10 +1,10 @@
 """Routes for CAN network discovery and connection"""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from icostate import CANInitError
 from icotronic.can.error import ErrorResponseError, NoResponseError
 
-from icoapi.models.globals import ICOsystemSingleton
+from icoapi.models.globals import ICOsystemSingleton, require_no_measurement
 from icoapi.models.models import CANNetwork, CANNetworksModel
 from icoapi.scripts.can_scripts import (
     NoCANNetworkError,
@@ -13,6 +13,7 @@ from icoapi.scripts.can_scripts import (
 from icoapi.scripts.errors import (
     HTTP_404_CAN_NETWORK_NOT_FOUND_EXCEPTION,
     HTTP_404_CAN_NETWORK_NOT_FOUND_SPEC,
+    HTTP_409_MEASUREMENT_RUNNING_SPEC,
     HTTP_502_CAN_INIT_EXCEPTION,
     HTTP_502_CAN_INIT_SPEC,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
@@ -44,8 +45,10 @@ async def can_networks() -> CANNetworksModel:
     "/connect",
     responses={
         404: HTTP_404_CAN_NETWORK_NOT_FOUND_SPEC,
+        409: HTTP_409_MEASUREMENT_RUNNING_SPEC,
         502: HTTP_502_CAN_INIT_SPEC,
     },
+    dependencies=[Depends(require_no_measurement)],
 )
 async def can_connect(network: CANNetwork | None = None) -> CANNetworksModel:
     """Connect to a CAN network
@@ -68,7 +71,11 @@ async def can_connect(network: CANNetwork | None = None) -> CANNetworksModel:
     return get_networks_model()
 
 
-@router.put("/disconnect")
+@router.put(
+    "/disconnect",
+    responses={409: HTTP_409_MEASUREMENT_RUNNING_SPEC},
+    dependencies=[Depends(require_no_measurement)],
+)
 async def can_disconnect() -> CANNetworksModel:
     """Disconnect from the CAN network"""
 
