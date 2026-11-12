@@ -44,6 +44,18 @@ test *options: check
 [group('test')]
 test-no-hardware: (test "-m 'not hardware'")
 
+# Run all tests, including the ones that need hardware, with simulated hardware (uses its own data folder `ICOdaq-simulated`, not your measurements)
+[group('test')]
+[unix]
+test-simulated *options: check
+	ICOAPI_SIMULATE=only ICOAPI_SIMULATE_LATENCY=0.05 VITE_APPLICATION_FOLDER=ICOdaq-simulated uv run pytest {{options}}
+
+# Run all tests, including the ones that need hardware, with simulated hardware (uses its own data folder `ICOdaq-simulated`, not your measurements)
+[group('test')]
+[windows]
+test-simulated *options: check
+	$env:ICOAPI_SIMULATE = 'only'; $env:ICOAPI_SIMULATE_LATENCY = '0.05'; $env:VITE_APPLICATION_FOLDER = 'ICOdaq-simulated'; uv run pytest {{options}}
+
 # Run tests that need an MQTT broker (set `TEST_MQTT_BROKER` and, if required, `TEST_MQTT_PORT`, `TEST_MQTT_USERNAME`, `TEST_MQTT_PASSWORD`)
 [group('test')]
 test-mqtt: (test "-m mqtt")

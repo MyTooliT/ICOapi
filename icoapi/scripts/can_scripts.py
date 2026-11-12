@@ -11,6 +11,12 @@ from can.typechecking import AutoDetectedConfig
 from icotronic.config import settings
 
 from icoapi.models.models import CANNetwork
+from icoapi.scripts.simulation import (
+    ONLY,
+    SIMULATED_CHANNEL,
+    SIMULATED_INTERFACE,
+    simulation_mode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +72,9 @@ def _discover() -> list[CANNetwork]:
     """Find available CAN networks (blocking)"""
 
     default = get_default_can_network()
+    mode = simulation_mode()
     configurations: list[AutoDetectedConfig] = []
-    for interface in get_discovery_interfaces():
+    for interface in [] if mode == ONLY else get_discovery_interfaces():
         try:
             found = can.detect_available_configs(interfaces=[interface])
         except Exception as error:  # noqa: BLE001  # pylint: disable=broad-exception-caught
@@ -93,6 +100,15 @@ def _discover() -> list[CANNetwork]:
         )
         if network not in networks:
             networks.append(network)
+    if mode:
+        # Last, so that real hardware is preferred when connecting by default
+        networks.append(
+            CANNetwork(
+                interface=SIMULATED_INTERFACE,
+                channel=SIMULATED_CHANNEL,
+                bitrate=default.bitrate,
+            )
+        )
     return networks
 
 

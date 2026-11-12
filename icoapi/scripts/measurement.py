@@ -34,6 +34,7 @@ from icoapi.scripts.data_handling import (
 from icoapi.scripts.errors import (
     HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION,
 )
+from icoapi.scripts.simulation import SimulatedICOsystem
 from icoapi.scripts.file_handling import (
     get_file_download_route,
     get_measurement_dir,
@@ -726,6 +727,9 @@ async def run_measurement(
                 system.sensor_node_attributes.mac_address.format()
             )
             storage["tool_name"] = measurement_state.tool_name or ""
+            if isinstance(system, SimulatedICOsystem):
+                # Simulated data must never be mistaken for a real measurement
+                storage["simulated"] = "true"
             storage["stu_mac_address"] = (
                 await system.get_stu_mac_address()
             ).format()

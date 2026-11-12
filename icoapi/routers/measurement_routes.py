@@ -3,6 +3,7 @@
 import asyncio
 import datetime
 import logging
+from pathlib import Path
 from typing import Annotated, Awaitable
 
 import pathvalidate
@@ -42,6 +43,7 @@ from icoapi.scripts.errors import (
 )
 
 from icoapi.scripts.data_handling import resolve_measurement_channels
+from icoapi.scripts.file_handling import get_measurement_dir
 from icoapi.scripts.measurement import (
     measurement_preparations,
     run_measurement,
@@ -91,6 +93,15 @@ async def _begin_measurement(
         )
         sanitized = pathvalidate.sanitize_filename(replaced)
         filename = sanitized + "__" + filename
+
+    # The time stamp only has a resolution of one second. A measurement
+    # started in the same second as another one must not use the same file.
+    unique_filename = filename
+    number = 1
+    while (Path(get_measurement_dir()) / f"{unique_filename}.hdf5").exists():
+        number += 1
+        unique_filename = f"{filename}_{number}"
+    filename = unique_filename
 
     if instructions.meta:
         measurement_state.pre_meta = instructions.meta

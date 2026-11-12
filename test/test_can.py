@@ -8,14 +8,12 @@ from typing import Any, ClassVar
 
 from conftest import RecordingEventBus  # pylint: disable=import-error
 from fastapi import HTTPException
-from httpx import ASGITransport, AsyncClient
 from icostate import CANInitError
 from icostate.state import State
 from icotronic.can.error import NoResponseError
 from netaddr import EUI
 from pytest import MonkeyPatch, fixture, mark, raises
 
-from icoapi.api import app
 from icoapi.models import globals as globals_module
 from icoapi.models.globals import (
     GeneralMessenger,
@@ -92,25 +90,21 @@ def networks(monkeypatch: MonkeyPatch) -> list[CANNetwork]:
 
 
 @fixture(autouse=True)
-def reset_singleton(monkeypatch: MonkeyPatch) -> Iterator[None]:
+def reset_singleton(
+    monkeypatch: MonkeyPatch, isolated_can_state: None
+) -> Iterator[None]:
     """Use fake system and reset the singleton around each test"""
+
+    del isolated_can_state
+    # The search for real adapters must not be influenced by the environment
+    monkeypatch.delenv("ICOAPI_SIMULATE", raising=False)
 
     FakeSystem.init_error = None
     FakeSystem.probe_error = None
     FakeSystem.created = []
     monkeypatch.setattr(globals_module, "ICOsystem", FakeSystem)
 
-    def reset() -> None:
-        ICOsystemSingleton._instance = None  # pylint: disable=protected-access
-        ICOsystemSingleton.status = CANStatus.NO_NETWORK
-        ICOsystemSingleton.networks = []
-        ICOsystemSingleton.selected = None
-        ICOsystemSingleton.error = None
-        ICOsystemSingleton.stu_connected = False
-
-    reset()
     yield
-    reset()
 
 
 @fixture
@@ -121,16 +115,6 @@ def bus() -> Iterator[RecordingEventBus]:
     GeneralMessenger.add_bus(recording_bus)
     yield recording_bus
     GeneralMessenger.remove_bus(recording_bus)
-
-
-@fixture
-async def http() -> Any:
-    """HTTP client that does not run the application lifespan"""
-
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test/api/v1/"
-    ) as http_client:
-        yield http_client
 
 
 # -- Tests --------------------------------------------------------------------

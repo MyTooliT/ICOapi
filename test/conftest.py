@@ -8,7 +8,7 @@ from re import match
 from typing import Any, Iterator
 
 from fastapi.testclient import TestClient
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from httpx_ws.transport import ASGIWebSocketTransport
 from netaddr import EUI
 from pytest import fixture
@@ -108,6 +108,51 @@ def {fixture_name}(
 # -- Fixtures -----------------------------------------------------------------
 
 # pylint: disable=redefined-outer-name
+
+
+def reset_can_state() -> None:
+    """Forget the CAN connection and networks of the API"""
+
+    # pylint: disable=protected-access
+    ICOsystemSingleton._instance = None
+    ICOsystemSingleton.status = CANStatus.NO_NETWORK
+    ICOsystemSingleton.networks = []
+    ICOsystemSingleton.selected = None
+    ICOsystemSingleton.error = None
+    ICOsystemSingleton.stu_connected = False
+
+
+@fixture
+def isolated_can_state() -> Iterator[None]:
+    """Start with an empty CAN state and restore the previous one afterwards
+
+    The API is started once for all tests that use ``client``. Tests that
+    change the CAN state must not take its connection away.
+    """
+
+    names = (
+        "_instance",
+        "status",
+        "networks",
+        "selected",
+        "error",
+        "stu_connected",
+    )
+    saved = {name: getattr(ICOsystemSingleton, name) for name in names}
+    reset_can_state()
+    yield
+    for name, value in saved.items():
+        setattr(ICOsystemSingleton, name, value)
+
+
+@fixture
+async def http() -> Any:
+    """HTTP client that does not run the application lifespan"""
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test/api/v1/"
+    ) as http_client:
+        yield http_client
 
 
 @fixture(scope="session")

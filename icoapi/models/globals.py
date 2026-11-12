@@ -36,6 +36,7 @@ from icoapi.scripts.can_scripts import (
     select_can_network,
 )
 from icoapi.scripts.errors import HTTP_503_CAN_NOT_CONNECTED_EXCEPTION
+from icoapi.scripts.simulation import SIMULATED_INTERFACE, SimulatedICOsystem
 from icoapi.scripts.file_handling import (
     get_dataspace_file_path,
     get_disk_space_in_gib,
@@ -218,7 +219,11 @@ class ICOsystemSingleton:
             cls.error = None
             await get_messenger().push_messenger_update()
 
-            system = ICOsystem()
+            system = (
+                SimulatedICOsystem()
+                if network.interface == SIMULATED_INTERFACE
+                else ICOsystem()
+            )
             configuration = get_default_can_configuration()
             configuration.update(
                 interface=network.interface,
