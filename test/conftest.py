@@ -214,6 +214,7 @@ def fake_can_connection(request) -> Iterator[None]:
     network = CANNetwork(interface="virtual", channel="test")
     system = MagicMock()
     system.is_sensor_node_connected = AsyncMock(return_value=False)
+    system.sensor_node_attributes = None
     ICOsystemSingleton._instance = system
     ICOsystemSingleton.status = CANStatus.CONNECTED
     ICOsystemSingleton.networks = [network]

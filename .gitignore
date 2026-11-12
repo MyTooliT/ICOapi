@@ -15,3 +15,5 @@ dist
 
 # Auto-generated OpenAPI spec by sphinx-build
 /doc/sphinx/openapi.yaml
+.env
+CLAUDE.md

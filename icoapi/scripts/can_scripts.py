@@ -7,6 +7,7 @@ from sys import platform
 from typing import Any
 
 import can
+from can.typechecking import AutoDetectedConfig
 from icotronic.config import settings
 
 from icoapi.models.models import CANNetwork
@@ -65,7 +66,7 @@ def _discover() -> list[CANNetwork]:
     """Find available CAN networks (blocking)"""
 
     default = get_default_can_network()
-    configurations = []
+    configurations: list[AutoDetectedConfig] = []
     for interface in get_discovery_interfaces():
         try:
             found = can.detect_available_configs(interfaces=[interface])
@@ -98,8 +99,8 @@ def _discover() -> list[CANNetwork]:
 async def discover_can_networks() -> list[CANNetwork]:
     """Find available CAN networks
 
-    The interfaces ``socketcan`` (Linux only) and ``pcan`` are searched. Finding no network is no error and returns an empty
-    list.
+    The interfaces ``socketcan`` (Linux only) and ``pcan`` are searched.
+    Finding no network is no error and returns an empty list.
     """
 
     return await asyncio.to_thread(_discover)

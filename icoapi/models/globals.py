@@ -161,6 +161,33 @@ class ICOsystemSingleton:
         logger.debug("Closed ICOsystem instance with ID <%s>", id(system))
 
     @classmethod
+    def _resolve_network(cls, network: CANNetwork | None) -> CANNetwork:
+        """Find the network to connect to (caller must hold the lock)
+
+        Raises:
+
+            NoCANNetworkError: If there is no network to connect to
+            UnknownCANNetworkError: If the network was not found
+        """
+
+        if network is None:
+            return select_can_network(cls.networks)
+
+        for known in cls.networks:
+            if (known.interface, known.channel) == (
+                network.interface,
+                network.channel,
+            ):
+                return known
+
+        cls.status = (
+            CANStatus.NETWORK_FOUND if cls.networks else CANStatus.NO_NETWORK
+        )
+        raise UnknownCANNetworkError(
+            f"CAN network <{network.interface}:{network.channel}> not found"
+        )
+
+    @classmethod
     async def connect(cls, network: CANNetwork | None = None) -> None:
         """Connect to a CAN network and check that the STU responds
 
@@ -184,26 +211,7 @@ class ICOsystemSingleton:
 
             if not cls.networks:
                 await cls._scan()
-            if network is None:
-                network = select_can_network(cls.networks)
-            else:
-                known = [
-                    known
-                    for known in cls.networks
-                    if (known.interface, known.channel)
-                    == (network.interface, network.channel)
-                ]
-                if not known:
-                    cls.status = (
-                        CANStatus.NETWORK_FOUND
-                        if cls.networks
-                        else CANStatus.NO_NETWORK
-                    )
-                    raise UnknownCANNetworkError(
-                        f"CAN network <{network.interface}:{network.channel}>"
-                        " not found"
-                    )
-                network = known[0]
+            network = cls._resolve_network(network)
 
             cls.status = CANStatus.CONNECTING
             cls.selected = network

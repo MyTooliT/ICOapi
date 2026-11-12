@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, ClassVar
 
-from conftest import RecordingEventBus
+from conftest import RecordingEventBus  # pylint: disable=import-error
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 from icostate import CANInitError
@@ -46,7 +46,7 @@ class FakeSystem:
         self.connection = SimpleNamespace(configuration={})
         self.state = State.DISCONNECTED
         self.disconnected = False
-        self.sensor_node_attributes = None
+        self.sensor_node_attributes: SimpleNamespace | None = None
         FakeSystem.created.append(self)
 
     async def connect_stu(self) -> None:
@@ -207,7 +207,7 @@ class TestSingleton:
         assert state.can_network_found is True
         assert state.stu_connected is False
         assert state.can_status == CANStatus.NETWORK_FOUND
-        assert FakeSystem.created == []
+        assert not FakeSystem.created
 
     async def test_autoconnect(self, networks, bus) -> None:
         """Autoconnect connects once and uses the network configuration"""
@@ -463,10 +463,10 @@ class TestResetCAN:
 
         assert response.status_code == 200
         assert ICOsystemSingleton.status == CANStatus.NETWORK_FOUND
-        assert FakeSystem.created == []
+        assert not FakeSystem.created
 
 
-class TestSTUConnectedTracking:
+class TestSTUConnectedTracking:  # pylint: disable=too-few-public-methods
     """Test that lost STU responses are reflected in the state"""
 
     async def test_no_response_in_route_clears_stu_connected(
