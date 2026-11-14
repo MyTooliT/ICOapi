@@ -146,6 +146,36 @@ class Metadata:
     parameters: Dict[str, Quantity | Any]
 
 
+@dataclass
+class UnitInstructions:
+    """Instructions that differ between the units of a measurement
+
+    Only used with multi STU support. Everything that is set replaces the
+    value of the instructions of the measurement for this unit; everything
+    that is not set keeps it. A channel (`first`, `second` or `third`) that
+    is set replaces that channel only: To disable a channel of a unit that is
+    enabled in the instructions of the measurement, set it to
+    `{"sensor_id": null}`.
+
+    Attributes:
+        first (MeasurementInstructionChannel): First measurement channel
+        second (MeasurementInstructionChannel): Second measurement channel
+        third (MeasurementInstructionChannel): Third measurement channel
+        adc (ADCValues): ADC settings
+        sensor_configuration (PCBSensorConfiguration): Inline sensor
+            configuration
+        mac_address (str): MAC address of the sensor device of the unit
+            (only used by `/measurement/execute`)
+    """
+
+    first: MeasurementInstructionChannel | None = None
+    second: MeasurementInstructionChannel | None = None
+    third: MeasurementInstructionChannel | None = None
+    adc: ADCValues | None = None
+    sensor_configuration: PCBSensorConfiguration | None = None
+    mac_address: str | None = None
+
+
 # pylint: disable=too-many-instance-attributes
 
 
@@ -175,6 +205,16 @@ class MeasurementInstructions:
             configuration. When present, sensor_id resolution for `first`,
             `second` and `third` uses this instead of `sensors.yaml`'s
             default configuration.
+        unit_mac_addresses (dict[str, str]): Only for `/measurement/execute`
+            with multi STU support: The MAC address of the sensor device of
+            each unit (name of the unit -> MAC address). `mac_address` is
+            ignored then. A `mac_address` in `units` takes precedence.
+        units (dict[str, UnitInstructions]): Only with multi STU support:
+            What differs between units (name of the unit -> instructions).
+            Units that are not mentioned use the instructions above. The
+            instructions above are the ones of every unit otherwise, apart
+            from `name`, `time`, `meta`, `wait_for_post_meta` and
+            `disconnect_after_measurement`, which are the same for all units.
     """
 
     name: str | None
@@ -192,6 +232,7 @@ class MeasurementInstructions:
     disconnect_after_measurement: bool = False
     sensor_configuration: PCBSensorConfiguration | None = None
     unit_mac_addresses: dict[str, str] | None = None
+    units: dict[str, UnitInstructions] | None = None
 
 
 # pylint: enable=too-many-instance-attributes

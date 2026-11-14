@@ -96,7 +96,7 @@ With multi STU support every STU has a CAN network of its own, and every connect
 
 ### Measurements with all units
 
-A measurement always uses **all** units, with the same instructions (channels, sensors, ADC). All data ends up in one file with one source per unit, named after its sensor device (a number is added to names that are used more than once).
+A measurement always uses **all** units. By default every unit gets the same instructions (channels, sensors, ADC), see below for what can differ. All data ends up in one file with one source per unit, named after its sensor device (a number is added to names that are used more than once).
 
 Starting is all-or-nothing. Before anything starts, all units are checked at the same time (`GET /measurement/preflight` does the same without changing anything):
 
@@ -110,6 +110,32 @@ If one unit is not ready, nothing starts and the answer (`502`) lists the proble
 While measuring, every unit streams on its own. The WebSocket sends the data of all units, every value has the name of its source in `source`. If the stream of one unit fails, the measurement fails as a whole. What was recorded until then stays in the (closed) file. A measurement can be stopped with `/measurement/stop`, which stops all units.
 
 The clocks of the units are not synchronized. Every source has the time of its first message as `start_time` (taken from the timestamp of the message, so the start times of all units can be compared) and timestamps in microseconds since that time. `start_offset` in the `sources` of the metadata is the offset to the earliest source. The start of the units differs by the time the first message of each takes.
+
+### Instructions for single units
+
+The tool holders of different units often have different sensors. The instructions of a measurement are the ones of every unit, `units` changes them for single units (the name of the unit -> instructions):
+
+```json
+{
+  "name": "Two holders",
+  "time": 10,
+  "first": {"sensor_id": "acc100g"},
+  "second": {"sensor_id": null},
+  "third": {"sensor_id": null},
+  "adc": {"prescaler": 2, "acquisition_time": 8, "oversampling_rate": 64, "reference_voltage": 3.3},
+  "units": {
+    "pcan:PCAN_USBBUS2": {
+      "second": {"sensor_id": "acc50g"},
+      "adc": {"prescaler": 2, "acquisition_time": 8, "oversampling_rate": 32, "reference_voltage": 3.3},
+      "mac_address": "14-2D-41-D7-77-7D"
+    }
+  }
+}
+```
+
+A unit can have its own `first`, `second`, `third`, `adc`, `sensor_configuration` and `mac_address` (the sensor device `/measurement/execute` connects). What is set replaces the value of the measurement for this unit, everything else is kept. A channel is replaced as a whole: To disable one that the measurement enables, set its `sensor_id` to `null`. Name, time, metadata, `wait_for_post_meta` and `disconnect_after_measurement` are the same for all units.
+
+Every unit is checked for what it does: the load of its CAN bus follows from its own channels and ADC settings, so only the unit with too many messages is not ready. Instructions for a unit that does not exist, or a sensor that does not exist for a unit, are an error (`422`, naming the unit). Without multi STU support `units` is refused (`422`), since ignoring it would measure something else than was asked for. With one unit, the instructions for that unit are applied.
 
 Not supported with several units: IFT values (`422`). A measurement with one unit works as before.
 

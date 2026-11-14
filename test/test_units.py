@@ -36,7 +36,7 @@ from icoapi.scripts.simulation import (
     reset_simulated_hardware,
 )
 
-# pylint: disable=redefined-outer-name,duplicate-code
+# pylint: disable=redefined-outer-name,duplicate-code,too-many-lines
 
 # -- Globals ------------------------------------------------------------------
 
@@ -734,3 +734,276 @@ async def test_without_the_feature_all_units_are_not_used(
 
     assert len(measurement_files(files)) == 1
     await ICOsystemSingleton.disconnect()
+
+
+def sensor_ids(count: int) -> list[str]:
+    """Get the IDs of some different sensors"""
+
+    channels = get_active_sensor_configuration(None).channels
+    ids = [sensor.sensor_id for sensor in channels.values()]
+    assert len(set(ids)) >= count
+    return ids[:count]
+
+
+class TestUnitInstructions:
+    """Test measurements where the units do different things"""
+
+    async def test_different_channels(
+        self, with_sensor_nodes: None, http: AsyncClient, files: Path
+    ) -> None:
+        """Every unit measures the channels that are set for it"""
+
+        del with_sensor_nodes
+        first, second = sensor_ids(2)
+        client = Client()
+        MeasurementSingleton.get_instance().clients.append(client)
+
+        response = await http.post(
+            "measurement/start",
+            json=instructions(
+                first={"sensor_id": first},
+                units={UNITS[1]: {"second": {"sensor_id": second}}},
+            ),
+        )
+        assert response.status_code == 200, response.text
+        await wait_until_stopped()
+
+        (path,) = measurement_files(files)
+        sources = read_sources(path)
+        assert sources["Test-STH"].channel_count == 1
+        assert sources["Test-STH-2"].channel_count == 2
+        assert (
+            sources["Test-STH-2"].hardware_metadata.channel2_metadata.sensor.sensor_id
+            == second
+        )
+        # Two channels: One value per message, not three
+        assert len(sources["Test-STH-2"].timestamps) * 3 > len(
+            sources["Test-STH"].timestamps
+        ) > len(sources["Test-STH-2"].timestamps)
+
+        assert list(get_file_data(str(path), "Test-STH").acceleration_df) == [
+            "counter",
+            "timestamp",
+            "x",
+        ]
+        assert list(get_file_data(str(path), "Test-STH-2").acceleration_df) == [
+            "counter",
+            "timestamp",
+            "x",
+            "y",
+        ]
+        data = [
+            item
+            for message in client.messages
+            if isinstance(message, list)
+            for item in message
+            if item.get("counter") is not None
+        ]
+        two = [item for item in data if item["source"] == "Test-STH-2"]
+        one = [item for item in data if item["source"] == "Test-STH"]
+        assert two and one
+        assert all(item["second"] is not None for item in two)
+        assert all(item["second"] is None for item in one)
+
+    async def test_different_adc_settings(
+        self, with_sensor_nodes: None, http: AsyncClient, files: Path
+    ) -> None:
+        """Every unit measures with its own sample rate"""
+
+        del with_sensor_nodes
+        fast = {
+            "prescaler": 2,
+            "acquisition_time": 8,
+            "oversampling_rate": 32,
+            "reference_voltage": 3.3,
+        }
+
+        response = await http.post(
+            "measurement/start",
+            json=instructions(units={UNITS[1]: {"adc": fast}}),
+        )
+        assert response.status_code == 200, response.text
+        await wait_until_stopped()
+
+        (path,) = measurement_files(files)
+        sources = read_sources(path)
+        slow_rows = len(sources["Test-STH"].timestamps)
+        fast_rows = len(sources["Test-STH-2"].timestamps)
+        assert 1.7 < fast_rows / slow_rows < 2.3
+        hardware = sources["Test-STH-2"].hardware_metadata
+        assert hardware.adc_oversample_rate == 32
+        assert sources["Test-STH"].hardware_metadata.adc_oversample_rate == 64
+
+    async def test_bus_load_is_checked_for_every_unit(
+        self,
+        with_sensor_nodes: None,
+        http: AsyncClient,
+        files: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        """Only the unit whose bus is too busy is not ready"""
+
+        del with_sensor_nodes
+        fast = {
+            "prescaler": 2,
+            "acquisition_time": 8,
+            "oversampling_rate": 32,
+            "reference_voltage": 3.3,
+        }
+        # 3175 messages per second are fine, 6349 are too many
+        monkeypatch.setenv("ICOAPI_MAX_MESSAGES_PER_SECOND", "5000")
+
+        response = await http.post(
+            "measurement/start",
+            json=instructions(units={UNITS[1]: {"adc": fast}}),
+        )
+
+        assert response.status_code == 502
+        units = response.json()["detail"]["units"]
+        assert units[0]["problems"] == []
+        assert units[0]["messages_per_second"] < 5000
+        assert "messages per second" in units[1]["problems"][0]
+        assert measurement_files(files) == []
+
+    async def test_unknown_unit(
+        self, with_sensor_nodes: None, http: AsyncClient, files: Path
+    ) -> None:
+        """Instructions for a unit that does not exist are an error"""
+
+        del with_sensor_nodes
+        response = await http.post(
+            "measurement/start",
+            json=instructions(units={"pcan:PCAN_USBBUS9": {"adc": None}}),
+        )
+
+        assert response.status_code == 422
+        assert "pcan:PCAN_USBBUS9" in response.json()["detail"]
+        assert measurement_files(files) == []
+
+    async def test_unknown_sensor_names_the_unit(
+        self, with_sensor_nodes: None, http: AsyncClient, files: Path
+    ) -> None:
+        """A sensor that does not exist is reported for its unit"""
+
+        del with_sensor_nodes
+        response = await http.post(
+            "measurement/start",
+            json=instructions(
+                units={UNITS[1]: {"first": {"sensor_id": "nonexistent"}}}
+            ),
+        )
+
+        assert response.status_code == 422
+        assert UNITS[1] in response.json()["detail"]
+        assert "nonexistent" in response.json()["detail"]
+        assert measurement_files(files) == []
+        assert not MeasurementSingleton.get_instance().running
+
+    async def test_single_unit(
+        self, with_sensor_nodes: None, http: AsyncClient, files: Path
+    ) -> None:
+        """The instructions of the only unit are applied"""
+
+        del with_sensor_nodes
+        await ICOsystemSingleton.disconnect(UNITS[1])
+        _, second = sensor_ids(2)
+
+        response = await http.post(
+            "measurement/start",
+            json=instructions(
+                units={UNITS[0]: {"second": {"sensor_id": second}}}
+            ),
+        )
+        assert response.status_code == 200, response.text
+        await wait_until_stopped()
+
+        (path,) = measurement_files(files)
+        assert read_sources(path)["Test-STH"].channel_count == 2
+
+    async def test_single_unit_unknown_unit(
+        self, with_sensor_nodes: None, http: AsyncClient, files: Path
+    ) -> None:
+        """Instructions for another unit are an error for a single unit"""
+
+        del with_sensor_nodes
+        await ICOsystemSingleton.disconnect(UNITS[1])
+
+        response = await http.post(
+            "measurement/start",
+            json=instructions(units={UNITS[1]: {"adc": None}}),
+        )
+
+        assert response.status_code == 422
+        assert measurement_files(files) == []
+
+    async def test_without_the_feature(
+        self,
+        simulated_units: None,
+        monkeypatch: MonkeyPatch,
+        http: AsyncClient,
+        files: Path,
+    ) -> None:
+        """Instructions for units are refused, not ignored"""
+
+        del simulated_units
+        for name in MULTI_STU_SUPPORT_VARIABLES:
+            monkeypatch.delenv(name, raising=False)
+        await ICOsystemSingleton.scan()
+        await ICOsystemSingleton.connect(NETWORKS[0])
+
+        for route in ("measurement/start", "measurement/execute"):
+            response = await http.post(
+                route, json=instructions(units={UNITS[0]: {"adc": None}})
+            )
+            assert response.status_code == 422, route
+            assert "multi STU support" in response.json()["detail"]
+        assert measurement_files(files) == []
+        await ICOsystemSingleton.disconnect()
+
+    async def test_execute_with_addresses_per_unit(
+        self, connected: None, http: AsyncClient, files: Path
+    ) -> None:
+        """The sensor device of a unit can be part of its own instructions"""
+
+        del connected
+        _, second = sensor_ids(2)
+        addresses = TestExecute.addresses()
+
+        response = await http.post(
+            "measurement/execute",
+            json=instructions(
+                units={
+                    UNITS[0]: {"mac_address": addresses[UNITS[0]]},
+                    UNITS[1]: {
+                        "mac_address": addresses[UNITS[1]],
+                        "second": {"sensor_id": second},
+                    },
+                },
+            ),
+        )
+
+        assert response.status_code == 200, response.text
+        await wait_until_stopped()
+        (path,) = measurement_files(files)
+        sources = read_sources(path)
+        assert [source.channel_count for source in sources.values()] == [1, 2]
+
+    async def test_execute_needs_every_address(
+        self, connected: None, http: AsyncClient
+    ) -> None:
+        """Without the address of a unit nothing is connected"""
+
+        del connected
+        addresses = TestExecute.addresses()
+
+        response = await http.post(
+            "measurement/execute",
+            json=instructions(
+                units={UNITS[0]: {"mac_address": addresses[UNITS[0]]}}
+            ),
+        )
+
+        assert response.status_code == 422
+        assert UNITS[1] in response.json()["detail"]
+        for unit in ICOsystemSingleton.units():
+            assert unit.system.sensor_node_attributes is None

@@ -42,6 +42,7 @@ from icoapi.scripts.measurement import (
     measurement_preparations,
     verify_sensor_configuration_applied,
 )
+from icoapi.scripts.unit_instructions import UnitSetup
 
 # -- Globals ------------------------------------------------------------------
 
@@ -254,6 +255,28 @@ async def check_unit(
     return check
 
 
+async def check_setups(
+    setups: list[UnitSetup], *, configure: bool
+) -> list[UnitCheck]:
+    """Check all units at the same time (see :func:`check_unit`)
+
+    Every unit is checked for what it does in the measurement: its own
+    channels and ADC settings.
+    """
+
+    return list(
+        await asyncio.gather(*(
+            check_unit(
+                setup.unit,
+                setup.instructions,
+                setup.resolved_channels,
+                configure=configure,
+            )
+            for setup in setups
+        ))
+    )
+
+
 async def check_units(
     units: list[Unit],
     instructions: MeasurementInstructions,
@@ -261,15 +284,11 @@ async def check_units(
     *,
     configure: bool,
 ) -> list[UnitCheck]:
-    """Check all units at the same time (see :func:`check_unit`)"""
+    """Check all units for the same instructions (see :func:`check_setups`)"""
 
-    return list(
-        await asyncio.gather(*(
-            check_unit(
-                unit, instructions, resolved_channels, configure=configure
-            )
-            for unit in units
-        ))
+    return await check_setups(
+        [UnitSetup(unit, instructions, resolved_channels) for unit in units],
+        configure=configure,
     )
 
 

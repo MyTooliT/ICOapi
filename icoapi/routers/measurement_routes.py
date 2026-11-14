@@ -51,9 +51,17 @@ from icoapi.scripts.features import multi_stu_support
 from icoapi.scripts.group_measurement import run_group_measurement
 from icoapi.scripts.preflight import (
     UnitCheck,
+    check_setups,
     check_units,
     describe_checks,
     raise_for_failed_checks,
+)
+from icoapi.scripts.unit_instructions import (
+    UnitSetup,
+    check_unit_names,
+    instructions_for_unit,
+    mac_address_of_unit,
+    unit_setups,
 )
 from icoapi.scripts.file_handling import get_measurement_dir
 from icoapi.scripts.measurement import (
@@ -205,6 +213,28 @@ async def _begin_measurement_locked(
 # -- Measurements with several units (multi STU support) ----------------------
 
 
+def _single_unit_instructions(
+    instructions: MeasurementInstructions,
+) -> MeasurementInstructions:
+    """Get the instructions for the only unit of a measurement
+
+    Instructions for units (see `units` of the instructions) are applied to
+    the unit that is used. Without multi STU support they are an error:
+    Ignoring them would measure something else than was asked for.
+    """
+
+    if not instructions.units:
+        return instructions
+    if not multi_stu_support():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="`units` can only be used with multi STU support",
+        )
+    units = ICOsystemSingleton.units()
+    check_unit_names(instructions, units)
+    return instructions_for_unit(instructions, units[0].key)
+
+
 def _uses_several_units() -> bool:
     """Check if measurements use more than one unit"""
 
@@ -214,8 +244,7 @@ def _uses_several_units() -> bool:
 # pylint: disable-next=too-many-arguments,too-many-positional-arguments
 async def _begin_group_measurement(
     instructions: MeasurementInstructions,
-    resolved_channels: ResolvedMeasurementChannels,
-    units: list[Unit],
+    setups: list[UnitSetup],
     checks: list[UnitCheck],
     measurement_state: MeasurementState,
     general_messenger,
@@ -254,17 +283,16 @@ async def _begin_group_measurement(
 
         measurement_state.task = asyncio.create_task(
             run_group_measurement(
-                units,
+                setups,
                 checks,
                 instructions,
-                resolved_channels,
                 measurement_state,
                 general_messenger,
             )
         )
         logger.info(
             "Created measurement task for %s units with timeout of %s",
-            len(units),
+            len(setups),
             instructions.time,
         )
 
@@ -311,12 +339,16 @@ async def _start_group_measurement(
             ),
         )
 
-    resolved_channels = resolve_measurement_channels(instructions)
     units = ICOsystemSingleton.units()
+    try:
+        # Every unit has its own channels and ADC settings
+        setups = unit_setups(instructions, units)
+    except HTTPException:
+        if disconnect_on_failure:
+            await _disconnect_units(units)
+        raise
 
-    checks = await check_units(
-        units, instructions, resolved_channels, configure=True
-    )
+    checks = await check_setups(setups, configure=True)
     try:
         raise_for_failed_checks(checks)
     except HTTPException:
@@ -325,12 +357,7 @@ async def _start_group_measurement(
         raise
 
     return await _begin_group_measurement(
-        instructions,
-        resolved_channels,
-        units,
-        checks,
-        measurement_state,
-        general_messenger,
+        instructions, setups, checks, measurement_state, general_messenger
     )
 
 
@@ -361,24 +388,28 @@ async def _connect_units(
     again.
     """
 
-    addresses = instructions.unit_mac_addresses or {}
-    missing = [unit.key for unit in units if unit.key not in addresses]
-    unknown = [key for key in addresses if key not in [u.key for u in units]]
-    if missing or unknown:
+    check_unit_names(instructions, units)
+    addresses = {
+        unit.key: mac_address_of_unit(instructions, unit.key)
+        for unit in units
+    }
+    missing = [key for key, address in addresses.items() if not address]
+    if missing:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
-                "`unit_mac_addresses` has to contain the MAC address of the "
-                "sensor device of every unit. "
-                + (f"Missing: {', '.join(missing)}. " if missing else "")
-                + (f"Unknown units: {', '.join(unknown)}." if unknown else "")
+                "The MAC address of the sensor device of every unit is "
+                "required (`unit_mac_addresses` or `mac_address` in `units`). "
+                f"Missing: {', '.join(missing)}."
             ),
         )
 
     async def connect(unit: Unit) -> None:
         system = unit.system
+        address = addresses[unit.key]
+        assert address is not None
         try:
-            requested = EUI(addresses[unit.key])
+            requested = EUI(address)
         except AddrFormatError:
             requested = None
         already_connected = (
@@ -394,7 +425,7 @@ async def _connect_units(
             if not already_connected:
                 await _run_execute_step(
                     "connect",
-                    connect_sth_device_by_mac(system, addresses[unit.key]),
+                    connect_sth_device_by_mac(system, address),
                 )
         except HTTPException as error:
             if isinstance(error.detail, str):
@@ -489,6 +520,7 @@ async def start_measurement(
             instructions, measurement_state, general_messenger
         )
 
+    instructions = _single_unit_instructions(instructions)
     resolved_channels = resolve_measurement_channels(instructions)
 
     try:
@@ -575,6 +607,8 @@ async def execute_measurement(
             general_messenger,
             disconnect_on_failure=True,
         )
+
+    instructions = _single_unit_instructions(instructions)
 
     # Checked before touching the connection at all: disconnecting,
     # rewriting the ADC configuration or rewriting sensor channel routing

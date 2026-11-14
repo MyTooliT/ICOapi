@@ -62,6 +62,7 @@ from icoapi.scripts.measurement import (
 from icoapi.scripts.preflight import UnitCheck
 from icoapi.scripts.recording import SourceRecorder, create_source_spec
 from icoapi.scripts.sth_scripts import disconnect_sth_devices
+from icoapi.scripts.unit_instructions import UnitSetup
 
 # -- Globals ------------------------------------------------------------------
 
@@ -76,6 +77,9 @@ class UnitRun:  # pylint: disable=too-many-instance-attributes
 
     unit: Unit
     check: UnitCheck
+    instructions: MeasurementInstructions
+    """The instructions for this unit"""
+    resolved_channels: ResolvedMeasurementChannels
     name: str
     """Name of the source of the unit"""
     adc: ADCConfiguration
@@ -253,42 +257,41 @@ async def _run_all(tasks: list["asyncio.Task[None]"]) -> None:
 
 
 async def _create_runs(
-    units: list[Unit],
-    checks: list[UnitCheck],
-    resolved_channels: ResolvedMeasurementChannels,
-    instructions: MeasurementInstructions,
+    setups: list[UnitSetup], checks: list[UnitCheck]
 ) -> list[UnitRun]:
     """Create the data every unit needs for the measurement"""
 
-    assert instructions.adc is not None
     names = unique_source_names([check.tool_name for check in checks])
-    streaming_configuration = SensorConfiguration(
-        resolved_channels.first.channel_number,
-        resolved_channels.second.channel_number,
-        resolved_channels.third.channel_number,
-    ).streaming_configuration()
-
-    return [
-        UnitRun(
-            unit=unit,
-            check=check,
-            name=name,
-            adc=await unit.system.get_adc_configuration(),
-            streaming_configuration=streaming_configuration,
-            sensor_info=MeasurementSensorInfo(
-                resolved_channels, instructions.adc
-            ),
+    runs = []
+    for setup, check, name in zip(setups, checks, names):
+        assert setup.instructions.adc is not None
+        resolved = setup.resolved_channels
+        runs.append(
+            UnitRun(
+                unit=setup.unit,
+                check=check,
+                instructions=setup.instructions,
+                resolved_channels=resolved,
+                name=name,
+                adc=await setup.unit.system.get_adc_configuration(),
+                streaming_configuration=SensorConfiguration(
+                    resolved.first.channel_number,
+                    resolved.second.channel_number,
+                    resolved.third.channel_number,
+                ).streaming_configuration(),
+                sensor_info=MeasurementSensorInfo(
+                    resolved, setup.instructions.adc
+                ),
+            )
         )
-        for unit, check, name in zip(units, checks, names)
-    ]
+    return runs
 
 
 # pylint: disable-next=too-many-arguments,too-many-locals,too-many-branches,too-many-positional-arguments
 async def run_group_measurement(
-    units: list[Unit],
+    setups: list[UnitSetup],
     checks: list[UnitCheck],
     instructions: MeasurementInstructions,
-    resolved_channels: ResolvedMeasurementChannels,
     measurement_state: MeasurementState,
     general_messenger: GeneralMessenger,
 ) -> None:
@@ -296,18 +299,16 @@ async def run_group_measurement(
 
     Args:
 
-        units:
-            The units that measure (they are ready, see
-            :mod:`icoapi.scripts.preflight`)
+        setups:
+            What every unit does (its own instructions and sensors). The
+            units are ready, see :mod:`icoapi.scripts.preflight`.
 
         checks:
             The result of the check of every unit
 
         instructions:
-            The instructions of the measurement
-
-        resolved_channels:
-            The sensors of the channels of the measurement
+            The instructions of the measurement (the ones that are the same
+            for all units, like the time)
 
         measurement_state:
             The state of the measurement
@@ -321,9 +322,7 @@ async def run_group_measurement(
         f"{get_measurement_dir()}/{measurement_state.name}.hdf5"
     )
     try:
-        runs = await _create_runs(
-            units, checks, resolved_channels, instructions
-        )
+        runs = await _create_runs(setups, checks)
 
         collected = CollectedMetadata()
         if instructions.meta:
@@ -335,7 +334,7 @@ async def run_group_measurement(
                 system=run.system,
                 tool_name=run.check.tool_name,
                 start_supply_voltage=run.check.supply_voltage,
-                resolved_channels=resolved_channels,
+                resolved_channels=run.resolved_channels,
                 stu_mac_address=run.check.stu_mac_address or "",
                 pre_metadata=collected.attributes.get("pre_metadata"),
             )
