@@ -5,6 +5,8 @@ use the API at the same time. Actions of one client must not break the
 measurement another client started.
 """
 
+# pylint: disable=duplicate-code
+
 # -- Imports ------------------------------------------------------------------
 
 from asyncio import gather, sleep
