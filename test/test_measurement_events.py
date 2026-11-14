@@ -31,7 +31,8 @@ from icoapi.models.models import (
     ResolvedMeasurementChannels,
     Sensor,
 )
-from icoapi.scripts import measurement
+from icoapi.scripts import measurement, recording
+from icoapi.scripts.features import MULTI_STU_SUPPORT_VARIABLES
 from icoapi.scripts.file_handling import API_PREFIX, get_measurement_dir
 from icoapi.scripts.measurement import (
     create_recording_payload,
@@ -389,7 +390,9 @@ class TestMeasurementEvents:
         def storage(*_arguments: Any) -> None:
             raise StorageException("Unable to open file")
 
-        monkeypatch.setattr(measurement, "Storage", storage)
+        for name in MULTI_STU_SUPPORT_VARIABLES:
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setattr(recording, "Storage", storage)
 
         await fake_measurement.run(FakeStream([0.0]))
 

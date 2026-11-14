@@ -29,6 +29,7 @@ from icoapi.models.models import (
     CloudConfig,
 )
 from icoapi.models.models import ADCValues
+from icoapi.scripts.bundle import is_bundle_file, read_bundle_file
 from icoapi.scripts.config_helper import validate_dataspace_payload
 from icoapi.scripts.errors import (
     HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_EXCEPTION,
@@ -44,10 +45,11 @@ logger = logging.getLogger(__name__)
 
 class AccelerationDataNotFoundError(HTTPException):
     """Exception raised when acceleration data is not found in HDF5 file"""
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.status_code = 500
-        self.detail = "Acceleration data not found in HDF5 file"
+    def __init__(self):
+        super().__init__(
+            status_code=500,
+            detail="Acceleration data not found in HDF5 file",
+        )
 
 
 def get_sensor_defaults() -> list[Sensor]:
@@ -649,13 +651,56 @@ def get_embedded_file_infos(
     return embedded_files
 
 
+def merge_pictures_into_metadata(
+    pictures: dict[str, list[str]], acceleration_meta: HDF5NodeInfo
+) -> None:
+    """Add the pictures of a file to the parameters of its metadata"""
+
+    # pylint: disable=consider-using-dict-items, consider-iterating-dictionary
+    try:
+        for pics_key in pictures.keys():
+
+            obj: dict[int, str] = {}
+            for index, pic in enumerate(pictures[pics_key]):
+                obj[index] = pic
+            if MetadataPrefix.PRE in pics_key:
+                stripped_key = pics_key.split(f"{MetadataPrefix.PRE}__")[1]
+                acceleration_meta.attributes["pre_metadata"]["parameters"][
+                    stripped_key
+                ] = obj
+            elif MetadataPrefix.POST in pics_key:
+                stripped_key = pics_key.split(f"{MetadataPrefix.POST}__")[
+                    1
+                ]
+                acceleration_meta.attributes["post_metadata"][
+                    "parameters"
+                ][stripped_key] = obj
+            else:
+                logger.error("Unknown picture key: %s", pics_key)
+    except KeyError:
+        pass
+    except IndexError as error:
+        raise HTTPException(
+            status_code=500, detail="Picture data is not prefixed."
+        ) from error
+
+    # pylint: enable=consider-using-dict-items, consider-iterating-dictionary
+
+
 # pylint: disable=too-many-locals
 
 
 def get_file_data(
         file_path: str,
 ) -> ParsedHDF5FileContent:
-    """Get HDF5 measurement data"""
+    """Get HDF5 measurement data
+
+    This works for files in the old format and for ICOschema bundles (see
+    :mod:`icoapi.scripts.bundle`).
+    """
+
+    if is_bundle_file(file_path):
+        return get_bundle_file_data(file_path)
 
     with tables.open_file(file_path, mode="r") as file_handle:
 
@@ -685,35 +730,7 @@ def get_file_data(
                 status_code=500, detail="Acceleration data is not a table"
             ) from error
 
-        # pylint: disable=consider-using-dict-items, consider-iterating-dictionary
-        try:
-            for pics_key in pictures.keys():
-
-                obj: dict[int, str] = {}
-                for index, pic in enumerate(pictures[pics_key]):
-                    obj[index] = pic
-                if MetadataPrefix.PRE in pics_key:
-                    stripped_key = pics_key.split(f"{MetadataPrefix.PRE}__")[1]
-                    acceleration_meta.attributes["pre_metadata"]["parameters"][
-                        stripped_key
-                    ] = obj
-                elif MetadataPrefix.POST in pics_key:
-                    stripped_key = pics_key.split(f"{MetadataPrefix.POST}__")[
-                        1
-                    ]
-                    acceleration_meta.attributes["post_metadata"][
-                        "parameters"
-                    ][stripped_key] = obj
-                else:
-                    logger.error("Unknown picture key: %s", pics_key)
-        except KeyError:
-            pass
-        except IndexError as error:
-            raise HTTPException(
-                status_code=500, detail="Picture data is not prefixed."
-            ) from error
-
-        # pylint: enable=consider-using-dict-items, consider-iterating-dictionary
+        merge_pictures_into_metadata(pictures, acceleration_meta)
 
         sensor_df = pd.DataFrame()
         try:
@@ -739,6 +756,34 @@ def get_file_data(
 
 
 # pylint: enable=too-many-locals
+
+
+def get_bundle_file_data(file_path: str) -> ParsedHDF5FileContent:
+    """Get the measurement data of an ICOschema bundle in the old shape"""
+
+    try:
+        data = read_bundle_file(file_path)
+    except NoSuchNodeError as error:
+        raise AccelerationDataNotFoundError from error
+
+    acceleration_meta = HDF5NodeInfo(
+        name="acceleration",
+        path="/acceleration",
+        type="Table",
+        attributes={
+            key: parse_json_if_possible(value)
+            for key, value in data.attributes.items()
+        },
+    )
+    merge_pictures_into_metadata(data.pictures, acceleration_meta)
+
+    return ParsedHDF5FileContent(
+        acceleration_df=data.acceleration_df,
+        sensor_df=data.sensor_df,
+        acceleration_meta=acceleration_meta,
+        pictures=data.pictures,
+        embedded_files=data.embedded_files,
+    )
 
 
 def ensure_dataframe_with_columns(df, required_columns) -> pd.DataFrame:

@@ -71,3 +71,18 @@ The simulation replaces the STU and the sensor devices, everything else (state h
 Two more variables change the behavior: `ICOAPI_SIMULATE_LATENCY` (seconds for scanning, connecting and resetting, default `0.2`) and `ICOAPI_SIMULATE_DATALOSS` (probability that a streaming message is lost, default `0`).
 
 Measurement files created with the simulation contain the attribute `simulated` (`true`), since their data must never be mistaken for a real measurement. Run the tests that usually need hardware against the simulation with `just test-simulated`. It uses its own data folder (`ICOdaq-simulated`), so your own measurements are not touched.
+
+## Multi STU Support (Experimental)
+
+Set the environment variable `MUTLI_STU_SUPPORT=1` (`MULTI_STU_SUPPORT=1` works too) to store measurements as [ICOschema](https://github.com/ift-tuwien/ICOschema) bundles, instead of in the format of the `Storage` class of ICOtronic. A bundle is a HDF5 file with one *source* (one STU/STH combination) per data stream. Without the variable the API behaves as before.
+
+What is different in a bundle:
+
+- The values are stored in the unit of the sensor, as they always were. The `conversion` of the channel (a linear conversion from the voltage to the unit of the sensor) says what was applied to the raw values. It must not be applied again.
+- The timestamps are microseconds since the start time of the source, the data type of the other columns is the same as before.
+- Pictures are stored in the group `pictures`, embedded files in the group `files`.
+- Everything that ICOschema has no field for (which streaming slot a channel is, the sensors as configured, the name of the tool, …) is stored in the `additional_data` of the source, below the key `icoapi`.
+
+The API reads and changes files of both formats, whatever the variable says: The format of a file is part of the file. Endpoints that show the data of a measurement look the same for both formats. Files with more than one source are not supported by them yet (`501`).
+
+Only one STU is supported at the moment: this switches the file format, not (yet) the number of STUs the API can use.

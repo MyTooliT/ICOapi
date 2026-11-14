@@ -20,21 +20,22 @@ from icotronic.can.streaming import (
     StreamingData,
     StreamingTimeoutError,
 )
-from icotronic.measurement.storage import Storage
 import numpy as np
 from starlette.websockets import WebSocketDisconnect
 from tables import File, Filters, Node, open_file
 import tables.exceptions
 
 from icoapi.models.models import ADCValues
-from icoapi.scripts.data_handling import (
-    add_sensor_data_to_storage,
-    MeasurementSensorInfo,
+from icoapi.scripts.bundle import (
+    BundleFileMetadata,
+    BundleMetadataStorage,
+    is_bundle_file,
 )
+from icoapi.scripts.data_handling import MeasurementSensorInfo
+from icoapi.scripts.recording import open_recording_file
 from icoapi.scripts.errors import (
     HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION,
 )
-from icoapi.scripts.simulation import SimulatedICOsystem
 from icoapi.scripts.file_handling import (
     get_file_download_route,
     get_measurement_dir,
@@ -286,8 +287,11 @@ class ReopenedMetadataStorage:
 @contextmanager
 def open_metadata_storage(
     measurement_file_path: Path,
-) -> Iterator[MetadataStorage]:
+) -> Iterator[MetadataStorage | BundleMetadataStorage]:
     """Open an existing measurement file for metadata-only editing.
+
+    Files in the bundle format (see :mod:`icoapi.scripts.bundle`) are handled
+    as well. Which format a file has does not depend on the environment.
 
     Unlike ``Storage(measurement_file_path)``, this does not require the
     file to already contain any acceleration data rows, so metadata can
@@ -296,6 +300,10 @@ def open_metadata_storage(
 
     :raises NoSuchNodeError: if the file has no ``/acceleration`` node
     """
+
+    if is_bundle_file(measurement_file_path):
+        yield BundleFileMetadata(measurement_file_path)
+        return
 
     hdf = open_file(
         measurement_file_path,
@@ -311,7 +319,9 @@ def open_metadata_storage(
 
 
 def write_metadata(
-    prefix: MetadataPrefix, metadata: Metadata, storage: MetadataStorage
+    prefix: MetadataPrefix,
+    metadata: Metadata,
+    storage: MetadataStorage | BundleMetadataStorage,
 ) -> None:
     """Write metadata to storage object"""
 
@@ -326,12 +336,20 @@ def write_metadata(
     logger.info("Added %s-measurement metadata", prefix)
 
 
-def clear_metadata(prefix: MetadataPrefix, storage: MetadataStorage) -> None:
+def clear_metadata(
+    prefix: MetadataPrefix, storage: MetadataStorage | BundleMetadataStorage
+) -> None:
     """Remove existing metadata attribute and picture arrays for a prefix
 
     This is safe to call even if no metadata was ever written for the given
     prefix.
     """
+
+    if isinstance(storage, BundleFileMetadata):
+        storage.clear(prefix)
+        return
+
+    assert not isinstance(storage, BundleMetadataStorage)
 
     try:
         del storage.acceleration.attrs[f"{prefix}_metadata"]
@@ -360,11 +378,20 @@ def write_and_remove_picture_metadata(
     prefix: MetadataPrefix,
     picture_parameters: list[str],
     meta: Metadata,
-    storage: MetadataStorage,
+    storage: MetadataStorage | BundleMetadataStorage,
 ):
     """Write picture metadata to storage and remove it from metadata"""
 
     for param in picture_parameters:
+        if isinstance(storage, BundleMetadataStorage):
+            storage.write_pictures(
+                f"{prefix}__{param}",
+                list(meta.parameters[param].values()),  # type: ignore[union-attr]
+            )
+            del meta.parameters[param]  # type: ignore[union-attr]
+            logger.info("Added pictures for parameter %s to bundle", param)
+            continue
+
         encoded_images: list[str] = []
         for encoded_image in meta.parameters[param].values():  # type: ignore[union-attr]
             encoded_images.append(encoded_image.encode("utf-8"))
@@ -683,7 +710,10 @@ async def run_measurement(
         streaming_configuration
     )
 
+    # Only needed for the IFT value. Storing the timestamp of every message
+    # would make the memory usage grow for as long as a measurement runs.
     timestamps: list[float] = []
+    first_timestamp: float | None = None
     ift_relevant_channel: list[float] = []
     ift_sent: bool = False
     start_time: float = 0
@@ -691,51 +721,25 @@ async def run_measurement(
         f"{get_measurement_dir()}/{measurement_state.name}.hdf5"
     )
     try:
-        with Storage(
+        with open_recording_file(
             measurement_file_path, streaming_configuration
-        ) as storage:
+        ) as recording:
 
             logger.info(
                 "Opened measurement file: <%s> for writing",
                 measurement_file_path,
             )
 
-            storage["conversion"] = "true"
-
-            # Sourced from `adc` (read back from the device above), not
-            # `instructions.adc` - `adc` reflects what was actually applied,
-            # including defaults for any field the client left unset, which
-            # `instructions.adc`'s own fields may not (they're Optional).
-            storage["adc_prescaler"] = f"{adc.prescaler}"
-            storage["adc_acquisition_time"] = f"{adc.acquisition_time}"
-            storage["adc_oversampling_rate"] = f"{adc.oversampling_rate}"
-            storage["adc_reference_voltage"] = f"{adc.reference_voltage}"
-
-            if measurement_state.start_supply_voltage is not None:
-                storage["start_supply_voltage"] = (
-                    f"{measurement_state.start_supply_voltage}"
-                )
-
-            # Device identity: which physical STH this data came from, and
-            # which STU it was connected through. `sensor_node_attributes` is
-            # set on connect and only cleared on disconnect, so it is
-            # guaranteed present here - `run_measurement` only ever runs
-            # while `SENSOR_NODE_CONNECTED`. The STU MAC has no cached
-            # equivalent, so it takes a live CAN request.
-            assert system.sensor_node_attributes is not None
-            storage["sth_mac_address"] = (
-                system.sensor_node_attributes.mac_address.format()
+            # The STU MAC has no cached equivalent, so it takes a live CAN
+            # request.
+            recording.start(
+                adc=adc,
+                measurement_state=measurement_state,
+                system=system,
+                instructions=instructions,
+                resolved_channels=resolved_channels,
+                stu_mac_address=(await system.get_stu_mac_address()).format(),
             )
-            storage["tool_name"] = measurement_state.tool_name or ""
-            if isinstance(system, SimulatedICOsystem):
-                # Simulated data must never be mistaken for a real measurement
-                storage["simulated"] = "true"
-            storage["stu_mac_address"] = (
-                await system.get_stu_mac_address()
-            ).format()
-
-            if instructions.meta:
-                write_metadata(MetadataPrefix.PRE, instructions.meta, storage)
 
             async with system.sensor_node.open_data_stream(
                 streaming_configuration
@@ -753,14 +757,7 @@ async def run_measurement(
                 sensor_info = MeasurementSensorInfo(
                     resolved_channels, instructions.adc
                 )
-                add_sensor_data_to_storage(
-                    storage,
-                    [
-                        resolved_channels.first,
-                        resolved_channels.second,
-                        resolved_channels.third,
-                    ],
-                )
+                recording.add_sensors(resolved_channels)
 
                 enabled_channels = streaming_configuration.enabled_channels()
 
@@ -796,8 +793,10 @@ async def run_measurement(
                     data.timestamp = data.timestamp - start_time
 
                     # Save values required for future calculations
-                    timestamps.append(data.timestamp)
+                    if first_timestamp is None:
+                        first_timestamp = data.timestamp
                     if instructions.ift_requested:
+                        timestamps.append(data.timestamp)
                         match instructions.ift_channel:
                             case "first":
                                 ift_relevant_channel.extend(
@@ -815,7 +814,7 @@ async def run_measurement(
                     data_to_send = get_sendable_data_and_apply_conversion(
                         streaming_configuration, sensor_info, data
                     )
-                    storage.add_streaming_data(data)
+                    recording.add_streaming_data(data)
 
                     # Send current dataloss once per second
                     current_time = monotonic()
@@ -845,18 +844,17 @@ async def run_measurement(
                         )
                         counter += 1
 
-                    # Skip exit conditions on the first iteration
-                    if timestamps[0] is None:
-                        continue
-
                     # Exit conditions
                     if instructions.time is not None:
-                        if data.timestamp - timestamps[0] >= instructions.time:
+                        if (
+                            data.timestamp - first_timestamp
+                            >= instructions.time
+                        ):
                             logger.info(
                                 "Timeout reached at with current being"
                                 " <%s> and first entry being %ss",
                                 data.timestamp,
-                                timestamps[0],
+                                first_timestamp,
                             )
                             break
 
@@ -865,7 +863,7 @@ async def run_measurement(
                         break
 
                 # Send dataloss
-                overall_dataloss = storage.dataloss()
+                overall_dataloss = recording.dataloss()
                 await send_dataloss(measurement_state, overall_dataloss)
 
             if instructions.disconnect_after_measurement:

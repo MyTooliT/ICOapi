@@ -56,7 +56,8 @@ jobs:
       - name: Check if test sensor node is available
         run: |
           uv run icon list > devices.txt
-          if ! grep -q Test-STH devices.txt; then
+          # Match the exact name, so that e.g. “Test-STH-2” does not count
+          if ! grep -Eq '(^|[^[:alnum:]_-])Test-STH($|[^[:alnum:]_-])' devices.txt; then
             printerr() { printf "%s\n" "$@" 1>&2; }
             printerr "Unable to find “Test-STH”"
             printerr "Found the following sensor nodes:"

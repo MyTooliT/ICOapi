@@ -1,0 +1,565 @@
+"""Tests for measurement files in the ICOschema bundle format
+
+The bundle format is used with multi STU support. Almost all tests record the
+same measurement in the old and in the bundle format and check that the API
+shows both in the same way.
+
+Timestamps of the fake streams do not start with 0: A measurement that gets 0
+as first timestamp sets its start time again with the second message.
+"""
+
+# -- Imports ------------------------------------------------------------------
+
+from pathlib import Path
+import re
+from typing import Any
+
+from fastapi import HTTPException
+import h5py
+from icoschema import DatasetBundle
+from icoschema.v2 import LinearConversion
+from icotronic.can.streaming import StreamingData
+from pytest import MonkeyPatch, approx, fixture, mark, raises
+from tables import NoSuchNodeError
+
+from icoapi.models.event_bus import Channel
+from icoapi.models.models import MeasuredSensor, Metadata, MetadataPrefix
+from icoapi.scripts import measurement, recording
+from icoapi.scripts.bundle import is_bundle_file, source_name
+from icoapi.scripts.data_handling import (
+    AccelerationDataNotFoundError,
+    get_file_data,
+)
+from icoapi.scripts.features import (
+    MULTI_STU_SUPPORT_VARIABLES,
+    multi_stu_support,
+)
+from icoapi.scripts.file_handling import (
+    append_embedded_file_to_hdf5,
+    delete_embedded_file_from_hdf5,
+    get_embedded_file_from_hdf5,
+)
+from icoapi.scripts.measurement import (
+    clear_metadata,
+    open_metadata_storage,
+    write_metadata,
+)
+
+# pylint: disable=wrong-import-order
+from test_measurement_events import FakeStream, Measurement
+
+# pylint: enable=wrong-import-order
+
+# pylint: disable=redefined-outer-name,too-few-public-methods
+
+# -- Fixtures -----------------------------------------------------------------
+
+FORMATS = ["legacy", "bundle"]
+
+
+def set_format(monkeypatch: MonkeyPatch, file_format: str) -> None:
+    """Switch multi STU support on (for bundle) or off (for legacy)"""
+
+    for name in MULTI_STU_SUPPORT_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    if file_format == "bundle":
+        monkeypatch.setenv(MULTI_STU_SUPPORT_VARIABLES[0], "1")
+
+
+class CounterStream(FakeStream):
+    """Stream that sends messages with the given counters"""
+
+    def __init__(self, counters: list[int], timestamps: list[float]) -> None:
+        super().__init__(timestamps)
+        self.counters = counters
+
+    async def _messages(self):
+        for counter, timestamp in zip(self.counters, self.timestamps):
+            yield (
+                StreamingData(
+                    counter=counter, timestamp=timestamp, values=[8000] * 3
+                ),
+                None,
+            )
+
+
+@fixture(name="recorded", params=FORMATS)
+async def fixture_recorded(request, tmp_path: Path, monkeypatch: MonkeyPatch):
+    """Measurement file in the old or in the bundle format"""
+
+    set_format(monkeypatch, request.param)
+    fake = Measurement(tmp_path, monkeypatch)
+    await fake.run(FakeStream([100.0, 100.5, 101.0]))
+    assert fake.channels == [Channel.RECORDING_FINISHED]
+    assert is_bundle_file(fake.file_path) == (request.param == "bundle")
+    return fake.file_path
+
+
+# -- Tests --------------------------------------------------------------------
+
+
+class TestFeatureFlag:
+    """Test switch for multi STU support"""
+
+    @mark.parametrize("value", ["1", "true", "TRUE", " yes ", "on"])
+    @mark.parametrize("name", MULTI_STU_SUPPORT_VARIABLES)
+    def test_enabled(self, monkeypatch: MonkeyPatch, name, value) -> None:
+        """Both spellings of the variable switch the feature on"""
+
+        for variable in MULTI_STU_SUPPORT_VARIABLES:
+            monkeypatch.delenv(variable, raising=False)
+        monkeypatch.setenv(name, value)
+
+        assert multi_stu_support()
+
+    @mark.parametrize("value", ["", "0", "false", "no", "off", "2"])
+    def test_disabled(self, monkeypatch: MonkeyPatch, value) -> None:
+        """Other values do not switch the feature on"""
+
+        for variable in MULTI_STU_SUPPORT_VARIABLES:
+            monkeypatch.setenv(variable, value)
+
+        assert not multi_stu_support()
+
+    def test_unset(self, monkeypatch: MonkeyPatch) -> None:
+        """The feature is off by default"""
+
+        for variable in MULTI_STU_SUPPORT_VARIABLES:
+            monkeypatch.delenv(variable, raising=False)
+
+        assert not multi_stu_support()
+
+    def test_recording_file_class(self, monkeypatch: MonkeyPatch) -> None:
+        """The variable selects the format of the measurement file"""
+
+        config: Any = None
+        set_format(monkeypatch, "legacy")
+        assert isinstance(
+            recording.open_recording_file(Path("a.hdf5"), config),
+            recording.LegacyRecordingFile,
+        )
+        set_format(monkeypatch, "bundle")
+        assert isinstance(
+            recording.open_recording_file(Path("a.hdf5"), config),
+            recording.BundleRecordingFile,
+        )
+
+
+class TestRecording:
+    """Test what is stored in a measurement file"""
+
+    async def test_bundle(self, tmp_path: Path, monkeypatch: MonkeyPatch):
+        """The bundle contains the data and the description of the source"""
+
+        set_format(monkeypatch, "bundle")
+        fake = Measurement(tmp_path, monkeypatch)
+        await fake.run(FakeStream([100.0, 100.5, 101.0]))
+
+        bundle = DatasetBundle.from_hdf5(str(fake.file_path))
+        source = bundle.recording.only_source()  # type: ignore[union-attr]
+
+        assert source.name == "sth"
+        assert source.stu_mac == "00-00-00-00-00-01"
+        assert source.sth_mac == "00-11-22-33-44-55"
+        hardware = source.hardware_metadata
+        assert (
+            hardware.adc_prescaler,
+            hardware.adc_acquisition_time,
+            hardware.adc_oversample_rate,
+            hardware.adc_reference_voltage,
+        ) == (2, 8, 64, "3.3")
+        assert source.channel_count == 1
+        assert hardware.channel1_metadata.sensor.sensor_id == "acc"
+        assert hardware.channel1_metadata.sensor.unit == "g"
+        conversion = hardware.channel1_metadata.conversion
+        assert isinstance(conversion, LinearConversion)
+        assert conversion.gain == 200 / 3.3
+        assert conversion.offset == 100 - 200 / 3.3 * 3.3
+
+        # One channel: Three values per message
+        assert source.counter.tolist() == [0, 0, 0, 1, 1, 1, 2, 2, 2]
+        assert source.timestamps.tolist() == (
+            [0] * 3 + [500_000] * 3 + [1_000_000] * 3
+        )
+        assert source.recording_metadata.start_time is not None
+
+    async def test_same_data(self, tmp_path: Path, monkeypatch: MonkeyPatch):
+        """Both formats store the same values"""
+
+        data = {}
+        for file_format in FORMATS:
+            set_format(monkeypatch, file_format)
+            directory = tmp_path / file_format
+            directory.mkdir()
+            fake = Measurement(directory, monkeypatch)
+            await fake.run(FakeStream([100.0, 100.25, 100.5, 101.0]))
+            data[file_format] = get_file_data(str(fake.file_path))
+
+        legacy, bundle = data["legacy"], data["bundle"]
+        assert list(legacy.acceleration_df.columns) == ["counter", "timestamp", "x"]
+        assert list(bundle.acceleration_df.columns) == list(
+            legacy.acceleration_df.columns
+        )
+        assert (
+            bundle.acceleration_df.to_numpy()
+            == legacy.acceleration_df.to_numpy()
+        ).all()
+        assert bundle.acceleration_df["timestamp"].dtype == "uint64"
+
+    async def test_dataloss(
+        self, tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
+        """Both formats report the same amount of lost messages"""
+
+        reported: dict[str, float] = {}
+        for file_format in FORMATS:
+            set_format(monkeypatch, file_format)
+            directory = tmp_path / file_format
+            directory.mkdir()
+            fake = Measurement(directory, monkeypatch)
+
+            async def send_dataloss(_state, dataloss, name=file_format):
+                reported[name] = dataloss
+
+            monkeypatch.setattr(measurement, "send_dataloss", send_dataloss)
+            await fake.run(
+                CounterStream([0, 1, 4, 5, 255, 2], [100.0, 100.2, 100.4, 100.6, 100.8, 101.0])
+            )
+
+        assert reported["legacy"] > 0
+        assert reported["bundle"] == reported["legacy"]
+
+    async def test_failure_without_file(
+        self, tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
+        """Only the name is published if the bundle could not be created"""
+
+        def writer(*_arguments: Any) -> None:
+            raise OSError("Unable to create file")
+
+        set_format(monkeypatch, "bundle")
+        monkeypatch.setattr(recording, "BundleWriter", writer)
+        fake = Measurement(tmp_path, monkeypatch)
+
+        await fake.run(FakeStream([0.0]))
+
+        assert fake.channels == [Channel.RECORDING_FAILED]
+        assert fake.messenger.events[0][1]["size"] is None
+
+    async def test_failure_without_data(
+        self, tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
+        """A measurement without data has a file, but no data to show"""
+
+        set_format(monkeypatch, "bundle")
+        fake = Measurement(tmp_path, monkeypatch)
+        await fake.run(FakeStream([], failure=TimeoutError("No data")))
+
+        assert fake.channels == [Channel.RECORDING_FAILED]
+        assert fake.messenger.file_usable_when_stopped == [True]
+        with raises(AccelerationDataNotFoundError):
+            get_file_data(str(fake.file_path))
+
+    def test_source_name(self) -> None:
+        """The name of a source is a valid name for a HDF5 node"""
+
+        assert source_name("Test-STH") == "Test-STH"
+        assert source_name("A/B") == "A_B"
+        assert source_name(".hidden") == "hidden"
+        assert source_name("") == "sth"
+        assert source_name(None) == "sth"
+
+
+class TestFileData:
+    """Test what the API shows for measurement files"""
+
+    async def test_data_and_metadata(self, recorded: Path) -> None:
+        """Files look the same, no matter how they are stored"""
+
+        data = get_file_data(str(recorded))
+
+        assert len(data.acceleration_df) == 9
+        attributes = data.acceleration_meta.attributes
+        assert attributes["conversion"] is True or attributes["conversion"] == "true"
+        assert attributes["adc_prescaler"] == 2
+        assert attributes["adc_acquisition_time"] == 8
+        assert attributes["adc_oversampling_rate"] == 64
+        assert attributes["adc_reference_voltage"] == 3.3
+        assert attributes["sth_mac_address"] == "00-11-22-33-44-55"
+        assert attributes["stu_mac_address"] == "00-00-00-00-00-01"
+        assert "Start_Time" in attributes
+        assert data.acceleration_meta.name == "acceleration"
+
+        sensors = data.sensor_df.to_dict(orient="records")
+        assert len(sensors) == 1
+        # Old files contain bytes, the API converts them to text
+        assert MeasuredSensor(**sensors[0]).sensor_id == "acc"
+        assert sensors[0]["phys_min"] == -100
+        assert sensors[0]["phys_max"] == 100
+        assert sensors[0]["volt_max"] == approx(3.3)  # old: 32 bit
+        assert sensors[0]["channel_number"] == 1
+
+    async def test_same_shape(self, tmp_path: Path, monkeypatch: MonkeyPatch):
+        """Both formats have the same metadata and sensor information"""
+
+        shown = {}
+        for file_format in FORMATS:
+            set_format(monkeypatch, file_format)
+            directory = tmp_path / file_format
+            directory.mkdir()
+            fake = Measurement(directory, monkeypatch)
+            await fake.run(FakeStream([100.0, 100.5, 101.0]))
+            data = get_file_data(str(fake.file_path))
+            # PyTables adds information about its tables, the time differs
+            attributes = {
+                key: value
+                for key, value in data.acceleration_meta.attributes.items()
+                if key != "Start_Time"
+                and not re.match(
+                    r"^(CLASS|TITLE|VERSION|NROWS|FIELD_\d+_(NAME|FILL))$", key
+                )
+            }
+            sensors = [
+                MeasuredSensor(**sensor).model_dump()
+                for sensor in data.sensor_df.to_dict(orient="records")
+            ]
+            shown[file_format] = (
+                attributes,
+                sensors,
+                data.acceleration_meta.type,
+            )
+
+        assert shown["legacy"][0] == shown["bundle"][0]
+        assert shown["legacy"][2] == shown["bundle"][2]
+        # Old files store numbers with 32 bit and no sensor type as empty text
+        legacy_sensors, bundle_sensors = shown["legacy"][1], shown["bundle"][1]
+        assert len(legacy_sensors) == len(bundle_sensors) == 1
+        for key, value in bundle_sensors[0].items():
+            if isinstance(value, float):
+                assert legacy_sensors[0][key] == approx(value), key
+            else:
+                assert (legacy_sensors[0][key] or None) == (value or None), key
+
+    async def test_old_files_are_read_with_the_feature_on(
+        self, tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
+        """The format of a file does not depend on the environment"""
+
+        set_format(monkeypatch, "legacy")
+        fake = Measurement(tmp_path, monkeypatch)
+        await fake.run(FakeStream([100.0, 100.5, 101.0]))
+        set_format(monkeypatch, "bundle")
+
+        assert not is_bundle_file(fake.file_path)
+        assert len(get_file_data(str(fake.file_path)).acceleration_df) == 9
+        with open_metadata_storage(fake.file_path) as storage:
+            write_metadata(
+                MetadataPrefix.POST, Metadata("1", "profile", {}), storage
+            )
+        assert (
+            get_file_data(str(fake.file_path)).acceleration_meta.attributes[
+                "post_metadata"
+            ]["profile"]
+            == "profile"
+        )
+
+    async def test_multiple_sources_are_not_shown(
+        self, recorded: Path
+    ) -> None:
+        """Files with more than one source can not be shown (yet)"""
+
+        if not is_bundle_file(recorded):
+            return
+        with h5py.File(recorded, "r+") as file:
+            table = file["recording"]
+            name = file.attrs["sources"] if "sources" in file.attrs else None
+            assert name is None
+            file.attrs["sources"] = ["a", "b"]
+            group = file.create_group("sources")
+            for source in ("a", "b"):
+                group.create_group(source)
+                file.copy(table, group[source], name="recording")
+                file.copy(file["sensors"], group[source], name="sensors")
+
+        with raises(HTTPException) as error:
+            get_file_data(str(recorded))
+        assert error.value.status_code == 501
+
+
+class TestMetadata:
+    """Test changing the metadata of a measurement file"""
+
+    @staticmethod
+    def metadata(**parameters: Any) -> Metadata:
+        """Create metadata"""
+
+        return Metadata("1.2.3", "milling", {"speed": 1000, **parameters})
+
+    async def test_post_metadata(self, recorded: Path) -> None:
+        """Post metadata can be written, overwritten and removed"""
+
+        with open_metadata_storage(recorded) as storage:
+            clear_metadata(MetadataPrefix.POST, storage)
+            write_metadata(MetadataPrefix.POST, self.metadata(), storage)
+
+        attributes = get_file_data(str(recorded)).acceleration_meta.attributes
+        assert attributes["post_metadata"]["profile"] == "milling"
+        assert attributes["post_metadata"]["parameters"] == {"speed": 1000}
+        assert "pre_metadata" not in attributes
+
+        with open_metadata_storage(recorded) as storage:
+            clear_metadata(MetadataPrefix.POST, storage)
+            write_metadata(
+                MetadataPrefix.POST,
+                Metadata("2", "turning", {"feed": 2}),
+                storage,
+            )
+        attributes = get_file_data(str(recorded)).acceleration_meta.attributes
+        assert attributes["post_metadata"]["profile"] == "turning"
+        assert attributes["post_metadata"]["parameters"] == {"feed": 2}
+
+        with open_metadata_storage(recorded) as storage:
+            clear_metadata(MetadataPrefix.POST, storage)
+        attributes = get_file_data(str(recorded)).acceleration_meta.attributes
+        assert "post_metadata" not in attributes
+
+    async def test_pictures(self, recorded: Path) -> None:
+        """Pictures are part of the metadata they belong to"""
+
+        pictures = {"0": "aGVsbG8=", "1": "d29ybGQ="}
+        with open_metadata_storage(recorded) as storage:
+            write_metadata(
+                MetadataPrefix.PRE,
+                self.metadata(workpiece_pictures=pictures),
+                storage,
+            )
+            write_metadata(
+                MetadataPrefix.POST,
+                self.metadata(pictures={"0": "dGVzdA=="}),
+                storage,
+            )
+
+        data = get_file_data(str(recorded))
+        assert data.pictures == {
+            "pre__workpiece_pictures": ["aGVsbG8=", "d29ybGQ="],
+            "post__pictures": ["dGVzdA=="],
+        }
+        attributes = data.acceleration_meta.attributes
+        assert attributes["pre_metadata"]["parameters"] == {
+            "speed": 1000,
+            "workpiece_pictures": {0: "aGVsbG8=", 1: "d29ybGQ="},
+        }
+        assert attributes["post_metadata"]["parameters"]["pictures"] == {
+            0: "dGVzdA=="
+        }
+
+        # Removing metadata removes its pictures, but not the others
+        with open_metadata_storage(recorded) as storage:
+            clear_metadata(MetadataPrefix.PRE, storage)
+        assert list(get_file_data(str(recorded)).pictures) == [
+            "post__pictures"
+        ]
+
+    async def test_pre_metadata_of_measurement(
+        self, tmp_path: Path, monkeypatch: MonkeyPatch
+    ) -> None:
+        """Metadata that is part of the instructions is stored in the file"""
+
+        for file_format in FORMATS:
+            set_format(monkeypatch, file_format)
+            directory = tmp_path / file_format
+            directory.mkdir()
+            fake = Measurement(directory, monkeypatch)
+            monkeypatch.setattr(
+                measurement,
+                "open_recording_file",
+                _with_pre_metadata(measurement.open_recording_file),
+            )
+            await fake.run(FakeStream([100.0, 101.0]))
+            monkeypatch.undo()
+
+            data = get_file_data(str(fake.file_path))
+            attributes = data.acceleration_meta.attributes
+            # The API shows pictures as part of the metadata
+            assert attributes["pre_metadata"] == {
+                "version": "1",
+                "profile": "p",
+                "parameters": {"a": 1, "pictures": {0: "aGk="}},
+            }, file_format
+            assert data.pictures == {"pre__pictures": ["aGk="]}, file_format
+
+    async def test_file_without_data(self, tmp_path: Path) -> None:
+        """A file without measurement data has no metadata to edit"""
+
+        path = tmp_path / "other.hdf5"
+        with h5py.File(path, "w") as file:
+            file.attrs["icoschema_format_version"] = "2.0"
+        with raises(NoSuchNodeError):
+            with open_metadata_storage(path):
+                pass
+
+
+class TestEmbeddedFiles:
+    """Test files that are stored in measurement files"""
+
+    async def test_embedded_files(self, recorded: Path) -> None:
+        """Files can be added, read, listed and deleted"""
+
+        upload = append_embedded_file_to_hdf5(
+            str(recorded), "My Report 1.pdf", b"%PDF-1.4", "application/pdf"
+        )
+        again = append_embedded_file_to_hdf5(
+            str(recorded), "My Report 1.pdf", b"other", None
+        )
+
+        assert upload.dataset_name == "My_Report_1_pdf"
+        assert upload.original_name == "My Report 1.pdf"
+        assert upload.mime == "application/pdf"
+        assert upload.size == 8
+        assert again.dataset_name != upload.dataset_name
+        assert again.mime == "application/octet-stream"
+
+        infos = get_file_data(str(recorded)).embedded_files
+        assert {info.dataset_name for info in infos} == {
+            upload.dataset_name,
+            again.dataset_name,
+        }
+
+        content = get_embedded_file_from_hdf5(
+            str(recorded), upload.dataset_name
+        )
+        assert content.content == b"%PDF-1.4"
+        assert content.original_name == "My Report 1.pdf"
+        assert content.mime == "application/pdf"
+
+        delete_embedded_file_from_hdf5(str(recorded), upload.dataset_name)
+        assert [
+            info.dataset_name
+            for info in get_file_data(str(recorded)).embedded_files
+        ] == [again.dataset_name]
+        with raises(NoSuchNodeError):
+            get_embedded_file_from_hdf5(str(recorded), upload.dataset_name)
+        with raises(NoSuchNodeError):
+            delete_embedded_file_from_hdf5(str(recorded), upload.dataset_name)
+
+
+# -- Functions ----------------------------------------------------------------
+
+
+def _with_pre_metadata(open_file):
+    """Wrap ``open_recording_file`` to measure with pre metadata"""
+
+    def wrapper(path, streaming_configuration):
+        recording_file = open_file(path, streaming_configuration)
+        original = recording_file.start
+
+        def start(**arguments):
+            arguments["instructions"].meta = Metadata(
+                "1", "p", {"a": 1, "pictures": {"0": "aGk="}}
+            )
+            original(**arguments)
+
+        recording_file.start = start
+        return recording_file
+
+    return wrapper
