@@ -588,6 +588,24 @@ class HDF5NodeInfo(BaseModel, JSONEncoder):
     attributes: dict[str, Any]
 
 
+class SourceInfo(BaseModel, JSONEncoder):
+    """A source of a measurement file: the data of one STU/STH combination
+
+    Only files in the bundle format (see :mod:`icoapi.scripts.bundle`) have
+    sources. Every source has its own clock, so the times of different sources
+    are only related by their start times.
+    """
+
+    name: str
+    """The name that selects the source (query parameter ``source``)"""
+    stu_mac: str | None = None
+    sth_mac: str | None = None
+    start_time: str | None = None
+    """Time of the first message of the source (ISO 8601, without timezone)"""
+    start_offset: float | None = None
+    """Seconds between the earliest start time of all sources and this one"""
+
+
 @dataclass
 class ParsedHDF5FileContent(JSONEncoder):
     """HDF5 data file content"""
@@ -597,6 +615,8 @@ class ParsedHDF5FileContent(JSONEncoder):
     acceleration_meta: HDF5NodeInfo
     pictures: dict[str, list[str]]
     embedded_files: list[EmbeddedFileInfo]
+    sources: list[SourceInfo] = field(default_factory=list)
+    """All sources of the file (empty for files in the old format)"""
 
 
 class ParsedMetadata(BaseModel, JSONEncoder):
@@ -606,6 +626,8 @@ class ParsedMetadata(BaseModel, JSONEncoder):
     pictures: dict[str, list[str]]
     sensors: list[MeasuredSensor]
     embedded_files: list[EmbeddedFileInfo]
+    sources: list[SourceInfo] = []
+    """All sources of the file (empty for files in the old format)"""
 
 
 @dataclass

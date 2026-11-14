@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, AsyncGenerator
 from urllib.parse import quote
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.params import Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.responses import PlainTextResponse
@@ -169,9 +169,23 @@ async def delete_file(
         raise HTTPException(status_code=404, detail="File not found")
 
 
+SourceQuery = Annotated[
+    str | None,
+    Query(
+        description=(
+            "Name of the source (STU/STH combination) of the data. A file "
+            "with more than one source needs it (see `sources` of the "
+            "metadata), a file with a single source does not."
+        )
+    ),
+]
+
+
 @router.get("/analyze/{name}", response_model=ParsedMeasurement)
 async def get_analyzed_file(
-    name: str, measurement_dir: Annotated[str, Depends(get_measurement_dir)]
+    name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+    source: SourceQuery = None,
 ) -> StreamingResponse:
     """Analyze measurement file"""
 
@@ -185,7 +199,7 @@ async def get_analyzed_file(
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
-    parsed_file_content = get_file_data(file_path)
+    parsed_file_content = get_file_data(file_path, source)
 
     # Total number of rows for progress tracking
     total_rows = len(parsed_file_content.acceleration_df)
@@ -218,6 +232,7 @@ async def get_analyzed_file(
             pictures=parsed_file_content.pictures,
             sensors=sensors,
             embedded_files=embedded_files,
+            sources=parsed_file_content.sources,
         ).model_dump_json() + "\n"
 
         # Then: yield measurement data
@@ -401,12 +416,14 @@ async def delete_embedded_file(
 
 @router.get("/analyze/meta/{name}")
 async def get_file_meta(
-    name: str, measurement_dir: Annotated[str, Depends(get_measurement_dir)]
+    name: str,
+    measurement_dir: Annotated[str, Depends(get_measurement_dir)],
+    source: SourceQuery = None,
 ) -> ParsedMetadata:
 
     """Get measurement file metadata"""
 
-    data = get_file_data(os.path.join(measurement_dir, name))
+    data = get_file_data(os.path.join(measurement_dir, name), source)
     embedded_files = [
         embedded_file.model_copy(
             update={
@@ -426,6 +443,7 @@ async def get_file_meta(
             for sensor in data.sensor_df.to_dict(orient="records")
         ],
         embedded_files=embedded_files,
+        sources=data.sources,
     )
 
 

@@ -10,20 +10,31 @@ as first timestamp sets its start time again with the second message.
 
 # -- Imports ------------------------------------------------------------------
 
+import json
 from pathlib import Path
 import re
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 
 from fastapi import HTTPException
 import h5py
 from icoschema import DatasetBundle
-from icoschema.v2 import LinearConversion
+from icoschema.v2 import (
+    BundleWriter,
+    ChannelMetadata,
+    LinearConversion,
+    Sensor as SchemaSensor,
+    SourceSpec,
+)
 from icotronic.can.streaming import StreamingData
 from pytest import MonkeyPatch, approx, fixture, mark, raises
 from tables import NoSuchNodeError
 
 from icoapi.models.event_bus import Channel
 from icoapi.models.models import MeasuredSensor, Metadata, MetadataPrefix
+from icoapi.routers.cloud_routes import upload_file
+from icoapi.routers.file_routes import get_analyzed_file, get_file_meta
 from icoapi.scripts import measurement, recording
 from icoapi.scripts.bundle import is_bundle_file, source_name
 from icoapi.scripts.data_handling import (
@@ -363,27 +374,183 @@ class TestFileData:
             == "profile"
         )
 
-    async def test_multiple_sources_are_not_shown(
-        self, recorded: Path
-    ) -> None:
-        """Files with more than one source can not be shown (yet)"""
 
-        if not is_bundle_file(recorded):
-            return
-        with h5py.File(recorded, "r+") as file:
-            table = file["recording"]
-            name = file.attrs["sources"] if "sources" in file.attrs else None
-            assert name is None
-            file.attrs["sources"] = ["a", "b"]
-            group = file.create_group("sources")
-            for source in ("a", "b"):
-                group.create_group(source)
-                file.copy(table, group[source], name="recording")
-                file.copy(file["sensors"], group[source], name="sensors")
+class TestSources:
+    """Test files with more than one source"""
+
+    @staticmethod
+    def write(path: Path) -> None:
+        """Write a bundle with two sources that start 0.25 seconds apart"""
+
+        def spec(name: str, mac: str, start: str, gain: float) -> SourceSpec:
+            return SourceSpec(
+                name=name,
+                channels=[
+                    ChannelMetadata(
+                        sensor=SchemaSensor(sensor_id="acc", unit="g"),
+                        conversion=LinearConversion(gain=gain, offset=0.0),
+                    )
+                ],
+                start_time=start,
+                stu_mac=f"00-00-00-00-00-{mac}",
+                sth_mac=f"11-11-11-11-11-{mac}",
+                pre_metadata='{"version": "1", "profile": "milling",'
+                ' "parameters": {}}',
+                additional_data=json.dumps({"icoapi": {"slots": ["first"]}}),
+            )
+
+        specs = [
+            spec("Test-STH", "01", "2026-01-01T00:00:00.000000", 1.0),
+            spec("Other-STH", "02", "2026-01-01T00:00:00.250000", 2.0),
+        ]
+        with BundleWriter(str(path), specs) as writer:
+            for index in range(4):
+                writer["Test-STH"].append_row(index * 1000, [1.0 + index], index)
+                writer["Other-STH"].append_row(
+                    index * 1000, [100.0 + index], index
+                )
+
+    @fixture(name="two")
+    def fixture_two(self, tmp_path: Path) -> Path:
+        """Path of a measurement file with two sources"""
+
+        path = tmp_path / "two.hdf5"
+        self.write(path)
+        return path
+
+    def test_source_is_required(self, two: Path) -> None:
+        """A file with more than one source does not show one by default"""
 
         with raises(HTTPException) as error:
-            get_file_data(str(recorded))
-        assert error.value.status_code == 501
+            get_file_data(str(two))
+
+        assert error.value.status_code == 422
+        assert "Test-STH" in error.value.detail
+        assert "Other-STH" in error.value.detail
+
+    def test_every_source_has_its_data(self, two: Path) -> None:
+        """The data and the metadata of the selected source is shown"""
+
+        first = get_file_data(str(two), "Test-STH")
+        second = get_file_data(str(two), "Other-STH")
+
+        assert first.acceleration_df["x"].tolist() == [1, 2, 3, 4]
+        assert second.acceleration_df["x"].tolist() == [100, 101, 102, 103]
+        assert first.acceleration_meta.attributes["sth_mac_address"] == (
+            "11-11-11-11-11-01"
+        )
+        assert second.acceleration_meta.attributes["stu_mac_address"] == (
+            "00-00-00-00-00-02"
+        )
+        assert second.sensor_df["scaling_factor"].tolist() == [2.0]
+
+    def test_sources_are_listed(self, two: Path) -> None:
+        """Every source is described, with its start relative to the others"""
+
+        for source in ("Test-STH", "Other-STH"):
+            sources = get_file_data(str(two), source).sources
+            assert [info.name for info in sources] == ["Test-STH", "Other-STH"]
+            assert [info.start_offset for info in sources] == [0.0, 0.25]
+            assert sources[1].sth_mac == "11-11-11-11-11-02"
+            assert sources[1].start_time == "2026-01-01T00:00:00.250000"
+
+    def test_unknown_source(self, two: Path) -> None:
+        """There is no data for a source that does not exist"""
+
+        with raises(HTTPException) as error:
+            get_file_data(str(two), "Nothing")
+
+        assert error.value.status_code == 404
+        assert "Test-STH" in error.value.detail
+
+    async def test_single_source(self, recorded: Path) -> None:
+        """A file with one source (or none) works with and without source"""
+
+        if not is_bundle_file(recorded):
+            with raises(HTTPException) as error:
+                get_file_data(str(recorded), "sth")
+            assert error.value.status_code == 404
+            assert not get_file_data(str(recorded)).sources
+            return
+
+        without = get_file_data(str(recorded))
+        assert [info.name for info in without.sources] == ["sth"]
+        assert get_file_data(str(recorded), "sth").sources == without.sources
+        with raises(HTTPException) as error:
+            get_file_data(str(recorded), "other")
+        assert error.value.status_code == 404
+
+    async def test_metadata_route(self, two: Path) -> None:
+        """The route shows the sources and the data of the selected one"""
+
+        directory = str(two.parent)
+        with raises(HTTPException) as error:
+            await get_file_meta(two.name, directory)
+        assert error.value.status_code == 422
+
+        shown = await get_file_meta(two.name, directory, "Other-STH")
+        assert [info.name for info in shown.sources] == ["Test-STH", "Other-STH"]
+        assert shown.acceleration.attributes["sth_mac_address"] == (
+            "11-11-11-11-11-02"
+        )
+
+    async def test_analyze_route(self, two: Path) -> None:
+        """The route streams the data of the selected source"""
+
+        directory = str(two.parent)
+        with raises(HTTPException):
+            await get_analyzed_file(two.name, directory)
+
+        response = await get_analyzed_file(two.name, directory, "Other-STH")
+        lines = [
+            json.loads(line)
+            async for line in response.body_iterator
+            for line in str(line).splitlines()
+        ]
+        assert [info["name"] for info in lines[0]["sources"]] == [
+            "Test-STH",
+            "Other-STH",
+        ]
+        assert lines[1]["datasets"][0]["data"] == [100.0]
+
+    async def test_metadata_is_changed_for_every_source(
+        self, two: Path
+    ) -> None:
+        """Pre and post metadata are the same for every source"""
+
+        with open_metadata_storage(two) as storage:
+            clear_metadata(MetadataPrefix.POST, storage)
+            write_metadata(
+                MetadataPrefix.POST, Metadata("2", "turning", {"feed": 3}), storage
+            )
+
+        for source in ("Test-STH", "Other-STH"):
+            attributes = get_file_data(
+                str(two), source
+            ).acceleration_meta.attributes
+            assert attributes["post_metadata"]["profile"] == "turning"
+            assert attributes["pre_metadata"]["profile"] == "milling"
+
+    async def test_cloud_upload(self, two: Path) -> None:
+        """The whole file is uploaded, described by the first source"""
+
+        # The upload expects pre and post metadata
+        with open_metadata_storage(two) as storage:
+            write_metadata(
+                MetadataPrefix.POST, Metadata("1", "milling", {}), storage
+            )
+        client = MagicMock()
+        config: Any = SimpleNamespace(virtual_group_root="root")
+
+        await upload_file(two.name, client, str(two.parent), config)
+
+        client.upload_file.assert_called_once()
+        path, details = client.upload_file.call_args.args
+        assert path == str(two)
+        assert details.virtual_group == "root/milling"
+        assert details.metadata["attributes"]["sth_mac_address"] == (
+            "11-11-11-11-11-01"
+        )
 
 
 class TestMetadata:

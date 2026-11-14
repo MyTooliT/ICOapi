@@ -20,6 +20,7 @@ JSON in the ``additional_data`` of the source, below the key ``icoapi``.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 import json
 import logging
 from pathlib import Path
@@ -32,7 +33,7 @@ import numpy as np
 import pandas as pd
 from tables import NoSuchNodeError
 
-from icoapi.models.models import EmbeddedFileInfo
+from icoapi.models.models import EmbeddedFileInfo, SourceInfo
 
 # -- Globals ------------------------------------------------------------------
 
@@ -135,6 +136,7 @@ class BundleFileData:
     attributes: dict[str, str]
     pictures: dict[str, list[str]]
     embedded_files: list[EmbeddedFileInfo]
+    sources: list[SourceInfo]
 
 
 # -- Functions ----------------------------------------------------------------
@@ -186,6 +188,67 @@ def _primary_tables(file: h5py.File) -> list[h5py.Dataset]:
     return [group[name] for group in _source_groups(file) if name in group]
 
 
+def _named_tables(file: h5py.File) -> list[tuple[str, h5py.Dataset]]:
+    """Get the name and the table with the measurement data of each source"""
+
+    if "primary_table" not in file.attrs:
+        return []
+    table_name = _text(file.attrs["primary_table"])
+    if "sources" in file.attrs and "sources" in file:
+        names = [_text(name) for name in np.atleast_1d(file.attrs["sources"])]
+        return [
+            (name, file["sources"][name][table_name])
+            for name in names
+            if table_name in file["sources"][name]
+        ]
+    if table_name not in file:
+        return []
+    table = file[table_name]
+    # Name of the only source if the file does not say
+    return [(_text(table.attrs.get("source_name", "source1")), table)]
+
+
+def _start_offsets(times: list[str | None]) -> list[float | None]:
+    """Get the seconds between the earliest start time and each start time"""
+
+    parsed: list[datetime | None] = []
+    for time in times:
+        try:
+            parsed.append(datetime.fromisoformat(time) if time else None)
+        except ValueError:
+            parsed.append(None)
+    known = [time for time in parsed if time is not None]
+    earliest = min(known) if known else None
+    return [
+        None if time is None or earliest is None
+        else (time - earliest).total_seconds()
+        for time in parsed
+    ]
+
+
+def list_sources(path: Path | str) -> list[SourceInfo]:
+    """Get the sources of a bundle file (also those without data)"""
+
+    with h5py.File(path, "r") as file:
+        tables = _named_tables(file)
+        attributes = [
+            {key: _text(value) for key, value in table.attrs.items()}
+            for _name, table in tables
+        ]
+
+    offsets = _start_offsets([attribute.get("Start_Time") for attribute in attributes])
+    return [
+        SourceInfo(
+            name=name,
+            stu_mac=attribute.get("stu_mac"),
+            sth_mac=attribute.get("sth_mac"),
+            start_time=attribute.get("Start_Time"),
+            start_offset=offset,
+        )
+        for (name, _table), attribute, offset in zip(tables, attributes, offsets)
+    ]
+
+
 def source_name(tool_name: str | None) -> str:
     """Get a valid name for the source of a measurement with the given tool"""
 
@@ -193,11 +256,19 @@ def source_name(tool_name: str | None) -> str:
     return name if name else "sth"
 
 
-def read_bundle_file(path: Path | str) -> BundleFileData:
-    """Read the data and metadata of a bundle file in the old shape
+def read_bundle_file(  # pylint: disable=too-many-locals
+    path: Path | str, source: str | None = None
+) -> BundleFileData:
+    """Read the data and metadata of a source of a bundle file in the old shape
 
-    Only files with a single source (what the API stores for a single STU) can
-    be shown in the old shape.
+    Args:
+
+        path:
+            The path of the bundle file
+
+        source:
+            The name of the source (see :func:`list_sources`). A file with a
+            single source does not need it.
 
     Raises:
 
@@ -205,22 +276,38 @@ def read_bundle_file(path: Path | str) -> BundleFileData:
             If the file does not contain measurement data (yet)
 
         HTTPException:
-            If the file contains data of multiple sources
+            If the file has more than one source and ``source`` does not say
+            which one to show (422), or if there is no such source (404)
 
     """
 
+    sources = list_sources(path)
+    names = [info.name for info in sources]
+    if source is None and len(names) > 1:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"File contains {len(names)} sources. Select one with the "
+                f"parameter “source”: {', '.join(names)}"
+            ),
+        )
+    if source is not None and source not in names:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"File has no source “{source}”. "
+                + (f"Sources: {', '.join(names)}" if names else "It has no sources")
+            ),
+        )
+
     with h5py.File(path, "r") as file:
-        tables = _primary_tables(file)
+        tables = [
+            table
+            for name, table in _named_tables(file)
+            if source is None or name == source
+        ]
         if not tables:
             raise NoSuchNodeError(f"No measurement data in file “{path}”")
-        if len(tables) > 1:
-            raise HTTPException(
-                status_code=501,
-                detail=(
-                    f"File contains {len(tables)} sources, but only files "
-                    "with one source can be shown"
-                ),
-            )
 
         table = tables[0]
         rows = table[()]
@@ -254,6 +341,7 @@ def read_bundle_file(path: Path | str) -> BundleFileData:
             extra.get("sensors") or _sensors_from_table(sensors, slots)
         ),
         attributes=_old_attributes(attributes, extra),
+        sources=sources,
         pictures=attachments.read_pictures(str(path)),
         embedded_files=[
             EmbeddedFileInfo(

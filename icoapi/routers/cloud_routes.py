@@ -14,6 +14,7 @@ from icoapi.models.trident import (
     FileUploadDetails, HostNotFoundError,
     PresignError, RemoteObjectDetails, StorageClient,
 )
+from icoapi.scripts.bundle import is_bundle_file, list_sources
 from icoapi.scripts.data_handling import get_file_data
 from icoapi.scripts.errors import (
     HTTP_500_CLOUD_UPLOAD_PRESIGN_EXCEPTION,
@@ -47,7 +48,13 @@ async def upload_file(
         )
     else:
         full_path = os.path.join(measurement_dir, filename)
-        file_data = get_file_data(full_path)
+        # The whole file is uploaded. Pre and post metadata are the same for
+        # every source of a file, so the metadata of the first source
+        # describes the file.
+        sources = list_sources(full_path) if is_bundle_file(full_path) else []
+        file_data = get_file_data(
+            full_path, sources[0].name if sources else None
+        )
         metadata = file_data.acceleration_meta
 
         for (key, item) in metadata.attributes["pre_metadata"]["parameters"].items():

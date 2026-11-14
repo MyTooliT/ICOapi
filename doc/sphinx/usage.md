@@ -83,6 +83,6 @@ What is different in a bundle:
 - Pictures are stored in the group `pictures`, embedded files in the group `files`.
 - Everything that ICOschema has no field for (which streaming slot a channel is, the sensors as configured, the name of the tool, …) is stored in the `additional_data` of the source, below the key `icoapi`.
 
-The API reads and changes files of both formats, whatever the variable says: The format of a file is part of the file. Endpoints that show the data of a measurement look the same for both formats. Files with more than one source are not supported by them yet (`501`).
+The API reads and changes files of both formats, whatever the variable says: The format of a file is part of the file. Endpoints that show the data of a measurement look the same for both formats. For a file with more than one source, `GET /files/analyze/{name}` and `GET /files/analyze/meta/{name}` take the query parameter `source` (the name of the source). Without it they answer `422` and list the sources, an unknown source gives `404`. A file with a single source does not need the parameter. The metadata lists all `sources` of a file with their MAC addresses, their start time and the offset (in seconds) to the earliest start of all sources, since every source has its own clock. The cloud upload sends the whole file and describes it with the metadata of its first source (pre and post metadata are the same for all sources).
 
 Only one STU is supported at the moment: this switches the file format, not (yet) the number of STUs the API can use.

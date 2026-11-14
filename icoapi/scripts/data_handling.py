@@ -692,15 +692,39 @@ def merge_pictures_into_metadata(
 
 def get_file_data(
         file_path: str,
+        source: str | None = None,
 ) -> ParsedHDF5FileContent:
     """Get HDF5 measurement data
 
     This works for files in the old format and for ICOschema bundles (see
     :mod:`icoapi.scripts.bundle`).
+
+    Args:
+
+        file_path:
+            The path of the measurement file
+
+        source:
+            The name of the source of the data. Only bundles have sources: A
+            bundle with a single source does not need it, a bundle with more
+            sources does. Files in the old format have no sources.
+
+    Raises:
+
+        HTTPException:
+            If the file has more than one source and ``source`` does not say
+            which one to use (422), or if there is no such source (404)
+
     """
 
     if is_bundle_file(file_path):
-        return get_bundle_file_data(file_path)
+        return get_bundle_file_data(file_path, source)
+
+    if source is not None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"File has no source “{source}”. It has no sources",
+        )
 
     with tables.open_file(file_path, mode="r") as file_handle:
 
@@ -758,11 +782,13 @@ def get_file_data(
 # pylint: enable=too-many-locals
 
 
-def get_bundle_file_data(file_path: str) -> ParsedHDF5FileContent:
-    """Get the measurement data of an ICOschema bundle in the old shape"""
+def get_bundle_file_data(
+    file_path: str, source: str | None = None
+) -> ParsedHDF5FileContent:
+    """Get the measurement data of a source of an ICOschema bundle"""
 
     try:
-        data = read_bundle_file(file_path)
+        data = read_bundle_file(file_path, source)
     except NoSuchNodeError as error:
         raise AccelerationDataNotFoundError from error
 
@@ -783,6 +809,7 @@ def get_bundle_file_data(file_path: str) -> ParsedHDF5FileContent:
         acceleration_meta=acceleration_meta,
         pictures=data.pictures,
         embedded_files=data.embedded_files,
+        sources=data.sources,
     )
 
 
