@@ -29,6 +29,7 @@ from icoschema.v2 import (
     LinearConversion,
     Sensor as SchemaSensor,
     SourceSpec,
+    SourceWriter,
 )
 from icostate import ADCConfiguration, ICOsystem
 from icotronic.can.dataloss import MessageStats
@@ -243,13 +244,179 @@ class LegacyRecordingFile(RecordingFile):
         return self.storage.dataloss()
 
 
+class SourceRecorder:
+    """Store the data of one source of a bundle
+
+    Args:
+
+        source:
+            The writer of the source
+
+        streaming_configuration:
+            The channels of the source
+
+    """
+
+    def __init__(
+        self,
+        source: SourceWriter,
+        streaming_configuration: StreamingConfiguration,
+    ) -> None:
+        self._source = source
+        self._single_channel = len(streaming_configuration.axes()) == 1
+        self._stats = MessageStats()
+        self._last_counter: int | None = None
+
+    def set_start_time(self, start_time: str) -> None:
+        """Set the time of the first message (ISO 8601, without timezone)"""
+
+        self._source.update(start_time=start_time)
+
+    def add_streaming_data(self, data: StreamingData) -> None:
+        """Store streaming data
+
+        The timestamp of the data is the time (in seconds) since the start of
+        the measurement.
+        """
+
+        counter = data.counter
+        if self._last_counter is None:
+            self._stats.retrieved = 1
+        elif counter != self._last_counter:
+            self._stats.retrieved += 1
+            self._stats.lost += (counter - self._last_counter) % 256 - 1
+        self._last_counter = counter
+
+        # Microseconds since the start of the measurement
+        timestamp = int(round(data.timestamp * 1_000_000))
+        if self._single_channel:
+            # One enabled channel: Every message contains three values (that
+            # share counter and timestamp) of that channel
+            for value in data.values:
+                self._source.append_row(timestamp, [value], counter)
+        else:
+            self._source.append_row(timestamp, data.values, counter)
+
+    def dataloss(self) -> float:
+        """Get the amount of lost messages (between 0 and 1)"""
+
+        return self._stats.dataloss()
+
+
+# pylint: disable-next=too-many-arguments,too-many-locals
+def create_source_spec(
+    *,
+    name: str,
+    adc: ADCConfiguration,
+    system: ICOsystem,
+    tool_name: str | None,
+    start_supply_voltage: float | None,
+    resolved_channels: ResolvedMeasurementChannels,
+    stu_mac_address: str,
+    pre_metadata: str | None,
+) -> SourceSpec:
+    """Describe the source of a bundle that stores the data of a measurement
+
+    Args:
+
+        name:
+            The name of the source
+
+        adc:
+            The ADC configuration that is used for the measurement
+
+        system:
+            The system the data comes from
+
+        tool_name:
+            The name of the sensor device
+
+        start_supply_voltage:
+            The supply voltage of the sensor device at the start
+
+        resolved_channels:
+            The sensors of the channels of the measurement
+
+        stu_mac_address:
+            The MAC address of the STU
+
+        pre_metadata:
+            Metadata (JSON) of the measurement
+
+    Returns:
+
+        The description of the source, with everything that is known before
+        the first data arrives
+
+    """
+
+    assert system.sensor_node_attributes is not None
+
+    slots = [
+        slot
+        for slot in SLOTS
+        if getattr(resolved_channels, slot).channel_number != 0
+    ]
+    channels: list[ChannelMetadata] = []
+    sensors: list[dict[str, Any]] = []
+    for slot in slots:
+        resolved = getattr(resolved_channels, slot)
+        sensor = resolved.sensor
+        assert sensor is not None
+        channels.append(
+            ChannelMetadata(
+                sensor=SchemaSensor(
+                    sensor_id=sensor.sensor_id,
+                    sensor_type=sensor.sensor_type,
+                    name=sensor.name,
+                    unit=sensor.unit,
+                    dimension=sensor.dimension,
+                ),
+                # The values are converted before they are stored: The
+                # conversion describes what was done to the voltage
+                conversion=LinearConversion(
+                    gain=sensor.scaling_factor, offset=sensor.offset
+                ),
+            )
+        )
+        sensors.append({
+            **sensor.model_dump(),
+            "channel_number": resolved.channel_number,
+        })
+
+    return SourceSpec(
+        name=name,
+        channels=channels,
+        stu_mac=stu_mac_address,
+        sth_mac=system.sensor_node_attributes.mac_address.format(),
+        adc_reference_voltage=adc.reference_voltage,
+        adc_prescaler=adc.prescaler,
+        adc_acquisition_time=adc.acquisition_time,
+        adc_oversample_rate=adc.oversampling_rate,
+        pre_metadata=pre_metadata,
+        additional_data=json.dumps({
+            ADDITIONAL_DATA_KEY: {
+                "version": _api_version(),
+                "slots": slots,
+                "sensors": sensors,
+                "tool_name": tool_name or "",
+                "start_supply_voltage": start_supply_voltage,
+                "simulated": (
+                    "true" if isinstance(system, SimulatedICOsystem) else None
+                ),
+            }
+        }),
+    )
+
+
 class BundleRecordingFile(RecordingFile):
     """Store measurement data as ICOschema bundle
 
-    The measurement is the only source of the bundle for now. The values are
-    stored as they are in the old format: converted into the unit of the
-    sensor. The conversion that was applied (volt to unit of the sensor) is
-    part of the file.
+    The measurement is the only source of the bundle. The values are stored
+    as they are in the old format: converted into the unit of the sensor. The
+    conversion that was applied (volt to unit of the sensor) is part of the
+    file. (Measurements of several units are stored by
+    :mod:`icoapi.scripts.group_measurement`.)
     """
 
     def __init__(
@@ -257,10 +424,8 @@ class BundleRecordingFile(RecordingFile):
     ) -> None:
         super().__init__(path, streaming_configuration)
         self._writer: BundleWriter | None = None
-        self._source: Any = None
+        self._recorder: SourceRecorder | None = None
         self._first = True
-        self._stats = MessageStats()
-        self._last_counter: int | None = None
 
     def __enter__(self) -> Self:
         return self
@@ -274,8 +439,7 @@ class BundleRecordingFile(RecordingFile):
         if self._writer is not None:
             self._writer.close()
 
-    # pylint: disable-next=too-many-arguments,too-many-locals
-    def start(
+    def start(  # pylint: disable=too-many-arguments
         self,
         *,
         adc: ADCConfiguration,
@@ -289,71 +453,25 @@ class BundleRecordingFile(RecordingFile):
         # pylint: disable-next=import-outside-toplevel,cyclic-import
         from icoapi.scripts.measurement import write_metadata
 
-        assert system.sensor_node_attributes is not None
-
-        slots = [
-            slot
-            for slot in SLOTS
-            if getattr(resolved_channels, slot).channel_number != 0
-        ]
-        channels: list[ChannelMetadata] = []
-        sensors: list[dict[str, Any]] = []
-        for slot in slots:
-            resolved = getattr(resolved_channels, slot)
-            sensor = resolved.sensor
-            assert sensor is not None
-            channels.append(
-                ChannelMetadata(
-                    sensor=SchemaSensor(
-                        sensor_id=sensor.sensor_id,
-                        sensor_type=sensor.sensor_type,
-                        name=sensor.name,
-                        unit=sensor.unit,
-                        dimension=sensor.dimension,
-                    ),
-                    # The values are converted before they are stored: The
-                    # conversion describes what was done to the voltage
-                    conversion=LinearConversion(
-                        gain=sensor.scaling_factor, offset=sensor.offset
-                    ),
-                )
-            )
-            sensors.append({
-                **sensor.model_dump(),
-                "channel_number": resolved.channel_number,
-            })
         collected = CollectedMetadata()
         if instructions.meta:
             write_metadata(MetadataPrefix.PRE, instructions.meta, collected)
 
         name = source_name(measurement_state.tool_name)
-        spec = SourceSpec(
+        spec = create_source_spec(
             name=name,
-            channels=channels,
-            stu_mac=stu_mac_address,
-            sth_mac=system.sensor_node_attributes.mac_address.format(),
-            adc_reference_voltage=adc.reference_voltage,
-            adc_prescaler=adc.prescaler,
-            adc_acquisition_time=adc.acquisition_time,
-            adc_oversample_rate=adc.oversampling_rate,
+            adc=adc,
+            system=system,
+            tool_name=measurement_state.tool_name,
+            start_supply_voltage=measurement_state.start_supply_voltage,
+            resolved_channels=resolved_channels,
+            stu_mac_address=stu_mac_address,
             pre_metadata=collected.attributes.get("pre_metadata"),
-            additional_data=json.dumps({
-                ADDITIONAL_DATA_KEY: {
-                    "version": _api_version(),
-                    "slots": slots,
-                    "sensors": sensors,
-                    "tool_name": measurement_state.tool_name or "",
-                    "start_supply_voltage": (
-                        measurement_state.start_supply_voltage
-                    ),
-                    "simulated": (
-                        "true" if isinstance(system, SimulatedICOsystem) else None
-                    ),
-                }
-            }),
         )
         self._writer = BundleWriter(str(self.path), [spec])
-        self._source = self._writer[name]
+        self._recorder = SourceRecorder(
+            self._writer[name], self.streaming_configuration
+        )
         for picture_name, images in collected.pictures.items():
             self._writer.add_picture(picture_name, images)
 
@@ -363,33 +481,17 @@ class BundleRecordingFile(RecordingFile):
         """The sensors are stored when the file is created"""
 
     def add_streaming_data(self, data: StreamingData) -> None:
-        assert self._source is not None
+        assert self._recorder is not None
 
         if self._first:
             self._first = False
             # Same as in the old format: The time of the first message
-            self._source.update(start_time=datetime.now().isoformat())
-
-        counter = data.counter
-        if self._last_counter is None:
-            self._stats.retrieved = 1
-        elif counter != self._last_counter:
-            self._stats.retrieved += 1
-            self._stats.lost += (counter - self._last_counter) % 256 - 1
-        self._last_counter = counter
-
-        # Microseconds since the start of the measurement
-        timestamp = int(round(data.timestamp * 1_000_000))
-        if len(self.streaming_configuration.axes()) == 1:
-            # One enabled channel: Every message contains three values (that
-            # share counter and timestamp) of that channel
-            for value in data.values:
-                self._source.append_row(timestamp, [value], counter)
-        else:
-            self._source.append_row(timestamp, data.values, counter)
+            self._recorder.set_start_time(datetime.now().isoformat())
+        self._recorder.add_streaming_data(data)
 
     def dataloss(self) -> float:
-        return self._stats.dataloss()
+        assert self._recorder is not None
+        return self._recorder.dataloss()
 
 
 # -- Functions ----------------------------------------------------------------

@@ -126,7 +126,9 @@ async def sth(
             STHDeviceResponseModel.from_network(device) for device in devices
         ]
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_stu_connected(False)
+        await ICOsystemSingleton.refresh_system_stu_connected(
+            system, False
+        )
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -152,7 +154,9 @@ async def sth_connect(
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_stu_connected(False)
+        await ICOsystemSingleton.refresh_system_stu_connected(
+            system, False
+        )
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
     await get_messenger().push_messenger_update()
 
@@ -173,7 +177,9 @@ async def sth_disconnect(system: ICOsystem = Depends(get_system)) -> None:
     except IncorrectStateError as error:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_stu_connected(False)
+        await ICOsystemSingleton.refresh_system_stu_connected(
+            system, False
+        )
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
     await get_messenger().push_messenger_update()
 
@@ -201,7 +207,9 @@ async def sth_rename(
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_stu_connected(False)
+        await ICOsystemSingleton.refresh_system_stu_connected(
+            system, False
+        )
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -262,7 +270,9 @@ async def read_adc(system: ICOsystem = Depends(get_system)) -> ADCValues:
 
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_stu_connected(False)
+        await ICOsystemSingleton.refresh_system_stu_connected(
+            system, False
+        )
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -285,7 +295,9 @@ async def write_adc(
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_stu_connected(False)
+        await ICOsystemSingleton.refresh_system_stu_connected(
+            system, False
+        )
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 

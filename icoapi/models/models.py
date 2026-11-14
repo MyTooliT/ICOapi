@@ -191,6 +191,7 @@ class MeasurementInstructions:
     wait_for_post_meta: bool = False
     disconnect_after_measurement: bool = False
     sensor_configuration: PCBSensorConfiguration | None = None
+    unit_mac_addresses: dict[str, str] | None = None
 
 
 # pylint: enable=too-many-instance-attributes
@@ -206,6 +207,17 @@ class DataValueModel(BaseModel, JSONEncoder):
     ift: list | None
     counter: int | None
     dataloss: float | None
+
+
+class SourcedDataValueModel(DataValueModel):
+    """Measured data (or data loss) of a source of a measurement
+
+    A measurement with several units sends the data of all units through the
+    same WebSocket. The name of the source is the name of the source in the
+    measurement file.
+    """
+
+    source: str
 
 
 @unique
@@ -362,6 +374,16 @@ class CANNetwork(BaseModel):
     channel: str
     bitrate: int | None = None
 
+    @property
+    def key(self) -> str:
+        """Identifier of the network (``interface:channel``)
+
+        With multi STU support every network belongs to one unit and this
+        is the name of the unit.
+        """
+
+        return f"{self.interface}:{self.channel}"
+
 
 class CANNetworksModel(BaseModel):
     """Information about CAN networks and the current connection"""
@@ -377,6 +399,21 @@ class ConnectedSTHModel(BaseModel):
 
     name: str
     mac_address: str
+
+
+class UnitStateModel(BaseModel, JSONEncoder):
+    """State of a unit: a CAN network with its STU and sensor device
+
+    Only available with multi STU support.
+    """
+
+    unit: str
+    """Name of the unit (``interface:channel`` of its network)"""
+    network: CANNetwork
+    stu_connected: bool
+    """The STU answered the last request"""
+    sth_connected: ConnectedSTHModel | None = None
+    """Sensor device the STU is connected to (``None`` if there is none)"""
 
 
 class SystemStateModel(BaseModel, JSONEncoder):
@@ -401,6 +438,12 @@ class SystemStateModel(BaseModel, JSONEncoder):
     disk_capacity: DiskCapacity
     measurement_status: MeasurementStatus
     cloud: Feature
+    units: list[UnitStateModel] | None = None
+    """All units (``None`` without multi STU support)
+
+    The other fields describe the first unit, the one that is used if no unit
+    is chosen. Measurements use all units.
+    """
 
 
 class SocketMessage(BaseModel, JSONEncoder):

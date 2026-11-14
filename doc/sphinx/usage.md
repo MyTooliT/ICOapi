@@ -85,4 +85,32 @@ What is different in a bundle:
 
 The API reads and changes files of both formats, whatever the variable says: The format of a file is part of the file. Endpoints that show the data of a measurement look the same for both formats. For a file with more than one source, `GET /files/analyze/{name}` and `GET /files/analyze/meta/{name}` take the query parameter `source` (the name of the source). Without it they answer `422` and list the sources, an unknown source gives `404`. A file with a single source does not need the parameter. The metadata lists all `sources` of a file with their MAC addresses, their start time and the offset (in seconds) to the earliest start of all sources, since every source has its own clock. The cloud upload sends the whole file and describes it with the metadata of its first source (pre and post metadata are the same for all sources).
 
-Only one STU is supported at the moment: this switches the file format, not (yet) the number of STUs the API can use.
+### Units
+
+With multi STU support every STU has a CAN network of its own, and every connected network is a *unit*: a network with its STU and the sensor device (STH) that is connected to it. The name of a unit is `interface:channel` of its network, e.g. `pcan:PCAN_USBBUS2`.
+
+- `PUT /can/connect` adds the network as unit (without the variable it replaces the connected network). On startup, `ICOAPI_CAN_AUTOCONNECT=1` connects all networks that were found and skips those without an answering STU.
+- `GET /can/units` lists the units. The state contains them (`units`) too. Its other fields (`can_selected`, `sth_connected`, …) describe the first unit.
+- `PUT /can/disconnect?unit=…` disconnects one unit, without `unit` all of them.
+- All requests that work with an STU or a sensor device (`/stu/…`, `/sth/…`) take the parameter `unit`. Without it they use the first unit.
+
+### Measurements with all units
+
+A measurement always uses **all** units, with the same instructions (channels, sensors, ADC). All data ends up in one file with one source per unit, named after its sensor device (a number is added to names that are used more than once).
+
+Starting is all-or-nothing. Before anything starts, all units are checked at the same time (`GET /measurement/preflight` does the same without changing anything):
+
+- the STU answers and a sensor device is connected,
+- the connection to the sensor device is good enough (RSSI of at least `ICOAPI_MIN_RSSI`, default `-90`),
+- the sensor device accepts the configuration (`/measurement/start` writes it and reads it back),
+- the CAN bus of the unit can transport the data (at most `ICOAPI_MAX_MESSAGES_PER_SECOND` streaming messages per second, default `7000`).
+
+If one unit is not ready, nothing starts and the answer (`502`) lists the problems of every unit. `POST /measurement/execute` connects the sensor devices first: give the MAC address of the sensor device of every unit in `unit_mac_addresses` (`{"simulated:SIM1": "14-2D-41-D7-77-7D", …}`). If anything fails, no unit stays connected.
+
+While measuring, every unit streams on its own. The WebSocket sends the data of all units, every value has the name of its source in `source`. If the stream of one unit fails, the measurement fails as a whole. What was recorded until then stays in the (closed) file. A measurement can be stopped with `/measurement/stop`, which stops all units.
+
+The clocks of the units are not synchronized. Every source has the time of its first message as `start_time` (taken from the timestamp of the message, so the start times of all units can be compared) and timestamps in microseconds since that time. `start_offset` in the `sources` of the metadata is the offset to the earliest source. The start of the units differs by the time the first message of each takes.
+
+Not supported with several units: IFT values (`422`). A measurement with one unit works as before.
+
+To try it without hardware, set `ICOAPI_SIMULATE_NETWORKS=2` (or more) next to `ICOAPI_SIMULATE`: every simulated network has its own STU (`02-1C-05-51-FF-0n`) and its own sensor devices (`Test-STH`, `Test-STH-2`, …).

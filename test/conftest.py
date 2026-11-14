@@ -115,6 +115,7 @@ def reset_can_state() -> None:
 
     # pylint: disable=protected-access
     ICOsystemSingleton._instance = None
+    ICOsystemSingleton._units = {}
     ICOsystemSingleton.status = CANStatus.NO_NETWORK
     ICOsystemSingleton.networks = []
     ICOsystemSingleton.selected = None
@@ -132,13 +133,21 @@ def isolated_can_state() -> Iterator[None]:
 
     names = (
         "_instance",
+        "_units",
         "status",
         "networks",
         "selected",
         "error",
         "stu_connected",
     )
-    saved = {name: getattr(ICOsystemSingleton, name) for name in names}
+    saved = {
+        name: (
+            dict(value)
+            if isinstance(value := getattr(ICOsystemSingleton, name), dict)
+            else value
+        )
+        for name in names
+    }
     reset_can_state()
     yield
     for name, value in saved.items():
@@ -256,6 +265,8 @@ def fake_can_connection(request) -> Iterator[None]:
         ICOsystemSingleton.networks,
         ICOsystemSingleton.stu_connected,
     )
+    original_units = ICOsystemSingleton._units
+    ICOsystemSingleton._units = {}
     network = CANNetwork(interface="virtual", channel="test")
     system = MagicMock()
     system.is_sensor_node_connected = AsyncMock(return_value=False)
@@ -267,6 +278,7 @@ def fake_can_connection(request) -> Iterator[None]:
 
     yield
 
+    ICOsystemSingleton._units = original_units
     (
         ICOsystemSingleton._instance,
         ICOsystemSingleton.status,

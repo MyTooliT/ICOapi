@@ -56,10 +56,10 @@ from icoapi.scripts.measurement import (
     write_metadata,
 )
 
-# pylint: disable=wrong-import-order
+# pylint: disable=wrong-import-order,import-error
 from test_measurement_events import FakeStream, Measurement
 
-# pylint: enable=wrong-import-order
+# pylint: enable=wrong-import-order,import-error
 
 # pylint: disable=redefined-outer-name,too-few-public-methods
 
