@@ -27,6 +27,11 @@ setup:
 	uv venv --allow-existing
 	uv sync --all-extras
 
+# Reset CAN adapter (release it, flush buffers, search for networks again)
+[group('setup')]
+reset-can:
+	uv run python -c "import asyncio; from icoapi.models.globals import ICOsystemSingleton; asyncio.run(ICOsystemSingleton.reset())"
+
 # Check code with various linters
 [group('lint')]
 check: setup

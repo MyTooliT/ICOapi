@@ -50,6 +50,7 @@ jobs:
 
       - name: Reset ICOtronic hardware
         run: |
+          just reset-can
           uv run icon stu reset
 
       - name: Check if test sensor node is available
