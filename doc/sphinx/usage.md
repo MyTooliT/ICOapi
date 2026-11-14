@@ -137,6 +137,10 @@ A unit can have its own `first`, `second`, `third`, `adc`, `sensor_configuration
 
 Every unit is checked for what it does: the load of its CAN bus follows from its own channels and ADC settings, so only the unit with too many messages is not ready. Instructions for a unit that does not exist, or a sensor that does not exist for a unit, are an error (`422`, naming the unit). Without multi STU support `units` is refused (`422`), since ignoring it would measure something else than was asked for. With one unit, the instructions for that unit are applied.
 
+### Writing the measurement file
+
+A thread of its own writes the measurement file, so a disk that is slow for a moment does not hold up the streams. The data waits in a queue (about 2 minutes of the data of a unit). If the disk is so slow that the queue is full, or if writing fails (e.g. the disk is full), the measurement fails with an error that says so, instead of losing data without notice. The file is closed correctly and keeps what was written. The file is flushed to disk every few seconds.
+
 Not supported with several units: IFT values (`422`). A measurement with one unit works as before.
 
 To try it without hardware, set `ICOAPI_SIMULATE_NETWORKS=2` (or more) next to `ICOAPI_SIMULATE`: every simulated network has its own STU (`02-1C-05-51-FF-0n`) and its own sensor devices (`Test-STH`, `Test-STH-2`, …).

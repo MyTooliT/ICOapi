@@ -249,7 +249,7 @@ class TestRecording:
             raise OSError("Unable to create file")
 
         set_format(monkeypatch, "bundle")
-        monkeypatch.setattr(recording, "BundleWriter", writer)
+        monkeypatch.setattr(recording, "ThreadedBundleWriter", writer)
         fake = Measurement(tmp_path, monkeypatch)
 
         await fake.run(FakeStream([0.0]))

@@ -24,12 +24,10 @@ from types import TracebackType
 from typing import Any, Self
 
 from icoschema.v2 import (
-    BundleWriter,
     ChannelMetadata,
     LinearConversion,
     Sensor as SchemaSensor,
     SourceSpec,
-    SourceWriter,
 )
 from icostate import ADCConfiguration, ICOsystem
 from icotronic.can.dataloss import MessageStats
@@ -51,6 +49,7 @@ from icoapi.scripts.bundle import (
 from icoapi.scripts.data_handling import add_sensor_data_to_storage
 from icoapi.scripts.features import multi_stu_support
 from icoapi.scripts.simulation import SimulatedICOsystem
+from icoapi.scripts.writer_thread import ThreadedBundleWriter, ThreadedSource
 
 # -- Globals ------------------------------------------------------------------
 
@@ -259,7 +258,7 @@ class SourceRecorder:
 
     def __init__(
         self,
-        source: SourceWriter,
+        source: ThreadedSource,
         streaming_configuration: StreamingConfiguration,
     ) -> None:
         self._source = source
@@ -423,7 +422,7 @@ class BundleRecordingFile(RecordingFile):
         self, path: Path, streaming_configuration: StreamingConfiguration
     ) -> None:
         super().__init__(path, streaming_configuration)
-        self._writer: BundleWriter | None = None
+        self._writer: ThreadedBundleWriter | None = None
         self._recorder: SourceRecorder | None = None
         self._first = True
 
@@ -468,12 +467,14 @@ class BundleRecordingFile(RecordingFile):
             stu_mac_address=stu_mac_address,
             pre_metadata=collected.attributes.get("pre_metadata"),
         )
-        self._writer = BundleWriter(str(self.path), [spec])
+        self._writer = ThreadedBundleWriter(str(self.path), [spec])
         self._recorder = SourceRecorder(
             self._writer[name], self.streaming_configuration
         )
         for picture_name, images in collected.pictures.items():
             self._writer.add_picture(picture_name, images)
+        # Problems with the file show up now, not with the first data
+        self._writer.flush()
 
     def add_sensors(
         self, resolved_channels: ResolvedMeasurementChannels

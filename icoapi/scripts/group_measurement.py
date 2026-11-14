@@ -34,7 +34,6 @@ from icotronic.can.streaming import (
     StreamingConfiguration,
     StreamingTimeoutError,
 )
-from icoschema.v2 import BundleWriter
 from starlette.websockets import WebSocketDisconnect
 
 from icoapi.models.event_bus import Channel
@@ -63,6 +62,7 @@ from icoapi.scripts.preflight import UnitCheck
 from icoapi.scripts.recording import SourceRecorder, create_source_spec
 from icoapi.scripts.sth_scripts import disconnect_sth_devices
 from icoapi.scripts.unit_instructions import UnitSetup
+from icoapi.scripts.writer_thread import ThreadedBundleWriter
 
 # -- Globals ------------------------------------------------------------------
 
@@ -341,7 +341,7 @@ async def run_group_measurement(
             for run in runs
         ]
 
-        writer = BundleWriter(str(measurement_file_path), specs)
+        writer = ThreadedBundleWriter(str(measurement_file_path), specs)
         try:
             logger.info(
                 "Opened measurement file: <%s> for writing (%s sources)",
@@ -350,6 +350,8 @@ async def run_group_measurement(
             )
             for picture_name, images in collected.pictures.items():
                 writer.add_picture(picture_name, images)
+            # Problems with the file show up now, not with the first data
+            writer.flush()
             for run in runs:
                 run.recorder = SourceRecorder(
                     writer[run.name], run.streaming_configuration
