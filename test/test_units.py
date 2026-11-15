@@ -517,6 +517,7 @@ class TestMeasurement:
         ]
         payload = recording_event_bus.events[0][1]
         assert payload["error"]["type"] == "StreamingTimeoutError"
+        assert payload["failed_unit"] == UNITS[1]
         assert payload["size"] > 0
         assert any(
             isinstance(message, dict) and message.get("error")
@@ -615,6 +616,142 @@ class TestMeasurement:
         (path,) = measurement_files(files)
         sources = read_sources(path)
         assert list(sources) == ["Test-STH"]
+
+
+class TestMeasurementUnits:
+    """The units of a measurement in the status and in the events"""
+
+    async def test_status_and_events(
+        self,
+        with_sensor_nodes: None,
+        http: AsyncClient,
+        files: Path,
+        recording_event_bus,
+    ) -> None:
+        """Status and events name the unit and the source of every unit"""
+
+        del with_sensor_nodes, files
+        response = await http.post("measurement/start", json=instructions())
+        assert response.status_code == 200, response.text
+        started = response.json()["data"]["units"]
+        running = (await http.get("measurement")).json()["units"]
+        await wait_until_stopped()
+
+        assert started == running
+        assert [item["unit"] for item in running] == UNITS
+        assert [item["source"] for item in running] == [
+            "Test-STH",
+            "Test-STH-2",
+        ]
+        for item in running:
+            assert item["tool_name"] == item["source"]
+            assert item["stu_mac_address"]
+            assert item["sth_mac_address"]
+        assert len({item["stu_mac_address"] for item in running}) == 2
+
+        # Nothing is left after the measurement
+        assert (await http.get("measurement")).json()["units"] is None
+
+        ((channel, payload),) = recording_event_bus.events
+        assert channel == Channel.RECORDING_FINISHED
+        assert payload["units"] == running
+
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    async def test_failed_event(
+        self,
+        with_sensor_nodes: None,
+        http: AsyncClient,
+        files: Path,
+        recording_event_bus,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        """The event of a failed measurement has the units, too"""
+
+        del with_sensor_nodes, files
+        original = simulation.SimulatedStream.__anext__
+
+        async def fail(self):
+            if self._index > 200:
+                raise StreamingTimeoutError("No data for 5 seconds")
+            return await original(self)
+
+        monkeypatch.setattr(simulation.SimulatedStream, "__anext__", fail)
+        await http.post("measurement/start", json=instructions(time=None))
+        await wait_until_stopped()
+
+        ((channel, payload),) = recording_event_bus.events
+        assert channel == Channel.RECORDING_FAILED
+        assert [item["source"] for item in payload["units"]] == [
+            "Test-STH",
+            "Test-STH-2",
+        ]
+        # Both failed: the first one is named
+        assert payload["failed_unit"] in UNITS
+
+    async def test_single_unit(
+        self,
+        with_sensor_nodes: None,
+        http: AsyncClient,
+        files: Path,
+        recording_event_bus,
+    ) -> None:
+        """A measurement of one unit has a list with this unit"""
+
+        del with_sensor_nodes, files
+        await ICOsystemSingleton.disconnect(UNITS[1])
+        client = Client()
+        MeasurementSingleton.get_instance().clients.append(client)
+
+        response = await http.post("measurement/start", json=instructions())
+        assert response.status_code == 200, response.text
+        (unit,) = response.json()["data"]["units"]
+        await wait_until_stopped()
+
+        # Every frame names the source, also with one unit
+        frames = [
+            item
+            for message in client.messages
+            if isinstance(message, list)
+            for item in message
+        ]
+        assert frames
+        assert {item["source"] for item in frames} == {"Test-STH"}
+
+        assert unit["unit"] == UNITS[0]
+        assert unit["source"] == "Test-STH"
+        assert unit["stu_mac_address"] and unit["sth_mac_address"]
+        ((_, payload),) = recording_event_bus.events
+        assert payload["units"] == [unit]
+
+    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
+    async def test_without_the_feature(
+        self,
+        simulated_units: None,
+        monkeypatch: MonkeyPatch,
+        http: AsyncClient,
+        files: Path,
+        recording_event_bus,
+    ) -> None:
+        """Without multi STU support there are no units (like before)"""
+
+        del simulated_units, files
+        for name in MULTI_STU_SUPPORT_VARIABLES:
+            monkeypatch.delenv(name, raising=False)
+        await ICOsystemSingleton.scan()
+        await ICOsystemSingleton.connect(NETWORKS[0])
+        unit = ICOsystemSingleton.units()[0]
+        await unit.system.connect_sensor_node_mac(
+            get_simulated_hardware("SIM1").devices[0].mac_address.format()
+        )
+
+        response = await http.post("measurement/start", json=instructions())
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["units"] is None
+        await wait_until_stopped()
+
+        ((_, payload),) = recording_event_bus.events
+        assert "units" not in payload
+        await ICOsystemSingleton.disconnect()
 
 
 class TestExecute:

@@ -289,6 +289,9 @@ class MeasurementFileDetails:
     created: str
     size: int
     cloud: FileCloudDetails
+    sources: list[str] | None = None
+    """Names of the sources of the file (``None`` for files in the old format
+    and for files that can not be read, e.g. while they are written)"""
 
 
 @dataclass
@@ -360,7 +363,24 @@ class ParsedMeasurement(BaseModel, JSONEncoder):
 
 
 @dataclass
-class MeasurementStatus:
+class MeasurementUnit:
+    """A unit that takes part in a measurement (multi STU support only)
+
+    Every unit stores its data in the source ``source`` of the measurement
+    file.
+    """
+
+    unit: str
+    """Name of the unit (``interface:channel`` of its network)"""
+    source: str
+    """Name of the source of the unit in the measurement file"""
+    tool_name: Optional[str] = None
+    stu_mac_address: Optional[str] = None
+    sth_mac_address: Optional[str] = None
+
+
+@dataclass
+class MeasurementStatus:  # pylint: disable=too-many-instance-attributes
     """Measurement status information"""
 
     running: bool
@@ -369,6 +389,8 @@ class MeasurementStatus:
     tool_name: Optional[str] = None
     start_supply_voltage: Optional[float] = None
     instructions: Optional[MeasurementInstructions] = None
+    units: Optional[list[MeasurementUnit]] = None
+    """The units of the measurement (``None`` without multi STU support)"""
 
 
 @dataclass

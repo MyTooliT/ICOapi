@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Annotated, Awaitable
 
 import pathvalidate
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from icostate.error import IncorrectStateError
 from icotronic.can import NoResponseError
 from icotronic.can.error import UnsupportedFeatureException
@@ -21,6 +21,7 @@ from icoapi.models.models import (
     ControlResponse,
     MeasurementInstructionChannel,
     MeasurementInstructions,
+    MeasurementUnit,
     ResolvedChannel,
     ResolvedMeasurementChannels,
 )
@@ -47,8 +48,13 @@ from icoapi.scripts.errors import (
 )
 
 from icoapi.scripts.data_handling import resolve_measurement_channels
+from icoapi.scripts.bundle import source_name
 from icoapi.scripts.features import multi_stu_support
-from icoapi.scripts.group_measurement import run_group_measurement
+from icoapi.scripts.live_stream import configure_client
+from icoapi.scripts.group_measurement import (
+    run_group_measurement,
+    unique_source_names,
+)
 from icoapi.scripts.preflight import (
     UnitCheck,
     check_setups,
@@ -145,6 +151,53 @@ async def _begin_measurement(
         )
 
 
+async def _single_unit_status(
+    system: ICOsystem, tool_name: str | None
+) -> list[MeasurementUnit] | None:
+    """Describe the unit of a measurement with one unit
+
+    Returns:
+
+        The list with the unit that is measured, or ``None`` without multi
+        STU support (or if ``system`` does not belong to a unit).
+
+    """
+
+    if not multi_stu_support():
+        return None
+    unit = next(
+        (
+            unit
+            for unit in ICOsystemSingleton.units()
+            if unit.system is system
+        ),
+        None,
+    )
+    if unit is None:
+        return None
+
+    attributes = getattr(system, "sensor_node_attributes", None)
+    try:
+        stu_mac_address: str | None = (
+            await system.get_stu_mac_address()
+        ).format()
+    except (AttributeError, NoResponseError):
+        stu_mac_address = None
+    return [
+        MeasurementUnit(
+            unit=unit.key,
+            source=source_name(tool_name),
+            tool_name=tool_name,
+            stu_mac_address=stu_mac_address,
+            sth_mac_address=(
+                attributes.mac_address.format()
+                if attributes is not None
+                else None
+            ),
+        )
+    ]
+
+
 async def _begin_measurement_locked(
     instructions: MeasurementInstructions,
     resolved_channels: ResolvedMeasurementChannels,
@@ -185,6 +238,10 @@ async def _begin_measurement_locked(
     except (AttributeError, NoResponseError):
         measurement_state.start_supply_voltage = None
         logger.error("Could not read supply voltage at measurement start!")
+
+    measurement_state.units = await _single_unit_status(
+        system, measurement_state.tool_name
+    )
 
     measurement_state.task = asyncio.create_task(
         run_measurement(
@@ -273,6 +330,19 @@ async def _begin_group_measurement(
         measurement_state.name = filename
         measurement_state.start_time = start.isoformat()
         measurement_state.instructions = instructions
+        measurement_state.units = [
+            MeasurementUnit(
+                unit=check.unit,
+                source=name,
+                tool_name=check.tool_name,
+                stu_mac_address=check.stu_mac_address,
+                sth_mac_address=check.sth_mac_address,
+            )
+            for check, name in zip(
+                checks,
+                unique_source_names([check.tool_name for check in checks]),
+            )
+        ]
         measurement_state.tool_name = ", ".join(
             check.tool_name or check.unit for check in checks
         )
@@ -717,9 +787,26 @@ async def measurement_status(
 async def websocket_endpoint(
     websocket: WebSocket,
     measurement_state: MeasurementState = Depends(get_measurement_state),
+    rate: float | None = Query(
+        None,
+        ge=0,
+        description=(
+            "Points per second and source that are sent (several units). "
+            "Without it all points are sent."
+        ),
+    ),
+    updates: float | None = Query(
+        None,
+        ge=0,
+        description=(
+            "Messages per second (several units). The points collected in "
+            "between are sent together."
+        ),
+    ),
 ):
     """Stream measurement data"""
 
+    configure_client(websocket, rate, updates)
     await websocket.accept()
     measurement_state.clients.append(websocket)
     logger.info(

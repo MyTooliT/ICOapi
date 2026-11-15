@@ -58,11 +58,12 @@ from icoapi.scripts.measurement import (
     publish_recording_event,
     write_metadata,
 )
+from icoapi.scripts.live_stream import flush_clients, send_to_clients
 from icoapi.scripts.preflight import UnitCheck
 from icoapi.scripts.recording import SourceRecorder, create_source_spec
 from icoapi.scripts.sth_scripts import disconnect_sth_devices
 from icoapi.scripts.unit_instructions import UnitSetup
-from icoapi.scripts.writer_thread import ThreadedBundleWriter
+from icoapi.scripts.writer_thread import ThreadedBundleWriter, WriterError
 
 # -- Globals ------------------------------------------------------------------
 
@@ -130,13 +131,9 @@ def unique_source_names(names: list[str | None]) -> list[str]:
 async def _send_to_clients(
     measurement_state: MeasurementState, message: list[dict]
 ) -> None:
-    """Send a message to the clients of the measurement"""
+    """Send points to the clients of the measurement (see ``live_stream``)"""
 
-    for client in measurement_state.clients:
-        try:
-            await client.send_json(message)
-        except RuntimeError:
-            logger.warning("Failed to send data to client <%s>", client.client)
+    await send_to_clients(measurement_state, message)
 
 
 async def _send_dataloss(
@@ -228,6 +225,26 @@ async def _stream_unit(
     run.overall_dataloss = run.recorder.dataloss()
 
 
+async def _stream_unit_guarded(
+    run: UnitRun,
+    instructions: MeasurementInstructions,
+    measurement_state: MeasurementState,
+    failed_units: list[str],
+) -> None:
+    """Stream a unit and remember if its stream is the one that failed
+
+    Problems with the file (a full disk) are not the fault of a unit.
+    """
+
+    try:
+        await _stream_unit(run, instructions, measurement_state)
+    except WriterError:
+        raise
+    except Exception:
+        failed_units.append(run.unit.key)
+        raise
+
+
 async def _run_all(tasks: list["asyncio.Task[None]"]) -> None:
     """Wait for all tasks. Stop all of them, if one fails.
 
@@ -251,9 +268,15 @@ async def _run_all(tasks: list["asyncio.Task[None]"]) -> None:
         task.cancel()
     await asyncio.gather(*pending, return_exceptions=True)
 
-    for task in done:
-        if not task.cancelled() and task.exception() is not None:
-            raise task.exception()  # type: ignore[misc]
+    # Look at the exceptions of all finished tasks: One that nobody retrieves
+    # is reported later, at a random place
+    errors = [
+        error
+        for task in done
+        if not task.cancelled() and (error := task.exception()) is not None
+    ]
+    if errors:
+        raise errors[0]
 
 
 async def _create_runs(
@@ -321,6 +344,7 @@ async def run_group_measurement(
     measurement_file_path = Path(
         f"{get_measurement_dir()}/{measurement_state.name}.hdf5"
     )
+    failed_units: list[str] = []
     try:
         runs = await _create_runs(setups, checks)
 
@@ -359,7 +383,9 @@ async def run_group_measurement(
 
             await _run_all([
                 asyncio.create_task(
-                    _stream_unit(run, instructions, measurement_state)
+                    _stream_unit_guarded(
+                        run, instructions, measurement_state, failed_units
+                    )
                 )
                 for run in runs
             ])
@@ -367,6 +393,7 @@ async def run_group_measurement(
                 await _send_dataloss(
                     measurement_state, run.name, run.overall_dataloss
                 )
+            await flush_clients(measurement_state)
         finally:
             writer.close()
 
@@ -377,13 +404,20 @@ async def run_group_measurement(
         # The measurement file is closed at this point
         await mark_measurement_stopped(measurement_state, general_messenger)
         await publish_recording_event(
-            general_messenger, Channel.RECORDING_FINISHED, measurement_file_path
+            general_messenger,
+            Channel.RECORDING_FINISHED,
+            measurement_file_path,
+            units=measurement_state.units,
         )
 
     except StreamingTimeoutError as error:
         logger.debug("Stream timeout error")
         await _fail(
-            error, measurement_state, general_messenger, measurement_file_path
+            error,
+            measurement_state,
+            general_messenger,
+            measurement_file_path,
+            failed_units[0] if failed_units else None,
         )
     except asyncio.CancelledError as error:
         logger.debug("Measurement cancelled")
@@ -392,6 +426,7 @@ async def run_group_measurement(
             Channel.RECORDING_FAILED,
             measurement_file_path,
             error,
+            units=measurement_state.units,
         )
         raise
     except WebSocketDisconnect as error:
@@ -402,11 +437,16 @@ async def run_group_measurement(
             Channel.RECORDING_FAILED,
             measurement_file_path,
             error,
+            units=measurement_state.units,
         )
     except Exception as error:  # pylint: disable=broad-exception-caught
         logger.exception("Measurement stopped due to an unexpected error")
         await _fail(
-            error, measurement_state, general_messenger, measurement_file_path
+            error,
+            measurement_state,
+            general_messenger,
+            measurement_file_path,
+            failed_units[0] if failed_units else None,
         )
     finally:
         clients = len(measurement_state.clients)
@@ -421,6 +461,7 @@ async def _fail(
     measurement_state: MeasurementState,
     general_messenger: GeneralMessenger,
     measurement_file_path: Path,
+    failed_unit: str | None = None,
 ) -> None:
     """Report a failed measurement"""
 
@@ -431,4 +472,6 @@ async def _fail(
         Channel.RECORDING_FAILED,
         measurement_file_path,
         error,
+        units=measurement_state.units,
+        failed_unit=failed_unit,
     )

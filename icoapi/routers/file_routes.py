@@ -30,6 +30,7 @@ from icoapi.models.models import (
     ParsedMetadata,
 )
 from icoapi.models.trident import RemoteObjectDetails, StorageClient
+from icoapi.scripts.bundle import is_bundle_file, list_sources
 from icoapi.scripts.cloud_scripts import get_cloud_details
 from icoapi.scripts.data_handling import AccelerationDataNotFoundError, get_file_data
 from icoapi.scripts.errors import (
@@ -58,6 +59,18 @@ from icoapi.scripts.measurement import (
 router = APIRouter(prefix="/files", tags=["File Handling"])
 
 logger = logging.getLogger(__name__)
+
+
+def _source_names(file_path: str) -> list[str] | None:
+    """Get the names of the sources of a file (if it has any)"""
+
+    try:
+        if not is_bundle_file(file_path):
+            return None
+        return [source.name for source in list_sources(file_path)]
+    except Exception:  # pylint: disable=broad-exception-caught
+        # E.g. a file that is written at the moment
+        return None
 
 
 @router.get("")
@@ -112,6 +125,7 @@ async def list_files_and_capacity(
                     size=file_size,
                     created=creation_time,
                     cloud=cloud_details,
+                    sources=_source_names(file_path),
                 )
                 files_info.append(details)
         return FileListResponseModel(capacity, files_info, measurement_dir)

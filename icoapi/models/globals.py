@@ -25,6 +25,7 @@ from icoapi.models.models import (
     MeasurementInstructions,
     MeasurementStatus,
     Metadata,
+    MeasurementUnit,
     SystemStateModel,
     CloudConfig,
     UnitStateModel,
@@ -673,6 +674,7 @@ class MeasurementState:
         self.tool_name: str | None = None
         self.start_supply_voltage: float | None = None
         self.instructions: MeasurementInstructions | None = None
+        self.units: list[MeasurementUnit] | None = None
         self.stop_flag = False
         self.pre_meta: Metadata | None = None
 
@@ -689,6 +691,7 @@ class MeasurementState:
         self.tool_name = None
         self.start_supply_voltage = None
         self.instructions = None
+        self.units = None
         self.stop_flag = False
         self.pre_meta = None
         await get_messenger().push_messenger_update()
@@ -703,6 +706,7 @@ class MeasurementState:
             tool_name=self.tool_name,
             start_supply_voltage=self.start_supply_voltage,
             instructions=self.instructions,
+            units=self.units,
         )
 
 

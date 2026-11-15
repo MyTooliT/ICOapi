@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from itertools import repeat
 from pathlib import Path
 from time import monotonic
@@ -25,7 +25,7 @@ from starlette.websockets import WebSocketDisconnect
 from tables import File, Filters, Node, open_file
 import tables.exceptions
 
-from icoapi.models.models import ADCValues
+from icoapi.models.models import ADCValues, MeasurementUnit
 from icoapi.scripts.bundle import (
     BundleFileMetadata,
     BundleMetadataStorage,
@@ -246,7 +246,12 @@ async def send_ift_values(
     )
     for client in measurement_state.clients:
         try:
-            await client.send_json([ift_wrapped.model_dump()])
+            await client.send_json([
+                {
+                    **ift_wrapped.model_dump(),
+                    **frame_source(measurement_state),
+                }
+            ])
             logger.debug("Sent IFT value to client <%s>", client.client)
         except RuntimeError:
             logger.warning("Client must be disconnected, passing")
@@ -440,6 +445,24 @@ def write_image_array(
             storage.hdf.create_array(storage.hdf.root, name, array)
 
 
+def frame_source(measurement_state: MeasurementState) -> dict[str, str]:
+    """Get the ``source`` of the frames a measurement sends to its clients
+
+    With multi STU support every frame names the source of its unit, also if
+    there is only one unit. Without it frames are like they always were.
+
+    Returns:
+
+        A dictionary that can be added to a frame (empty without source)
+
+    """
+
+    units = measurement_state.units
+    if not units:
+        return {}
+    return {"source": units[0].source}
+
+
 def get_sendable_data_and_apply_conversion(
     streaming_configuration: StreamingConfiguration,
     sensor_info: MeasurementSensorInfo,
@@ -587,15 +610,18 @@ async def send_dataloss(
     for client in measurement_state.clients:
         try:
             await client.send_json([
-                DataValueModel(
-                    first=None,
-                    second=None,
-                    third=None,
-                    ift=None,
-                    counter=None,
-                    timestamp=None,
-                    dataloss=dataloss,
-                ).model_dump()
+                {
+                    **DataValueModel(
+                        first=None,
+                        second=None,
+                        third=None,
+                        ift=None,
+                        counter=None,
+                        timestamp=None,
+                        dataloss=dataloss,
+                    ).model_dump(),
+                    **frame_source(measurement_state),
+                }
             ])
         except RuntimeError:
             logger.warning(
@@ -634,7 +660,10 @@ async def mark_measurement_stopped(
 
 
 def create_recording_payload(
-    measurement_file_path: Path, error: BaseException | None = None
+    measurement_file_path: Path,
+    error: BaseException | None = None,
+    units: list[MeasurementUnit] | None = None,
+    failed_unit: str | None = None,
 ) -> dict[str, Any]:
     """Create the payload of an event about a finished measurement
 
@@ -646,13 +675,22 @@ def create_recording_payload(
         error:
             The error that stopped the measurement, if any
 
+        units:
+            The units of the measurement (multi STU support only)
+
+        failed_unit:
+            The unit whose stream caused the error (if it is known)
+
     Returns:
 
         Dictionary with the name of the measurement file, its size in bytes
         and the route to download it. The size and the route are ``None`` if
         the file does not exist (e.g. because the measurement failed before
         the file was created). The error (type and message) is only part of
-        the payload if there was an error.
+        the payload if there was an error. The list ``units`` (see
+        :class:`~icoapi.models.models.MeasurementUnit`) is only part of the
+        payload with multi STU support: Every unit has the name of its source
+        in the file.
 
     """
 
@@ -668,6 +706,11 @@ def create_recording_payload(
     if error is not None:
         payload["error"] = {"type": type(error).__name__, "message": str(error)}
 
+    if units is not None:
+        payload["units"] = [asdict(unit) for unit in units]
+    if failed_unit is not None:
+        payload["failed_unit"] = failed_unit
+
     return payload
 
 
@@ -676,11 +719,16 @@ async def publish_recording_event(
     channel: Channel,
     measurement_file_path: Path,
     error: BaseException | None = None,
+    units: list[MeasurementUnit] | None = None,
+    failed_unit: str | None = None,
 ) -> None:
     """Publish that the measurement finished (or failed) on all event buses"""
 
     await general_messenger.publish_event(
-        channel, create_recording_payload(measurement_file_path, error)
+        channel,
+        create_recording_payload(
+            measurement_file_path, error, units, failed_unit
+        ),
     )
 
 
@@ -839,9 +887,10 @@ async def run_measurement(
                         data_collected_for_send.clear()
                         counter = 0
                     else:
-                        data_collected_for_send.append(
-                            data_to_send.model_dump()
-                        )
+                        data_collected_for_send.append({
+                            **data_to_send.model_dump(),
+                            **frame_source(measurement_state),
+                        })
                         counter += 1
 
                     # Exit conditions
@@ -900,7 +949,10 @@ async def run_measurement(
             ift_sent = True
 
         await publish_recording_event(
-            general_messenger, Channel.RECORDING_FINISHED, measurement_file_path
+            general_messenger,
+            Channel.RECORDING_FINISHED,
+            measurement_file_path,
+            units=measurement_state.units,
         )
 
     except StreamingTimeoutError as e:
@@ -912,6 +964,7 @@ async def run_measurement(
             Channel.RECORDING_FAILED,
             measurement_file_path,
             e,
+            units=measurement_state.units,
         )
     except asyncio.CancelledError as e:
         logger.debug(
@@ -931,6 +984,7 @@ async def run_measurement(
             Channel.RECORDING_FAILED,
             measurement_file_path,
             e,
+            units=measurement_state.units,
         )
         raise asyncio.CancelledError from e
     except WebSocketDisconnect as e:
@@ -941,6 +995,7 @@ async def run_measurement(
             Channel.RECORDING_FAILED,
             measurement_file_path,
             e,
+            units=measurement_state.units,
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("Measurement stopped due to an unexpected error")
@@ -951,6 +1006,7 @@ async def run_measurement(
             Channel.RECORDING_FAILED,
             measurement_file_path,
             e,
+            units=measurement_state.units,
         )
     finally:
         clients = len(measurement_state.clients)

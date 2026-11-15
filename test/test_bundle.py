@@ -34,7 +34,11 @@ from tables import NoSuchNodeError
 from icoapi.models.event_bus import Channel
 from icoapi.models.models import MeasuredSensor, Metadata, MetadataPrefix
 from icoapi.routers.cloud_routes import upload_file
-from icoapi.routers.file_routes import get_analyzed_file, get_file_meta
+from icoapi.routers.file_routes import (
+    get_analyzed_file,
+    get_file_meta,
+    list_files_and_capacity,
+)
 from icoapi.scripts import measurement, recording
 from icoapi.scripts.bundle import is_bundle_file, source_name
 from icoapi.scripts.data_handling import (
@@ -479,6 +483,22 @@ class TestSources:
         with raises(HTTPException) as error:
             get_file_data(str(recorded), "other")
         assert error.value.status_code == 404
+
+    async def test_file_list_names_the_sources(self, two: Path) -> None:
+        """The file list has the names of the sources of a file"""
+
+        old = two.parent / "old.hdf5"
+        old.write_bytes(b"not a bundle")
+        listed = await list_files_and_capacity(
+            str(two.parent),
+            None,  # type: ignore[arg-type]
+        )
+
+        sources = {file.name: file.sources for file in listed.files}
+        assert sources == {
+            "two.hdf5": ["Test-STH", "Other-STH"],
+            "old.hdf5": None,
+        }
 
     async def test_metadata_route(self, two: Path) -> None:
         """The route shows the sources and the data of the selected one"""
