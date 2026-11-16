@@ -23,6 +23,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
 
+import numpy as np
 from icoschema.v2 import (
     ChannelMetadata,
     LinearConversion,
@@ -295,6 +296,65 @@ class SourceRecorder:
                 self._source.append_row(timestamp, [value], counter)
         else:
             self._source.append_row(timestamp, data.values, counter)
+
+    def add_streaming_batch(
+        self,
+        counters: np.ndarray,
+        timestamps: np.ndarray,
+        values: np.ndarray,
+    ) -> None:
+        """Store the data of many messages at once
+
+        Args:
+
+            counters:
+                The packet counter of every message (shape ``(messages,)``)
+
+            timestamps:
+                The time of every message in seconds since the start of the
+                measurement (shape ``(messages,)``)
+
+            values:
+                The (already converted) values of every message (shape
+                ``(messages, values)``)
+
+        """
+
+        if len(counters) == 0:
+            return
+
+        # Statistics: Counter values that follow each other are no loss. A
+        # repeated counter is not a new message.
+        previous = (
+            np.concatenate(([self._last_counter], counters[:-1]))
+            if self._last_counter is not None
+            else counters[:-1]
+        )
+        following = counters[1:] if self._last_counter is None else counters
+        if self._last_counter is None:
+            self._stats.retrieved += 1
+        changed = following != previous
+        self._stats.retrieved += int(changed.sum())
+        self._stats.lost += int(
+            (((following[changed] - previous[changed]) % 256) - 1).sum()
+        )
+        self._last_counter = int(counters[-1])
+
+        # Microseconds since the start of the measurement
+        micros = np.rint(timestamps * 1_000_000).astype(np.uint64)
+        if self._single_channel:
+            # One enabled channel: Every message contains three values (that
+            # share counter and timestamp) of that channel
+            per_message = values.shape[1]
+            self._source.append_rows(
+                np.repeat(micros, per_message),
+                values.reshape(-1, 1),
+                np.repeat(counters.astype(np.uint8), per_message),
+            )
+        else:
+            self._source.append_rows(
+                micros, values, counters.astype(np.uint8)
+            )
 
     def dataloss(self) -> float:
         """Get the amount of lost messages (between 0 and 1)"""

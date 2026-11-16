@@ -353,3 +353,79 @@ def test_same_file_as_writer_of_icoschema(tmp_path: Path) -> None:
     for column in ("timestamps", "counter", "channel1", "channel2", "channel3"):
         np.testing.assert_array_equal(getattr(first, column), getattr(second, column))
     assert first.hardware_metadata == second.hardware_metadata
+
+
+def test_append_rows_equals_append_row(tmp_path: Path) -> None:
+    """Adding many rows at once must store the same as adding them one by one"""
+
+    rows = 5000  # More than two blocks
+    numbers = np.arange(rows)
+    timestamps = numbers * 100
+    values = np.column_stack([numbers, numbers + 0.5, -numbers]).astype(float)
+    counters = numbers % 256
+
+    with ThreadedBundleWriter(
+        str(tmp_path / "single.hdf5"), [spec()], block_rows=2048
+    ) as writer:
+        for index in range(rows):
+            writer["a"].append_row(
+                int(timestamps[index]), list(values[index]), int(counters[index])
+            )
+    with ThreadedBundleWriter(
+        str(tmp_path / "batch.hdf5"), [spec()], block_rows=2048
+    ) as writer:
+        writer["a"].append_rows(timestamps[:3000], values[:3000], counters[:3000])
+        writer["a"].append_rows(timestamps[3000:], values[3000:], counters[3000:])
+
+    expected = sources(tmp_path / "single.hdf5")["a"]
+    result = sources(tmp_path / "batch.hdf5")["a"]
+    assert len(result.timestamps) == rows
+    for name in ("timestamps", "counter", "channel1", "channel2", "channel3"):
+        assert np.array_equal(getattr(expected, name), getattr(result, name))
+
+
+def test_recorder_batch_equals_single_messages(tmp_path: Path) -> None:
+    """Storing messages in batches gives the data and statistics of one by one"""
+
+    # pylint: disable=import-outside-toplevel
+    from icotronic.can.streaming import StreamingConfiguration, StreamingData
+
+    from icoapi.scripts.recording import SourceRecorder
+
+    counters = [1, 2, 3, 7, 8, 8, 12, 255, 0, 1, 5]
+    timestamps = [index * 0.001 for index in range(len(counters))]
+    values = [[float(index), index + 0.25, -float(index)] for index in range(11)]
+
+    def record(name: str, batched: bool) -> tuple[Any, float]:
+        path = tmp_path / name
+        with ThreadedBundleWriter(str(path), [spec(channels=1)]) as writer:
+            recorder = SourceRecorder(
+                writer["a"], StreamingConfiguration(first=True)
+            )
+            if batched:
+                recorder.add_streaming_batch(
+                    np.array(counters[:4], dtype=np.int64),
+                    np.array(timestamps[:4]),
+                    np.array(values[:4]),
+                )
+                recorder.add_streaming_batch(
+                    np.array(counters[4:], dtype=np.int64),
+                    np.array(timestamps[4:]),
+                    np.array(values[4:]),
+                )
+            else:
+                for counter, timestamp, value in zip(
+                    counters, timestamps, values
+                ):
+                    recorder.add_streaming_data(
+                        StreamingData(counter, timestamp, list(value))
+                    )
+            loss = recorder.dataloss()
+        return sources(path)["a"], loss
+
+    single, single_loss = record("single.hdf5", False)
+    batch, batch_loss = record("batch.hdf5", True)
+    assert single_loss == batch_loss
+    assert single_loss > 0
+    for name in ("timestamps", "counter", "channel1"):
+        assert np.array_equal(getattr(single, name), getattr(batch, name))

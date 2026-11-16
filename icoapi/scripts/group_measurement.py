@@ -24,10 +24,10 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
 import logging
-import os
 from pathlib import Path
 from time import monotonic
 
+import numpy as np
 from icostate import ADCConfiguration, ICOsystem
 from icotronic.can.sensor import SensorConfiguration
 from icotronic.can.streaming import (
@@ -52,13 +52,16 @@ from icoapi.scripts.bundle import CollectedMetadata, source_name
 from icoapi.scripts.data_handling import MeasurementSensorInfo
 from icoapi.scripts.file_handling import get_measurement_dir
 from icoapi.scripts.measurement import (
-    get_sendable_data_and_apply_conversion,
     mark_measurement_stopped,
     notify_clients_of_measurement_error,
     publish_recording_event,
     write_metadata,
 )
-from icoapi.scripts.live_stream import flush_clients, send_to_clients
+from icoapi.scripts.live_stream import (
+    flush_clients,
+    live_demand,
+    send_to_clients,
+)
 from icoapi.scripts.preflight import UnitCheck
 from icoapi.scripts.recording import SourceRecorder, create_source_spec
 from icoapi.scripts.sth_scripts import disconnect_sth_devices
@@ -68,6 +71,9 @@ from icoapi.scripts.writer_thread import ThreadedBundleWriter, WriterError
 # -- Globals ------------------------------------------------------------------
 
 logger = logging.getLogger(__name__)
+
+BATCH_MESSAGES = 128
+"""Number of messages of a unit that are converted and stored together"""
 
 # -- Classes ------------------------------------------------------------------
 
@@ -90,7 +96,12 @@ class UnitRun:  # pylint: disable=too-many-instance-attributes
     first_timestamp: float | None = None
     """Timestamp of the first message (in seconds since the epoch)"""
     overall_dataloss: float = 0.0
-    collected: list[dict] = field(default_factory=list)
+    pending_counters: list[int] = field(default_factory=list)
+    """Counters of the messages that are not stored yet"""
+    pending_timestamps: list[float] = field(default_factory=list)
+    pending_values: list[list[float]] = field(default_factory=list)
+    conversion: tuple[np.ndarray, np.ndarray, list[str]] | None = None
+    """Factors and offsets of the values of a message (see `_conversion`)"""
 
     @property
     def system(self) -> ICOsystem:
@@ -158,6 +169,109 @@ async def _send_dataloss(
     )
 
 
+def _conversion(
+    run: UnitRun, values_per_message: int
+) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    """Get how the raw values of a message are converted
+
+    Returns:
+
+        The factor and the offset (physical value = raw value * factor +
+        offset) of every value of a message and the names of the slots the
+        values belong to (for the live data)
+
+    """
+
+    configuration = run.streaming_configuration
+    voltage_scaling = run.sensor_info.voltage_scaling
+    slots = [
+        slot
+        for slot in ("first", "second", "third")
+        if getattr(configuration, slot)
+    ]
+    sensors = {
+        slot: getattr(run.resolved_channels, slot).sensor for slot in slots
+    }
+    if len(slots) == 1:
+        # One enabled channel: Every value of a message belongs to it
+        names = ["first"]
+        slots = slots * values_per_message
+    else:
+        names = list(slots)
+    factors = np.array([
+        sensors[slot].scaling_factor * voltage_scaling for slot in slots
+    ])
+    offsets = np.array([sensors[slot].offset for slot in slots])
+    return factors, offsets, names
+
+
+# pylint: disable-next=too-many-locals
+async def _process_pending(
+    run: UnitRun, measurement_state: MeasurementState
+) -> None:
+    """Convert, store and send the messages received since the last call
+
+    Doing this for many messages at once (with numpy) is much cheaper than
+    doing it for every message.
+    """
+
+    if not run.pending_counters:
+        return
+    assert run.recorder is not None
+
+    counters = np.array(run.pending_counters, dtype=np.int64)
+    timestamps = np.array(run.pending_timestamps, dtype=np.float64)
+    raw = np.array(run.pending_values, dtype=np.float64)
+    run.pending_counters = []
+    run.pending_timestamps = []
+    run.pending_values = []
+
+    if run.conversion is None or run.conversion[0].shape[0] != raw.shape[1]:
+        run.conversion = _conversion(run, raw.shape[1])
+    factors, offsets, names = run.conversion
+    converted = raw * factors + offsets
+
+    run.recorder.add_streaming_batch(counters, timestamps, converted)
+
+    # The live data is a display: Nobody needs it without clients and
+    # clients only want some of the points (see `live_stream`)
+    demand = live_demand(measurement_state)
+    if demand == 0:
+        return
+    stride = 1
+    if demand is not None:
+        messages_per_second = run.adc.sample_rate() / raw.shape[1]
+        stride = max(1, int(messages_per_second // demand))
+
+    live_counters = counters[::stride].tolist()
+    columns: dict[str, list] = {
+        slot: [None] * len(live_counters)
+        for slot in ("first", "second", "third")
+    }
+    for index, name in enumerate(names):
+        columns[name] = converted[::stride, index].tolist()
+    rows = [
+        {
+            "timestamp": timestamp,
+            "first": first,
+            "second": second,
+            "third": third,
+            "ift": None,
+            "counter": counter,
+            "dataloss": None,
+            "source": run.name,
+        }
+        for timestamp, first, second, third, counter in zip(
+            timestamps[::stride].tolist(),
+            columns["first"],
+            columns["second"],
+            columns["third"],
+            live_counters,
+        )
+    ]
+    await _send_to_clients(measurement_state, rows)
+
+
 async def _stream_unit(
     run: UnitRun,
     instructions: MeasurementInstructions,
@@ -166,8 +280,6 @@ async def _stream_unit(
     """Receive and store the data of one unit until the measurement ends"""
 
     assert run.recorder is not None
-    update_rate = int(os.getenv("WEBSOCKET_UPDATE_RATE", "300"))
-    batch_size = max(1, int(run.adc.sample_rate()) // update_rate)
     dataloss_sent_time = monotonic()
 
     async with run.system.sensor_node.open_data_stream(
@@ -175,52 +287,52 @@ async def _stream_unit(
     ) as stream:
         logger.info("Opened measurement stream of unit <%s>", run.unit.key)
 
-        async for data, _ in stream:
-            if run.first_timestamp is None:
-                # The timestamps of the messages are times of this computer
-                # (see `AsyncStreamBuffer`), so the start times of the units
-                # can be compared
-                run.first_timestamp = data.timestamp
-                run.recorder.set_start_time(
-                    datetime.fromtimestamp(data.timestamp).isoformat()
-                )
-            data.timestamp -= run.first_timestamp
+        try:
+            async for data, _ in stream:
+                if run.first_timestamp is None:
+                    # The timestamps of the messages are times of this
+                    # computer (see `AsyncStreamBuffer`), so the start times
+                    # of the units can be compared
+                    run.first_timestamp = data.timestamp
+                    run.recorder.set_start_time(
+                        datetime.fromtimestamp(data.timestamp).isoformat()
+                    )
+                timestamp = data.timestamp - run.first_timestamp
 
-            data_to_send = get_sendable_data_and_apply_conversion(
-                run.streaming_configuration, run.sensor_info, data
-            )
-            run.recorder.add_streaming_data(data)
+                # Only collect here, since this runs for every message
+                run.pending_counters.append(data.counter)
+                run.pending_timestamps.append(timestamp)
+                run.pending_values.append(data.values)
+                if len(run.pending_counters) >= BATCH_MESSAGES:
+                    await _process_pending(run, measurement_state)
 
-            run.collected.append({
-                **data_to_send.model_dump(),
-                "source": run.name,
-            })
-            if len(run.collected) >= batch_size:
-                await _send_to_clients(measurement_state, run.collected)
-                run.collected = []
+                current_time = monotonic()
+                if current_time >= dataloss_sent_time + 1:
+                    await _send_dataloss(
+                        measurement_state, run.name, stream.dataloss()
+                    )
+                    dataloss_sent_time = current_time
+                    stream.reset_stats()
 
-            current_time = monotonic()
-            if current_time >= dataloss_sent_time + 1:
-                await _send_dataloss(
-                    measurement_state, run.name, stream.dataloss()
-                )
-                dataloss_sent_time = current_time
-                stream.reset_stats()
+                if (
+                    instructions.time is not None
+                    and timestamp >= instructions.time
+                ):
+                    logger.info(
+                        "Timeout of unit <%s> reached at <%ss>",
+                        run.unit.key,
+                        timestamp,
+                    )
+                    break
 
-            if (
-                instructions.time is not None
-                and data.timestamp >= instructions.time
-            ):
-                logger.info(
-                    "Timeout of unit <%s> reached at <%ss>",
-                    run.unit.key,
-                    data.timestamp,
-                )
-                break
-
-            if measurement_state.stop_flag:
-                logger.info("Stop flag set - stopping unit <%s>", run.unit.key)
-                break
+                if measurement_state.stop_flag:
+                    logger.info(
+                        "Stop flag set - stopping unit <%s>", run.unit.key
+                    )
+                    break
+        finally:
+            # Store what was received until now, even if the stream failed
+            await _process_pending(run, measurement_state)
 
     run.overall_dataloss = run.recorder.dataloss()
 

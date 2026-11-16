@@ -1,6 +1,8 @@
 """Routes for measurement data"""
 
+from collections import OrderedDict
 import json
+import threading
 import logging
 import os
 from datetime import datetime
@@ -9,6 +11,7 @@ from typing import Annotated, AsyncGenerator
 from urllib.parse import quote
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.params import Depends
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.responses import PlainTextResponse
 from tables import HDF5ExtError, NoSuchNodeError
@@ -26,13 +29,18 @@ from icoapi.models.models import (
     MeasurementFileDetails,
     Metadata,
     MetadataPrefix,
+    ParsedHDF5FileContent,
     ParsedMeasurement,
     ParsedMetadata,
 )
 from icoapi.models.trident import RemoteObjectDetails, StorageClient
 from icoapi.scripts.bundle import is_bundle_file, list_sources
 from icoapi.scripts.cloud_scripts import get_cloud_details
-from icoapi.scripts.data_handling import AccelerationDataNotFoundError, get_file_data
+from icoapi.scripts.data_handling import (
+    AccelerationDataNotFoundError,
+    downsample_min_max,
+    get_file_data,
+)
 from icoapi.scripts.errors import (
     HTTP_404_FILE_NOT_FOUND_EXCEPTION,
     HTTP_404_FILE_NOT_FOUND_SPEC,
@@ -195,11 +203,61 @@ SourceQuery = Annotated[
 ]
 
 
+DEFAULT_ANALYZE_ROWS = 100_000
+"""Number of rows per source that are sent to display a measurement"""
+
+_ANALYZE_CACHE_SIZE = 8
+
+_analyze_lock = threading.Lock()
+
+_analyze_cache: OrderedDict[tuple, ParsedHDF5FileContent] = OrderedDict()
+"""The downsampled content of the files that were analyzed last
+
+Reading and reducing a file with millions of rows takes a while, but
+switching between the sources of a file is something a user does all the time.
+"""
+
+
+def _analysis_data(
+    file_path: str, source: str | None, max_rows: int
+) -> ParsedHDF5FileContent:
+    """Get the (downsampled) content of a file for display"""
+
+    stat = os.stat(file_path)
+    key = (file_path, stat.st_mtime_ns, stat.st_size, source, max_rows)
+    with _analyze_lock:
+        cached = _analyze_cache.get(key)
+        if cached is not None:
+            _analyze_cache.move_to_end(key)
+            return cached
+
+    content = get_file_data(file_path, source)
+    content.acceleration_df = downsample_min_max(
+        content.acceleration_df, max_rows
+    )
+    with _analyze_lock:
+        _analyze_cache[key] = content
+        while len(_analyze_cache) > _ANALYZE_CACHE_SIZE:
+            _analyze_cache.popitem(last=False)
+    return content
+
+
 @router.get("/analyze/{name}", response_model=ParsedMeasurement)
 async def get_analyzed_file(
     name: str,
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
     source: SourceQuery = None,
+    max_rows: Annotated[
+        int,
+        Query(
+            ge=1000,
+            description=(
+                "Approximate maximum number of rows to send (per source). "
+                "Larger data is reduced, but keeps the peaks (minimum and "
+                "maximum of every part of the data)"
+            ),
+        ),
+    ] = DEFAULT_ANALYZE_ROWS,
 ) -> StreamingResponse:
     """Analyze measurement file"""
 
@@ -213,7 +271,9 @@ async def get_analyzed_file(
     if not os.path.isfile(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
-    parsed_file_content = get_file_data(file_path, source)
+    parsed_file_content = await run_in_threadpool(
+        _analysis_data, file_path, source, max_rows
+    )
 
     # Total number of rows for progress tracking
     total_rows = len(parsed_file_content.acceleration_df)
@@ -255,7 +315,7 @@ async def get_analyzed_file(
 
         for start in range(0, total_rows, batch_size):
             end = min(start + batch_size, total_rows)
-            batch = parsed_file_content.acceleration_df.iloc[start:end:10]
+            batch = parsed_file_content.acceleration_df.iloc[start:end]
             batch_counter = batch["counter"].tolist()
             batch_timestamp = batch["timestamp"].tolist()
             datasets = batch.drop(columns=["counter", "timestamp"])
@@ -274,7 +334,7 @@ async def get_analyzed_file(
             yield batch_dict.model_dump_json() + "\n"
 
             # Update progress
-            parsed_rows += len(batch) * 10
+            parsed_rows += len(batch)
             progress = parsed_rows / total_rows
             yield json.dumps({"progress": progress}) + "\n"
 

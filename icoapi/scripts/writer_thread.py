@@ -124,6 +124,58 @@ class ThreadedSource:  # pylint: disable=too-few-public-methods,too-many-instanc
         if self._filled == self._block_rows:
             self.hand_over()
 
+    def append_rows(
+        self,
+        timestamps: np.ndarray,
+        values: np.ndarray,
+        counters: np.ndarray | None = None,
+    ) -> None:
+        """Add many rows at once
+
+        Args:
+
+            timestamps:
+                The timestamps of the rows (shape ``(rows,)``)
+
+            values:
+                The values of the rows (shape ``(rows, channels)``)
+
+            counters:
+                The packet counters of the rows (shape ``(rows,)``). Needed
+                if the source has a packet counter.
+
+        Raises:
+
+            WriterError: If the writer thread failed or can not keep up
+
+        """
+
+        rows = len(timestamps)
+        if values.shape != (rows, self._channels):
+            raise ValueError(
+                f"source {self.name!r} has {self._channels} channels, got"
+                f" values with shape {values.shape} for {rows} rows"
+            )
+        if self._has_counter and counters is None:
+            raise ValueError(
+                f"source {self.name!r} has a packet counter: pass `counters`"
+            )
+
+        start = 0
+        while start < rows:
+            end = min(rows, start + self._block_rows - self._filled)
+            target = slice(self._filled, self._filled + end - start)
+            if self._has_counter:
+                assert counters is not None
+                self._block["counter"][target] = counters[start:end]
+            self._block["timestamp"][target] = timestamps[start:end]
+            for number in range(self._channels):
+                self._block[f"c{number}"][target] = values[start:end, number]
+            self._filled += end - start
+            start = end
+            if self._filled == self._block_rows:
+                self.hand_over()
+
     def update(self, **values: Any) -> None:
         """Change attributes of the source (see ``SourceWriter.update``)"""
 

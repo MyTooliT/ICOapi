@@ -531,7 +531,7 @@ class TestSources:
             "Test-STH",
             "Other-STH",
         ]
-        assert lines[1]["datasets"][0]["data"] == [100.0]
+        assert lines[1]["datasets"][0]["data"][0] == 100.0
 
     async def test_metadata_is_changed_for_every_source(
         self, two: Path
@@ -750,3 +750,31 @@ def _with_pre_metadata(open_file):
         return recording_file
 
     return wrapper
+
+
+def test_downsample_keeps_peaks() -> None:
+    """Reducing data keeps the smallest and largest values"""
+
+    # pylint: disable=import-outside-toplevel
+    import numpy as np
+    import pandas as pd
+
+    from icoapi.scripts.data_handling import downsample_min_max
+
+    rows = 100_001
+    values = np.sin(np.arange(rows) / 50.0)
+    values[12_345] = 99.0
+    values[77_777] = -99.0
+    data = pd.DataFrame({
+        "counter": np.arange(rows) % 256,
+        "timestamp": np.arange(rows),
+        "x": values,
+    })
+
+    reduced = downsample_min_max(data, 2_000)
+    assert len(reduced) <= 2_100
+    assert reduced["x"].max() == 99.0 and reduced["x"].min() == -99.0
+    assert reduced["timestamp"].is_monotonic_increasing
+    assert reduced["timestamp"].iloc[-1] >= rows - 1 - rows // 1000
+    # Small data stays as it is
+    assert len(downsample_min_max(data.iloc[:500], 2_000)) == 500

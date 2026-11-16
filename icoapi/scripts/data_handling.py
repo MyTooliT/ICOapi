@@ -4,6 +4,7 @@ import logging
 import os
 from os import PathLike, path
 from typing import List, Optional
+import numpy as np
 import pandas as pd
 import tables
 import yaml
@@ -811,6 +812,59 @@ def get_bundle_file_data(
         embedded_files=data.embedded_files,
         sources=data.sources,
     )
+
+
+def downsample_min_max(
+    data: pd.DataFrame, max_rows: int
+) -> pd.DataFrame:
+    """Reduce the number of rows of measurement data, but keep the peaks
+
+    The data is split into buckets of consecutive rows. Of every bucket the
+    rows with the smallest and the largest value of every channel are kept
+    (in their original order). A display of the result looks like the display
+    of all the data, which is not true for every n-th row: That one misses
+    the peaks that are most interesting in a vibration measurement.
+
+    Args:
+
+        data:
+            The data. All columns except ``counter`` and ``timestamp`` are
+            channels.
+
+        max_rows:
+            The (approximate) maximum number of rows of the result. Data that
+            has fewer rows is returned as it is.
+
+    Returns:
+
+        The reduced data (with the index of the original rows)
+
+    """
+
+    rows = len(data)
+    channels = [
+        column for column in data.columns if column not in ("counter", "timestamp")
+    ]
+    if rows <= max_rows or not channels:
+        return data
+
+    buckets = max(1, max_rows // (2 * len(channels)))
+    size = rows // buckets
+    if size < 2:
+        return data
+
+    keep: list[np.ndarray] = []
+    for channel in channels:
+        values = data[channel].to_numpy()
+        # The last bucket takes the rows that do not fill a bucket
+        main = values[: (buckets - 1) * size].reshape(buckets - 1, size)
+        offsets = np.arange(buckets - 1) * size
+        keep.append(offsets + main.argmin(axis=1))
+        keep.append(offsets + main.argmax(axis=1))
+        tail = values[(buckets - 1) * size :]
+        keep.append(np.array([(buckets - 1) * size + tail.argmin()]))
+        keep.append(np.array([(buckets - 1) * size + tail.argmax()]))
+    return data.iloc[np.unique(np.concatenate(keep))]
 
 
 def ensure_dataframe_with_columns(df, required_columns) -> pd.DataFrame:

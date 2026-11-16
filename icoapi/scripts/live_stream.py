@@ -148,6 +148,28 @@ _senders: WeakKeyDictionary[Any, _ClientSender] = WeakKeyDictionary()
 # -- Functions ----------------------------------------------------------------
 
 
+def live_demand(measurement_state: MeasurementState) -> float | None:
+    """Get how many points per second and source the clients want
+
+    Returns:
+
+        ``0`` if there is no client (nobody needs live data), ``None`` if at
+        least one client wants all points, otherwise the highest rate a
+        client asked for.
+
+    """
+
+    rates = [
+        _settings.get(client, LiveSettings()).rate
+        for client in measurement_state.clients
+    ]
+    if not rates:
+        return 0.0
+    if any(rate is None for rate in rates):
+        return None
+    return max(rate for rate in rates if rate is not None)
+
+
 async def send_to_clients(
     measurement_state: MeasurementState, rows: list[dict]
 ) -> None:
