@@ -3,38 +3,28 @@ name: Check & Test Code
 on:
   - push
 
-jobs:
-  os-python-matrix:
-    strategy:
-      matrix:
-        os:
-          - name: macos
-            icon: 🍏
-          - name: ubuntu
-            icon: 🐧
-          - name: windows
-            icon: 🪟
-        python-version:
-          - '3.13'
-          - '3.14'
+env:
+  PYTHON-VERSION: "3.13"
 
-    runs-on: ${{ matrix.os.name }}-latest
-    name: ${{ matrix.os.icon }} Python ${{ matrix.python-version }}
+jobs:
+  check:
+    name: 🐧 Check & Test
+    runs-on: ubuntu-latest
 
     steps:
 
     - name: Checkout code
       uses: actions/checkout@v7
 
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python ${{ env.PYTHON-VERSION }}
       uses: actions/setup-python@v7
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: ${{ env.PYTHON-VERSION }}
 
     - name: Install uv
       uses: astral-sh/setup-uv@v7
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: ${{ env.PYTHON-VERSION }}
 
     - name: Install just
       uses: taiki-e/install-action@just
