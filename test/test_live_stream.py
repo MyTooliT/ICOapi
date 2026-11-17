@@ -222,10 +222,12 @@ class TestSettings:
         monkeypatch.setattr(
             "icoapi.routers.measurement_routes.configure_client", spy
         )
-        with TestClient(app) as client:
-            with client.websocket_connect(
-                "/api/v1/measurement/stream?rate=60&updates=30"
-            ):
-                pass
+        # No ``with``: this would run the lifespan of the application, which
+        # closes the CAN connection that the hardware tests share.
+        client = TestClient(app)
+        with client.websocket_connect(
+            "/api/v1/measurement/stream?rate=60&updates=30"
+        ):
+            pass
 
         assert seen == [(60, 30)]
