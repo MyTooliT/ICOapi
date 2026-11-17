@@ -3,6 +3,7 @@
 # -- Imports ------------------------------------------------------------------
 
 import asyncio
+from time import monotonic
 from typing import Any
 
 from icoapi.models.globals import MeasurementState
@@ -190,14 +191,19 @@ class TestSettings:
         configure_client(client, rate=None, updates=20)
         state = state_with(client)
 
+        start = monotonic()
         for number in range(200):
             await send_to_clients(state, [{"source": "A", "timestamp": number}])
             await asyncio.sleep(0.001)
         await flush_clients(state)
+        duration = monotonic() - start
 
         assert len(client.rows) == 200
-        # 20 messages per second, the test takes about 0.3 seconds
-        assert len(client.messages) <= 12
+        # At most 20 messages per second (plus the first one and the flush).
+        # The duration depends on the timer resolution of the system (about
+        # 15 ms on Windows), so it is measured instead of assumed.
+        assert len(client.messages) <= 20 * duration + 3
+        assert len(client.messages) < 200
 
     async def test_stream_route_takes_the_settings(self, monkeypatch: Any) -> None:
         """The client says what it wants when it connects"""
