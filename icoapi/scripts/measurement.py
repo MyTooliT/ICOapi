@@ -1,5 +1,7 @@
 """Code for handling measurement data"""
 
+# pylint: disable=too-many-lines
+
 import asyncio
 import json
 import logging
@@ -714,6 +716,7 @@ def create_recording_payload(
     return payload
 
 
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
 async def publish_recording_event(
     general_messenger: GeneralMessenger,
     channel: Channel,
