@@ -2,6 +2,7 @@
 
 # -- Imports ------------------------------------------------------------------
 
+import asyncio
 from os import environ
 from unittest.mock import AsyncMock, MagicMock
 from re import match
@@ -239,6 +240,38 @@ def client():
         base_url="http://test/api/v1/",
     ) as test_client:
         yield test_client
+
+
+@fixture(scope="session", autouse=True)
+def flush_can_network(request) -> None:
+    """Flush the CAN network once before the first hardware test
+
+    A bus that reached its warning/heavy limit stalls the following tests, so
+    release the adapter, search for networks again and reset the STU before
+    any hardware test runs. Does nothing if no hardware test is selected or if
+    the hardware is simulated.
+    """
+
+    if environ.get("ICOAPI_SIMULATE", "").strip().lower() == "only":
+        return
+    if not any(
+        item.get_closest_marker("hardware") for item in request.session.items
+    ):
+        return
+
+    setup_config()
+    environ.setdefault("ICOAPI_CAN_AUTOCONNECT", "1")
+
+    # Same as `just reset-can`. The adapter is released afterwards, since
+    # the application connects again when `client` starts it (in its own
+    # event loop).
+    asyncio.run(ICOsystemSingleton.reset())
+    asyncio.run(ICOsystemSingleton.disconnect())
+    reset_can_state()
+
+    # Same as `icon stu reset`
+    response = request.getfixturevalue("client").put("stu/reset")
+    assert response.status_code == 200, "Unable to reset STU"
 
 
 @fixture(autouse=True)
