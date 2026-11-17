@@ -116,8 +116,37 @@ def _latency() -> float:
         return 0.2
 
 
-def _configured_devices() -> list[SimulatedSTH]:
-    """Get the simulated devices (``ICOAPI_SIMULATE_DEVICES`` or defaults)"""
+def simulated_channels() -> list[str]:
+    """Get the channels of the simulated networks
+
+    ``ICOAPI_SIMULATE_NETWORKS`` is the number of simulated networks (default
+    ``1``). Every network has its own STU and its own sensor devices, like a
+    system with one CAN network per STU has.
+    """
+
+    try:
+        count = max(1, int(getenv("ICOAPI_SIMULATE_NETWORKS", "1")))
+    except ValueError:
+        count = 1
+    return [f"SIM{number}" for number in range(1, count + 1)]
+
+
+def _network_index(channel: str) -> int:
+    """Get the number (starting with 0) of a simulated network"""
+
+    digits = "".join(character for character in channel if character.isdigit())
+    return max(int(digits) - 1, 0) if digits else 0
+
+
+def _configured_devices(index: int = 0) -> list[SimulatedSTH]:
+    """Get the simulated devices (``ICOAPI_SIMULATE_DEVICES`` or defaults)
+
+    Args:
+
+        index:
+            The number of the simulated network. The devices of other
+            networks than the first one get other names and MAC addresses.
+    """
 
     devices: list[SimulatedSTH] = []
     for number, entry in enumerate(
@@ -140,7 +169,7 @@ def _configured_devices() -> list[SimulatedSTH]:
                 "Ignoring invalid simulated device <%s> (expected Name=MAC)",
                 entry,
             )
-    return devices or [
+    devices = devices or [
         SimulatedSTH(
             "Test-STH",
             EUI("14-2D-41-D7-77-7D"),
@@ -154,6 +183,12 @@ def _configured_devices() -> list[SimulatedSTH]:
             supply_voltage=3.96,
         ),
     ]
+    if index > 0:
+        # Every network has its own devices
+        for device in devices:
+            device.name = f"{device.name}-{index + 1}"
+            device.mac_address = EUI(int(device.mac_address) + index * 0x1000)
+    return devices
 
 
 def _dataloss() -> float:
@@ -193,11 +228,11 @@ class SimulatedSTH:
 class SimulatedHardware:  # pylint: disable=too-few-public-methods
     """The simulated hardware: one STU and some sensor devices"""
 
-    def __init__(self) -> None:
-        self.stu_mac_address = EUI("02-1C-05-51-FF-01")
+    def __init__(self, index: int = 0) -> None:
+        self.stu_mac_address = EUI(f"02-1C-05-51-FF-{index + 1:02X}")
         self.stu_responsive = True
         """If ``False`` the STU does not answer (``NoResponseError``)"""
-        self.devices: list[SimulatedSTH] = _configured_devices()
+        self.devices: list[SimulatedSTH] = _configured_devices(index)
         self.connected: SimulatedSTH | None = None
         """The sensor device the STU is connected to"""
 
@@ -221,17 +256,23 @@ class SimulatedHardware:  # pylint: disable=too-few-public-methods
         return None
 
 
-@lru_cache(maxsize=1)
-def get_simulated_hardware() -> SimulatedHardware:
-    """Get the simulated hardware (created on first use)"""
+@lru_cache(maxsize=None)
+def _simulated_hardware(channel: str) -> SimulatedHardware:
+    return SimulatedHardware(_network_index(channel))
 
-    return SimulatedHardware()
+
+def get_simulated_hardware(
+    channel: str = SIMULATED_CHANNEL,
+) -> SimulatedHardware:
+    """Get the simulated hardware of a network (created on first use)"""
+
+    return _simulated_hardware(channel)
 
 
 def reset_simulated_hardware() -> None:
     """Forget all changes made to the simulated hardware"""
 
-    get_simulated_hardware.cache_clear()
+    _simulated_hardware.cache_clear()
 
 
 # -- Streaming ----------------------------------------------------------------
@@ -575,7 +616,13 @@ class SimulatedICOsystem(ICOsystem):  # type: ignore[misc]
 
     async def connect_stu(self) -> None:
         self.check_in_state({State.DISCONNECTED}, "Connecting to STU")
-        self.stu = SimulatedSTU(get_simulated_hardware())
+        configuration = self.connection.configuration
+        channel = (
+            str(configuration.get("channel", SIMULATED_CHANNEL))
+            if configuration.get("interface") == SIMULATED_INTERFACE
+            else SIMULATED_CHANNEL
+        )
+        self.stu = SimulatedSTU(get_simulated_hardware(channel))
         self.state = State.STU_CONNECTED
         logger.info("Connected to simulated STU")
 

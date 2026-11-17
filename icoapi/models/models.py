@@ -146,6 +146,36 @@ class Metadata:
     parameters: Dict[str, Quantity | Any]
 
 
+@dataclass
+class UnitInstructions:
+    """Instructions that differ between the units of a measurement
+
+    Only used with multi STU support. Everything that is set replaces the
+    value of the instructions of the measurement for this unit; everything
+    that is not set keeps it. A channel (`first`, `second` or `third`) that
+    is set replaces that channel only: To disable a channel of a unit that is
+    enabled in the instructions of the measurement, set it to
+    `{"sensor_id": null}`.
+
+    Attributes:
+        first (MeasurementInstructionChannel): First measurement channel
+        second (MeasurementInstructionChannel): Second measurement channel
+        third (MeasurementInstructionChannel): Third measurement channel
+        adc (ADCValues): ADC settings
+        sensor_configuration (PCBSensorConfiguration): Inline sensor
+            configuration
+        mac_address (str): MAC address of the sensor device of the unit
+            (only used by `/measurement/execute`)
+    """
+
+    first: MeasurementInstructionChannel | None = None
+    second: MeasurementInstructionChannel | None = None
+    third: MeasurementInstructionChannel | None = None
+    adc: ADCValues | None = None
+    sensor_configuration: PCBSensorConfiguration | None = None
+    mac_address: str | None = None
+
+
 # pylint: disable=too-many-instance-attributes
 
 
@@ -175,6 +205,16 @@ class MeasurementInstructions:
             configuration. When present, sensor_id resolution for `first`,
             `second` and `third` uses this instead of `sensors.yaml`'s
             default configuration.
+        unit_mac_addresses (dict[str, str]): Only for `/measurement/execute`
+            with multi STU support: The MAC address of the sensor device of
+            each unit (name of the unit -> MAC address). `mac_address` is
+            ignored then. A `mac_address` in `units` takes precedence.
+        units (dict[str, UnitInstructions]): Only with multi STU support:
+            What differs between units (name of the unit -> instructions).
+            Units that are not mentioned use the instructions above. The
+            instructions above are the ones of every unit otherwise, apart
+            from `name`, `time`, `meta`, `wait_for_post_meta` and
+            `disconnect_after_measurement`, which are the same for all units.
     """
 
     name: str | None
@@ -191,6 +231,8 @@ class MeasurementInstructions:
     wait_for_post_meta: bool = False
     disconnect_after_measurement: bool = False
     sensor_configuration: PCBSensorConfiguration | None = None
+    unit_mac_addresses: dict[str, str] | None = None
+    units: dict[str, UnitInstructions] | None = None
 
 
 # pylint: enable=too-many-instance-attributes
@@ -206,6 +248,17 @@ class DataValueModel(BaseModel, JSONEncoder):
     ift: list | None
     counter: int | None
     dataloss: float | None
+
+
+class SourcedDataValueModel(DataValueModel):
+    """Measured data (or data loss) of a source of a measurement
+
+    A measurement with several units sends the data of all units through the
+    same WebSocket. The name of the source is the name of the source in the
+    measurement file.
+    """
+
+    source: str
 
 
 @unique
@@ -236,6 +289,9 @@ class MeasurementFileDetails:
     created: str
     size: int
     cloud: FileCloudDetails
+    sources: list[str] | None = None
+    """Names of the sources of the file (``None`` for files in the old format
+    and for files that can not be read, e.g. while they are written)"""
 
 
 @dataclass
@@ -307,7 +363,24 @@ class ParsedMeasurement(BaseModel, JSONEncoder):
 
 
 @dataclass
-class MeasurementStatus:
+class MeasurementUnit:
+    """A unit that takes part in a measurement (multi STU support only)
+
+    Every unit stores its data in the source ``source`` of the measurement
+    file.
+    """
+
+    unit: str
+    """Name of the unit (``interface:channel`` of its network)"""
+    source: str
+    """Name of the source of the unit in the measurement file"""
+    tool_name: Optional[str] = None
+    stu_mac_address: Optional[str] = None
+    sth_mac_address: Optional[str] = None
+
+
+@dataclass
+class MeasurementStatus:  # pylint: disable=too-many-instance-attributes
     """Measurement status information"""
 
     running: bool
@@ -316,6 +389,8 @@ class MeasurementStatus:
     tool_name: Optional[str] = None
     start_supply_voltage: Optional[float] = None
     instructions: Optional[MeasurementInstructions] = None
+    units: Optional[list[MeasurementUnit]] = None
+    """The units of the measurement (``None`` without multi STU support)"""
 
 
 @dataclass
@@ -362,6 +437,16 @@ class CANNetwork(BaseModel):
     channel: str
     bitrate: int | None = None
 
+    @property
+    def key(self) -> str:
+        """Identifier of the network (``interface:channel``)
+
+        With multi STU support every network belongs to one unit and this
+        is the name of the unit.
+        """
+
+        return f"{self.interface}:{self.channel}"
+
 
 class CANNetworksModel(BaseModel):
     """Information about CAN networks and the current connection"""
@@ -377,6 +462,21 @@ class ConnectedSTHModel(BaseModel):
 
     name: str
     mac_address: str
+
+
+class UnitStateModel(BaseModel, JSONEncoder):
+    """State of a unit: a CAN network with its STU and sensor device
+
+    Only available with multi STU support.
+    """
+
+    unit: str
+    """Name of the unit (``interface:channel`` of its network)"""
+    network: CANNetwork
+    stu_connected: bool
+    """The STU answered the last request"""
+    sth_connected: ConnectedSTHModel | None = None
+    """Sensor device the STU is connected to (``None`` if there is none)"""
 
 
 class SystemStateModel(BaseModel, JSONEncoder):
@@ -401,6 +501,12 @@ class SystemStateModel(BaseModel, JSONEncoder):
     disk_capacity: DiskCapacity
     measurement_status: MeasurementStatus
     cloud: Feature
+    units: list[UnitStateModel] | None = None
+    """All units (``None`` without multi STU support)
+
+    The other fields describe the first unit, the one that is used if no unit
+    is chosen. Measurements use all units.
+    """
 
 
 class SocketMessage(BaseModel, JSONEncoder):
@@ -588,6 +694,24 @@ class HDF5NodeInfo(BaseModel, JSONEncoder):
     attributes: dict[str, Any]
 
 
+class SourceInfo(BaseModel, JSONEncoder):
+    """A source of a measurement file: the data of one STU/STH combination
+
+    Only files in the bundle format (see :mod:`icoapi.scripts.bundle`) have
+    sources. Every source has its own clock, so the times of different sources
+    are only related by their start times.
+    """
+
+    name: str
+    """The name that selects the source (query parameter ``source``)"""
+    stu_mac: str | None = None
+    sth_mac: str | None = None
+    start_time: str | None = None
+    """Time of the first message of the source (ISO 8601, without timezone)"""
+    start_offset: float | None = None
+    """Seconds between the earliest start time of all sources and this one"""
+
+
 @dataclass
 class ParsedHDF5FileContent(JSONEncoder):
     """HDF5 data file content"""
@@ -597,6 +721,8 @@ class ParsedHDF5FileContent(JSONEncoder):
     acceleration_meta: HDF5NodeInfo
     pictures: dict[str, list[str]]
     embedded_files: list[EmbeddedFileInfo]
+    sources: list[SourceInfo] = field(default_factory=list)
+    """All sources of the file (empty for files in the old format)"""
 
 
 class ParsedMetadata(BaseModel, JSONEncoder):
@@ -606,6 +732,8 @@ class ParsedMetadata(BaseModel, JSONEncoder):
     pictures: dict[str, list[str]]
     sensors: list[MeasuredSensor]
     embedded_files: list[EmbeddedFileInfo]
+    sources: list[SourceInfo] = []
+    """All sources of the file (empty for files in the old format)"""
 
 
 @dataclass

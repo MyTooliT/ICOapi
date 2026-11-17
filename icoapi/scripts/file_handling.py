@@ -21,6 +21,8 @@ from icoapi.models.models import (
     EmbeddedFileContent,
     EmbeddedFileUploadResponse,
 )
+from icoapi.scripts import bundle
+from icoapi.scripts.bundle import is_bundle_file
 from icoapi.scripts.config_helper import CONFIG_FILE_DEFINITIONS
 
 logger = logging.getLogger(__name__)
@@ -246,7 +248,11 @@ def append_embedded_file_to_hdf5(
     content: bytes,
     mime_type: str | None,
 ) -> EmbeddedFileUploadResponse:
-    """Store an uploaded file as uint8 dataset below /embedded_files"""
+    """Store an uploaded file as uint8 dataset below /embedded_files
+
+    Files in the bundle format store embedded files in their own way (see
+    :mod:`icoapi.scripts.bundle`).
+    """
 
     original_name = file_name or "file"
     sanitized_name = pathvalidate.sanitize_filename(
@@ -257,6 +263,24 @@ def append_embedded_file_to_hdf5(
         sanitized_name = f"file__{sanitized_name}"
     stored_mime_type = mime_type or "application/octet-stream"
     byte_array = np.frombuffer(content, dtype=np.uint8)
+
+    if is_bundle_file(hdf5_path):
+        dataset_name = get_suffixed_name(
+            sanitized_name, bundle.embedded_file_names(hdf5_path)
+        )
+        bundle.add_embedded_file(
+            hdf5_path,
+            dataset_name,
+            content,
+            stored_mime_type,
+            original_name,
+        )
+        return EmbeddedFileUploadResponse(
+            dataset_name=dataset_name,
+            original_name=original_name,
+            mime=stored_mime_type,
+            size=len(content),
+        )
 
     with tables.open_file(hdf5_path, mode="a") as hdf5_file:
         try:
@@ -284,6 +308,14 @@ def get_embedded_file_from_hdf5(
 ) -> EmbeddedFileContent:
     """Retrieve an embedded file from an HDF5 dataset"""
 
+    if is_bundle_file(hdf5_path):
+        stored = bundle.get_embedded_file(hdf5_path, dataset_name)
+        return EmbeddedFileContent(
+            content=stored.content,
+            original_name=stored.original_name or dataset_name,
+            mime=stored.mime,
+        )
+
     with tables.open_file(hdf5_path, mode="r") as hdf5_file:
         dataset = hdf5_file.get_node(f"/embedded_files/{dataset_name}")
         raw_content = dataset.read()
@@ -310,6 +342,10 @@ def delete_embedded_file_from_hdf5(
     hdf5_path: str, dataset_name: str
 ) -> None:
     """Delete an embedded file dataset from an HDF5 file"""
+
+    if is_bundle_file(hdf5_path):
+        bundle.delete_embedded_file(hdf5_path, dataset_name)
+        return
 
     with tables.open_file(hdf5_path, mode="a") as hdf5_file:
         hdf5_file.remove_node("/embedded_files", dataset_name)

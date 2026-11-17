@@ -13,8 +13,8 @@ from icotronic.config import settings
 from icoapi.models.models import CANNetwork
 from icoapi.scripts.simulation import (
     ONLY,
-    SIMULATED_CHANNEL,
     SIMULATED_INTERFACE,
+    simulated_channels,
     simulation_mode,
 )
 
@@ -102,12 +102,13 @@ def _discover() -> list[CANNetwork]:
             networks.append(network)
     if mode:
         # Last, so that real hardware is preferred when connecting by default
-        networks.append(
+        networks.extend(
             CANNetwork(
                 interface=SIMULATED_INTERFACE,
-                channel=SIMULATED_CHANNEL,
+                channel=channel,
                 bitrate=default.bitrate,
             )
+            for channel in simulated_channels()
         )
     return networks
 

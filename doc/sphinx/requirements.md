@@ -2,7 +2,7 @@
 
 ## Software
 
-We currently support all major operating systems (Linux, macOS, Windows). The software assumes that you installed [Python](https://www.python.org) `3.12` or newer.
+We currently support all major operating systems (Linux, macOS, Windows). The software assumes that you installed [Python](https://www.python.org) `3.13` or newer.
 
 ## Hardware
 

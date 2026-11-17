@@ -5,7 +5,7 @@ from icostate import CANInitError
 from icotronic.can.error import ErrorResponseError, NoResponseError
 
 from icoapi.models.globals import ICOsystemSingleton, require_no_measurement
-from icoapi.models.models import CANNetwork, CANNetworksModel
+from icoapi.models.models import CANNetwork, CANNetworksModel, UnitStateModel
 from icoapi.scripts.can_scripts import (
     NoCANNetworkError,
     UnknownCANNetworkError,
@@ -13,6 +13,8 @@ from icoapi.scripts.can_scripts import (
 from icoapi.scripts.errors import (
     HTTP_404_CAN_NETWORK_NOT_FOUND_EXCEPTION,
     HTTP_404_CAN_NETWORK_NOT_FOUND_SPEC,
+    HTTP_404_UNIT_NOT_FOUND_EXCEPTION,
+    HTTP_404_UNIT_NOT_FOUND_SPEC,
     HTTP_409_MEASUREMENT_RUNNING_SPEC,
     HTTP_502_CAN_INIT_EXCEPTION,
     HTTP_502_CAN_INIT_SPEC,
@@ -41,6 +43,17 @@ async def can_networks() -> CANNetworksModel:
     return get_networks_model()
 
 
+@router.get("/units")
+async def can_units() -> list[UnitStateModel]:
+    """Get the units: the connected CAN networks with their STUs
+
+    Without multi STU support there is at most one unit. With it every
+    connected network is a unit, and measurements use all of them.
+    """
+
+    return [unit.state() for unit in ICOsystemSingleton.units()]
+
+
 @router.put(
     "/connect",
     responses={
@@ -55,6 +68,10 @@ async def can_connect(network: CANNetwork | None = None) -> CANNetworksModel:
 
     If no network is given, the default network is used (or else the first
     network that was found).
+
+    With multi STU support the network becomes another unit. Connecting to a
+    network that is a unit already, connects it again. The other units are
+    not changed.
     """
 
     try:
@@ -73,11 +90,22 @@ async def can_connect(network: CANNetwork | None = None) -> CANNetworksModel:
 
 @router.put(
     "/disconnect",
-    responses={409: HTTP_409_MEASUREMENT_RUNNING_SPEC},
+    responses={
+        404: HTTP_404_UNIT_NOT_FOUND_SPEC,
+        409: HTTP_409_MEASUREMENT_RUNNING_SPEC,
+    },
     dependencies=[Depends(require_no_measurement)],
 )
-async def can_disconnect() -> CANNetworksModel:
-    """Disconnect from the CAN network"""
+async def can_disconnect(unit: str | None = None) -> CANNetworksModel:
+    """Disconnect from the CAN network
 
-    await ICOsystemSingleton.disconnect()
+    With multi STU support only the given unit (the name of the unit is the
+    `interface:channel` of its network) is disconnected. Without a unit all
+    units are disconnected.
+    """
+
+    try:
+        await ICOsystemSingleton.disconnect(unit)
+    except KeyError as error:
+        raise HTTP_404_UNIT_NOT_FOUND_EXCEPTION from error
     return get_networks_model()

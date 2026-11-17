@@ -716,3 +716,11 @@ HTTP_404_CAN_NETWORK_NOT_FOUND_EXCEPTION = HTTPException(
 HTTP_404_CAN_NETWORK_NOT_FOUND_SPEC = _error_spec(
     "The requested CAN network was not found.", status.HTTP_404_NOT_FOUND
 )
+
+HTTP_404_UNIT_NOT_FOUND_EXCEPTION = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND,
+    detail="The requested unit was not found (is its CAN network connected?).",
+)
+HTTP_404_UNIT_NOT_FOUND_SPEC = _error_spec(
+    "The requested unit was not found.", status.HTTP_404_NOT_FOUND
+)

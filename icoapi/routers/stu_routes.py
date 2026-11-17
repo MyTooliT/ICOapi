@@ -37,9 +37,11 @@ async def stu(
     try:
         stu_devices = await get_stu(system)
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_stu_connected(False)
+        await ICOsystemSingleton.refresh_system_stu_connected(
+            system, False
+        )
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
-    await ICOsystemSingleton.refresh_stu_connected(True)
+    await ICOsystemSingleton.refresh_system_stu_connected(system, True)
     return stu_devices
 
 
@@ -91,7 +93,9 @@ async def stu_connected(system: ICOsystem = Depends(get_system)):
     try:
         connected = await system.is_sensor_node_connected()
     except (AttributeError, ErrorResponseError, NoResponseError) as error:
-        await ICOsystemSingleton.refresh_stu_connected(False)
+        await ICOsystemSingleton.refresh_system_stu_connected(
+            system, False
+        )
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
-    await ICOsystemSingleton.refresh_stu_connected(True)
+    await ICOsystemSingleton.refresh_system_stu_connected(system, True)
     return connected

@@ -2,6 +2,7 @@
 
 # -- Imports ------------------------------------------------------------------
 
+import asyncio
 from os import environ
 from unittest.mock import AsyncMock, MagicMock
 from re import match
@@ -115,6 +116,7 @@ def reset_can_state() -> None:
 
     # pylint: disable=protected-access
     ICOsystemSingleton._instance = None
+    ICOsystemSingleton._units = {}
     ICOsystemSingleton.status = CANStatus.NO_NETWORK
     ICOsystemSingleton.networks = []
     ICOsystemSingleton.selected = None
@@ -132,13 +134,21 @@ def isolated_can_state() -> Iterator[None]:
 
     names = (
         "_instance",
+        "_units",
         "status",
         "networks",
         "selected",
         "error",
         "stu_connected",
     )
-    saved = {name: getattr(ICOsystemSingleton, name) for name in names}
+    saved = {
+        name: (
+            dict(value)
+            if isinstance(value := getattr(ICOsystemSingleton, name), dict)
+            else value
+        )
+        for name in names
+    }
     reset_can_state()
     yield
     for name, value in saved.items():
@@ -232,6 +242,38 @@ def client():
         yield test_client
 
 
+@fixture(scope="session", autouse=True)
+def flush_can_network(request) -> None:
+    """Flush the CAN network once before the first hardware test
+
+    A bus that reached its warning/heavy limit stalls the following tests, so
+    release the adapter, search for networks again and reset the STU before
+    any hardware test runs. Does nothing if no hardware test is selected or if
+    the hardware is simulated.
+    """
+
+    if environ.get("ICOAPI_SIMULATE", "").strip().lower() == "only":
+        return
+    if not any(
+        item.get_closest_marker("hardware") for item in request.session.items
+    ):
+        return
+
+    setup_config()
+    environ.setdefault("ICOAPI_CAN_AUTOCONNECT", "1")
+
+    # Same as `just reset-can`. The adapter is released afterwards, since
+    # the application connects again when `client` starts it (in its own
+    # event loop).
+    asyncio.run(ICOsystemSingleton.reset())
+    asyncio.run(ICOsystemSingleton.disconnect())
+    reset_can_state()
+
+    # Same as `icon stu reset`
+    response = request.getfixturevalue("client").put("stu/reset")
+    assert response.status_code == 200, "Unable to reset STU"
+
+
 @fixture(autouse=True)
 def fake_can_connection(request) -> Iterator[None]:
     """Pretend to be connected to a CAN network in tests without hardware
@@ -256,6 +298,8 @@ def fake_can_connection(request) -> Iterator[None]:
         ICOsystemSingleton.networks,
         ICOsystemSingleton.stu_connected,
     )
+    original_units = ICOsystemSingleton._units
+    ICOsystemSingleton._units = {}
     network = CANNetwork(interface="virtual", channel="test")
     system = MagicMock()
     system.is_sensor_node_connected = AsyncMock(return_value=False)
@@ -267,6 +311,7 @@ def fake_can_connection(request) -> Iterator[None]:
 
     yield
 
+    ICOsystemSingleton._units = original_units
     (
         ICOsystemSingleton._instance,
         ICOsystemSingleton.status,

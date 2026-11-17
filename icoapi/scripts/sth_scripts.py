@@ -2,6 +2,7 @@
 
 from typing import List
 import logging
+from netaddr import EUI
 from icostate import ADCConfiguration, ICOsystem, SensorNodeInfo
 
 from icoapi.models.models import STHRenameResponseModel, ADCValues
@@ -24,6 +25,13 @@ async def connect_sth_device_by_mac(
 ) -> None:
     """Connect a STH device by a given MAC address"""
     await system.connect_sensor_node_mac(mac_address)
+    # ICOstate reads the MAC address back from the STU. With several STUs in
+    # reach of the same sensor devices the STU does not necessarily answer with
+    # the address of the device it is connected to (all units reported the
+    # address of the same sensor device). The address we connected to is the
+    # one we know is right.
+    if system.sensor_node_attributes is not None:
+        system.sensor_node_attributes.mac_address = EUI(mac_address)
     logger.info(
         "STU 1 has connection: %s", await system.is_sensor_node_connected()
     )
