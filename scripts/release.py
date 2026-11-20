@@ -51,8 +51,19 @@ ALLOWED_CHANGES: list[str] = []  # e.g. ["server/openapi.json"]
 # tests and before any file is changed, so a release that could not be
 # published fails early, e.g. [["just", "check-bitrix"]].
 PREFLIGHT_COMMANDS: list[list[str]] = []
-# Create a GitHub release after pushing (a workflow attaches the artifacts)
-GITHUB_RELEASE = False
+# Create a GitHub release after pushing (a workflow attaches the artifacts).
+# Without it the repo only gets a tag: the "Releases" list on GitHub stays
+# unchanged, also when a workflow publishes the package elsewhere (PyPI).
+GITHUB_RELEASE = True
+# Release title, `{version}` is replaced, e.g. "Version {version}"
+RELEASE_TITLE = "Version {version}"
+# Release notes files, the first existing one is used; `{version}` is
+# replaced (`{short}` too: `1.2` for `1.2.0`, else the full version).
+# Without a match GitHub generates the notes. e.g. ["doc/release/{version}.md"]
+RELEASE_NOTES_FILES: list[str] = [
+    "doc/release/{version}.md",
+    "doc/release/{short}.md",
+]
 
 # ------------------------------------------------------------------------------
 
@@ -176,6 +187,31 @@ def new_files() -> list[str]:
     ]
 
 
+def create_github_release(version: str, tag: str) -> None:
+    """Create the GitHub release, with notes from a file if there is one"""
+    major, minor, patch = version.split(".")
+    short = f"{major}.{minor}" if patch == "0" else version
+    notes = next(
+        (
+            path
+            for pattern in RELEASE_NOTES_FILES
+            if Path(
+                path := pattern.format(version=version, short=short)
+            ).exists()
+        ),
+        None,
+    )
+    run(
+        "gh",
+        "release",
+        "create",
+        tag,
+        "--title",
+        RELEASE_TITLE.format(tag=tag, version=version),
+        *(["--notes-file", notes] if notes else ["--generate-notes"]),
+    )
+
+
 def main() -> None:  # noqa: C901
     if len(sys.argv) != 2:
         sys.exit("Usage: release.py X.Y.Z")
@@ -231,7 +267,7 @@ def main() -> None:  # noqa: C901
             f"`git tag -d {tag} && git reset --hard HEAD~1`."
         )
     if GITHUB_RELEASE:
-        run("gh", "release", "create", tag, "--title", tag, "--generate-notes")
+        create_github_release(version, tag)
     print(f"Released {version} (tag `{tag}`)")
 
 

@@ -77,22 +77,12 @@ The application is set up to log _everything_. This is how the logging is set up
 
 2. Make sure all [workflows of the CI system work correctly](https://github.com/MyTooliT/ICOapi/actions)
 
-3. Release a new version on [PyPI](https://pypi.org/project/icoapi/):
+3. Write the release notes into `doc/release/<VERSION>.md` (for a new minor version `<MAJOR>.<MINOR>.md` works too) and commit them. If there is no such file, GitHub generates the notes.
+
+4. Release a new version:
 
    ```sh
    just release <VERSION>
    ```
 
-4. Open the [release notes](https://github.com/MyTooliT/ICOapi/tree/main/doc/release) for the latest version and [create a new release](https://github.com/MyTooliT/ICOapi/releases/new)
-   1. Paste them into the main text of the release web page
-   2. Insert the version number into the tag field
-   3. For the release title use “Version <VERSION>”, where `<VERSION>` specifies the version number (e.g. “Version 0.2”)
-   4. Click on “Publish Release”
-
-   **Note:** Alternatively you can also use the [`gh`](https://cli.github.com) command:
-
-   ```sh
-   gh release create
-   ```
-
-   to create the release notes.
+   This runs the checks and tests, updates the version, tags it and pushes. The tag publishes the package on [PyPI](https://pypi.org/project/icoapi/) and the command creates the [GitHub release](https://github.com/MyTooliT/ICOapi/releases) “Version <VERSION>” with the release notes.
