@@ -88,14 +88,19 @@ ignore = [
 per-file-ignores = "__init__.py:F401,conf.py:F821"
 exclude = [
   ".venv",
+  "build",
+  "dist",
 ]
 
 [tool.mypy]
 ignore_missing_imports = true
+exclude = ["^build/", "^dist/", "^\\.venv/"]
 
 [tool.pylint]
 ignore-paths = [
   ".venv/.*$",
+  "build/.*$",
+  "dist/.*$",
   "icoapi/models/trident",
 ]
 

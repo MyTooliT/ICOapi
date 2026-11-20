@@ -691,6 +691,31 @@ class TestMeasurement:
         assert meta["acceleration"]["attributes"]["post_metadata"] == metadata
 
     @mark.hardware
+    def test_measurement_survives_closing_the_stream(
+        self,
+        measurement_single_channel,  # pylint: disable=unused-argument
+        measurement_prefix,
+        client,
+    ) -> None:
+        """Closing the stream (hiding the live view) keeps it recording
+
+        Whoever watches the live data is only a viewer: the measurement runs
+        until it is stopped or its time is up. Closing the stream while the
+        measurement sends data used to end the whole measurement
+        (``recording/failed``), depending on the moment.
+        """
+
+        stream = get_measurement_websocket_endpoint(measurement_prefix, client)
+
+        for _ in range(3):
+            with client.websocket_connect(stream) as websocket:
+                assert websocket.receive_json()
+            # The viewer is gone while the data keeps coming
+            sleep(0.2)
+            status = client.get(str(measurement_prefix)).json()
+            assert status["running"] is True, "Closing the stream ended it"
+
+    @mark.hardware
     def test_measurement_stream_simple(
         self,
         measurement_single_channel,  # pylint: disable=unused-argument

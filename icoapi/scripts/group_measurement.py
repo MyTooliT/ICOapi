@@ -34,7 +34,6 @@ from icotronic.can.streaming import (
     StreamingConfiguration,
     StreamingTimeoutError,
 )
-from starlette.websockets import WebSocketDisconnect
 
 from icoapi.models.event_bus import Channel
 from icoapi.models.globals import (
@@ -541,16 +540,6 @@ async def run_group_measurement(
             units=measurement_state.units,
         )
         raise
-    except WebSocketDisconnect as error:
-        logger.info("WebSocket disconnected")
-        await mark_measurement_stopped(measurement_state, general_messenger)
-        await publish_recording_event(
-            general_messenger,
-            Channel.RECORDING_FAILED,
-            measurement_file_path,
-            error,
-            units=measurement_state.units,
-        )
     except Exception as error:  # pylint: disable=broad-exception-caught
         logger.exception("Measurement stopped due to an unexpected error")
         await _fail(

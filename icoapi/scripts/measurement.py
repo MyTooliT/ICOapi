@@ -23,7 +23,6 @@ from icotronic.can.streaming import (
     StreamingTimeoutError,
 )
 import numpy as np
-from starlette.websockets import WebSocketDisconnect
 from tables import File, Filters, Node, open_file
 import tables.exceptions
 
@@ -204,6 +203,46 @@ def maybe_get_ift_value(
     return iftlibrary.ift_value(samples, sample_frequency, window_length)
 
 
+async def send_json_to_clients(
+    measurement_state: MeasurementState, message: Any, what: str
+) -> None:
+    """Send a message to every client of the measurement stream
+
+    A client that can not be reached any more (for example a browser that
+    closed the stream by hiding the live view) is dropped from the clients.
+    The measurement does not depend on the people who watch it: a failing
+    client must **never** stop it, whatever the reason (a closed socket
+    raises ``RuntimeError`` or ``WebSocketDisconnect``, depending on the
+    moment).
+
+    Arguments:
+
+        measurement_state:
+            The state of the measurement that holds the clients
+
+        message:
+            The JSON data to send
+
+        what:
+            A description of the message for the log
+
+    """
+
+    # A copy: clients remove themselves from the list when they disconnect
+    for client in list(measurement_state.clients):
+        try:
+            await client.send_json(message)
+        except Exception as error:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Failed to send %s to client <%s>, dropping it: %s",
+                what,
+                getattr(client, "client", "?"),
+                type(error).__name__,
+            )
+            if client in measurement_state.clients:
+                measurement_state.clients.remove(client)
+
+
 async def send_ift_values(
     timestamps: list[float],
     values: list[float],
@@ -246,17 +285,16 @@ async def send_ift_values(
         timestamp=1,
         dataloss=None,
     )
-    for client in measurement_state.clients:
-        try:
-            await client.send_json([
-                {
-                    **ift_wrapped.model_dump(),
-                    **frame_source(measurement_state),
-                }
-            ])
-            logger.debug("Sent IFT value to client <%s>", client.client)
-        except RuntimeError:
-            logger.warning("Client must be disconnected, passing")
+    await send_json_to_clients(
+        measurement_state,
+        [
+            {
+                **ift_wrapped.model_dump(),
+                **frame_source(measurement_state),
+            }
+        ],
+        "IFT value",
+    )
 
 
 # pylint: disable=too-few-public-methods
@@ -609,27 +647,24 @@ async def send_dataloss(
 
     logger.debug("Sending dataloss: %s to clients", dataloss)
 
-    for client in measurement_state.clients:
-        try:
-            await client.send_json([
-                {
-                    **DataValueModel(
-                        first=None,
-                        second=None,
-                        third=None,
-                        ift=None,
-                        counter=None,
-                        timestamp=None,
-                        dataloss=dataloss,
-                    ).model_dump(),
-                    **frame_source(measurement_state),
-                }
-            ])
-        except RuntimeError:
-            logger.warning(
-                "Failed to send dataloss to client <%s>",
-                client.client,
-            )
+    await send_json_to_clients(
+        measurement_state,
+        [
+            {
+                **DataValueModel(
+                    first=None,
+                    second=None,
+                    third=None,
+                    ift=None,
+                    counter=None,
+                    timestamp=None,
+                    dataloss=dataloss,
+                ).model_dump(),
+                **frame_source(measurement_state),
+            }
+        ],
+        "dataloss",
+    )
 
 
 async def notify_clients_of_measurement_error(
@@ -637,18 +672,15 @@ async def notify_clients_of_measurement_error(
 ) -> None:
     """Notify measurement WebSocket clients that the measurement failed"""
 
-    for client in measurement_state.clients:
-        try:
-            await client.send_json({
-                "error": True,
-                "type": type(error).__name__,
-                "message": str(error),
-            })
-        except RuntimeError:
-            logger.warning(
-                "Failed to notify client <%s> about measurement error",
-                client.client,
-            )
+    await send_json_to_clients(
+        measurement_state,
+        {
+            "error": True,
+            "type": type(error).__name__,
+            "message": str(error),
+        },
+        "measurement error",
+    )
     measurement_state.clients.clear()
 
 
@@ -879,14 +911,11 @@ async def run_measurement(
                         sample_rate
                         // int(os.getenv("WEBSOCKET_UPDATE_RATE", "300"))
                     ):
-                        for client in measurement_state.clients:
-                            try:
-                                await client.send_json(data_collected_for_send)
-                            except RuntimeError:
-                                logger.warning(
-                                    "Failed to send data to client <%s>",
-                                    client.client,
-                                )
+                        await send_json_to_clients(
+                            measurement_state,
+                            data_collected_for_send,
+                            "data",
+                        )
                         data_collected_for_send.clear()
                         counter = 0
                     else:
@@ -990,16 +1019,6 @@ async def run_measurement(
             units=measurement_state.units,
         )
         raise asyncio.CancelledError from e
-    except WebSocketDisconnect as e:
-        logger.info("WebSocket disconnected")
-        await mark_measurement_stopped(measurement_state, general_messenger)
-        await publish_recording_event(
-            general_messenger,
-            Channel.RECORDING_FAILED,
-            measurement_file_path,
-            e,
-            units=measurement_state.units,
-        )
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("Measurement stopped due to an unexpected error")
         await notify_clients_of_measurement_error(measurement_state, e)
