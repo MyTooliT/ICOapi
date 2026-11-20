@@ -38,7 +38,7 @@ keywords = [
 name = "icoapi"
 readme = "README.md"
 requires-python = ">=3.13,<4"
-version = "0.3.0"
+version = "0.3.1"
 
 [project.optional-dependencies]
 dev = [
