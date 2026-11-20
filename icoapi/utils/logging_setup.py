@@ -7,16 +7,15 @@ import re
 import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
-from typing import List, Optional
 
 import orjson
 from colorlog import ColoredFormatter
 from fastapi import WebSocket
 from platformdirs import user_data_dir
+
 from icoapi.scripts.file_handling import load_env_file
 
-
-log_watchers: List[WebSocket] = []
+log_watchers: list[WebSocket] = []
 log_queue: asyncio.Queue[str] = asyncio.Queue()
 
 load_env_file()
@@ -54,9 +53,7 @@ class JSONFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
-        return orjson.dumps(log_data).decode(  # pylint: disable=no-member
-            "utf-8"
-        )
+        return orjson.dumps(log_data).decode("utf-8")
 
 
 class WebSocketLogHandler(logging.Handler):
@@ -66,7 +63,7 @@ class WebSocketLogHandler(logging.Handler):
         try:
             message = self.format(record)
             log_queue.put_nowait(message)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             pass
 
 
@@ -78,7 +75,7 @@ async def log_broadcaster():
         for ws in list(log_watchers):
             try:
                 await ws.send_text(message)
-            except Exception:  # pylint: disable=broad-exception-caught
+            except Exception:
                 log_watchers.remove(ws)
 
 
@@ -139,7 +136,7 @@ def setup_logging() -> None:
     logging.getLogger("uvicorn.access").setLevel(LOG_LEVEL_UVICORN)
 
 
-def parse_timestamps(lines: list[str]) -> tuple[Optional[str], Optional[str]]:
+def parse_timestamps(lines: list[str]) -> tuple[str | None, str | None]:
     """Parse logger timestamps"""
 
     ts_pattern = re.compile(

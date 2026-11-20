@@ -7,11 +7,11 @@ required.
 # -- Imports ------------------------------------------------------------------
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from time import monotonic, sleep
 from types import SimpleNamespace
-from typing import Any, AsyncIterator, cast
+from typing import Any, cast
 
 from icostate import ICOsystem
 from icotronic.can.streaming import StreamingData, StreamingTimeoutError
@@ -147,7 +147,7 @@ class RecordingMessenger:
             with open_metadata_storage(self.file_path):
                 pass
             self.file_usable_when_stopped.append(True)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             self.file_usable_when_stopped.append(False)
 
     async def publish_event(
@@ -158,7 +158,6 @@ class RecordingMessenger:
         self.events.append((channel, payload))
 
 
-# pylint: disable-next=too-many-instance-attributes
 class Measurement:
     """Run the measurement task with a fake sensor node"""
 
@@ -273,7 +272,10 @@ class TestRecordingPayload:
         payload = create_recording_payload(file_path, ValueError("Bad value"))
 
         assert payload["size"] == 1
-        assert payload["error"] == {"type": "ValueError", "message": "Bad value"}
+        assert payload["error"] == {
+            "type": "ValueError",
+            "message": "Bad value",
+        }
 
     def test_route_of_file(self, tmp_path: Path, client) -> None:
         """The route in the payload should download the file"""
@@ -427,7 +429,7 @@ class TestMeasurementEventsHardware:
     def test_finished_event(
         self,
         recording_event_bus,
-        measurement_single_channel,  # pylint: disable=unused-argument
+        measurement_single_channel,
         measurement_prefix,
         client,
     ) -> None:
@@ -452,7 +454,9 @@ class TestMeasurementEventsHardware:
             assert payload["size"] == file_path.stat().st_size > 0
 
             # The route in the event downloads the measurement file
-            response = client.get(payload["url"].removeprefix(f"{API_PREFIX}/"))
+            response = client.get(
+                payload["url"].removeprefix(f"{API_PREFIX}/")
+            )
             assert response.status_code == 200
             assert len(response.content) == payload["size"]
         finally:
@@ -473,7 +477,8 @@ class TestMeasurementEventsHardware:
 
         # No time limit: The measurement only ends, when we stop it
         response = client.post(
-            start, json={**measurement_instructions_single_channel, "time": None}
+            start,
+            json={**measurement_instructions_single_channel, "time": None},
         )
         assert response.status_code == 200
         try:

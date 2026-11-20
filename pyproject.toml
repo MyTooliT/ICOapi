@@ -25,7 +25,6 @@ dependencies = [
   "requests>=2.32.0,<3",
   "uvicorn[standard]>=0.35.0",
   "types-pyyaml (>=6.0.12.20250915,<7.0.0.0)",
-  "ruff>=0.17.4",
 ]
 description = """A REST and WebSocket API for the ICOtronic system using the \
                  Python FastAPI library"""
@@ -43,10 +42,9 @@ version = "0.3.0"
 
 [project.optional-dependencies]
 dev = [
-  "Flake8-pyproject>=1.2.3",
   "mypy>=2.1.0",
+  "ruff>=0.17.4",
   "myst-parser>=5",
-  "pylint>=4.0.5",
   "sphinx>=9.1.0,<10",
   "sphinxcontrib.openapi>= 0.9.0",
   "sphinx-pyproject>=0.3",
@@ -58,6 +56,8 @@ test = [
   "anyio>=4.12.0",
   "httpx>=0.28.1",
   "httpx-ws>=0.8.2",
+  # Starlette's test client deprecates httpx in favour of httpx2
+  "httpx2>=2.16.2",
   "pytest>=9.0.2",
   "pytest-rerunfailures>=16.1",
   "pytest-sugar>=1.1.1",
@@ -66,38 +66,43 @@ test = [
 [project.scripts]
 icoapi = "icoapi.api:main"
 
-[tool.black]
+[tool.ruff]
 line-length = 79
-preview = true
-unstable = true
-enable-unstable-feature = ["string_processing"]
 
-[tool.flake8]
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+  "E", "W",  # pycodestyle
+  "F",       # pyflakes
+  "I",       # isort
+  "B",       # bugbear
+  "UP",      # pyupgrade
+  "SIM",     # simplify
+  "C90",     # complexity
+  "PL",      # pylint rules
+  "RUF",
+]
 ignore = [
-  # Whitespace before colon
-  "E203",
-  # Module level import not at top of file
-  "E402",
-  # Line too long
-  "E501",
-  # Line break before binary operator
-  "W503",
-  # Line break after binary operator
-  "W504"
+  "E501",    # line length is handled by the formatter
+  "PLR0913", # too many arguments
+  "PLR2004", # magic values
 ]
-per-file-ignores = "__init__.py:F401,conf.py:F821"
-exclude = [
-  ".venv",
-]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+# Sphinx injects `html_theme` etc. via sphinx-pyproject
+"doc/**/conf.py" = ["F821"]
+# FastAPI injects dependencies through call expressions in default arguments
+"icoapi/routers/**" = ["B008"]
+# Tests import lazily (after the environment is set up) and use fixtures
+"test/**" = ["PLR0915", "S101", "PLC0415", "PLR0917"]
 
 [tool.mypy]
 ignore_missing_imports = true
-
-[tool.pylint]
-ignore-paths = [
-  ".venv/.*$",
-  "icoapi/models/trident",
-]
+# Local PyInstaller output contains duplicate module names
+exclude = ["^build/", "^dist/", "^\\.venv/"]
 
 [tool.pytest]
 addopts = [

@@ -1,33 +1,24 @@
+# PUBLIC GitHub repo: GitHub-hosted runners only.
+# Never use self-hosted runners in public repos: pull requests from forks
+# would execute arbitrary code on the runner machines.
 name: Check & Test Code
 
 on:
   - push
-
-env:
-  PYTHON-VERSION: "3.13"
+  - pull_request
 
 jobs:
-  check:
-    name: 🐧 Check & Test
-    runs-on: ubuntu-latest
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }}
 
     steps:
-
-    - name: Checkout code
-      uses: actions/checkout@v7
-
-    - name: Set up Python ${{ env.PYTHON-VERSION }}
-      uses: actions/setup-python@v7
-      with:
-        python-version: ${{ env.PYTHON-VERSION }}
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7
-      with:
-        python-version: ${{ env.PYTHON-VERSION }}
-
-    - name: Install just
-      uses: taiki-e/install-action@just
-
-    - name: Check and test code base
-      run: just test-no-hardware
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - uses: taiki-e/install-action@just
+      - name: Check and test code base
+        run: just test

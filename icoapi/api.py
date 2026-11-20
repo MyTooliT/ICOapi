@@ -1,26 +1,35 @@
 """Main entry point for API"""
 
-import os
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from os import getenv
 from pathlib import Path
 
+import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
+from icoapi.models.globals import (
+    ICOsystemSingleton,
+    MeasurementSingleton,
+    get_dataspace_config,
+    get_messenger,
+    setup_trident,
+)
+from icoapi.models.mqtt_event_bus import create_mqtt_event_bus
 from icoapi.routers import (
     can_routes,
-    config_routes,
-    sensor_routes,
-    stu_routes,
-    sth_routes,
-    common,
-    file_routes,
-    measurement_routes,
     cloud_routes,
+    common,
+    config_routes,
+    file_routes,
     log_routes,
+    measurement_routes,
+    sensor_routes,
+    sth_routes,
+    stu_routes,
 )
 from icoapi.scripts.can_scripts import is_can_autoconnect
 from icoapi.scripts.data_handling import is_inline_sensor_config_required
@@ -34,18 +43,11 @@ from icoapi.scripts.file_handling import (
     is_bundled,
     load_env_file,
 )
-from icoapi.models.globals import (
-    MeasurementSingleton,
-    ICOsystemSingleton,
-    get_messenger,
-    setup_trident, get_dataspace_config,
-)
-from icoapi.models.mqtt_event_bus import create_mqtt_event_bus
 from icoapi.utils.logging_setup import setup_logging
 
 
 @asynccontextmanager
-async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
+async def lifespan(application: FastAPI):
     """
     This function handles startup and shutdown of the API.
     Anything before <yield> will be run on startup; everything after on shutdown.
@@ -57,7 +59,7 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
         try:
             await mqtt_bus.start()
             get_messenger().add_bus(mqtt_bus)
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             logger.error("MQTT is disabled: cannot start MQTT: %s", e)
             mqtt_bus = None
     try:
@@ -70,7 +72,7 @@ async def lifespan(application: FastAPI):  # pylint: disable=unused-argument
         else:
             logger.info("Cloud disabled")
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("Error when setting up Trident: %s", e)
     await ICOsystemSingleton.startup(autoconnect=is_can_autoconnect())
     # Make sure that all event buses know the state after startup
@@ -119,7 +121,7 @@ def setup_config():
 
     if is_bundled():
         config_src = os.path.join(
-            sys._MEIPASS,  # pylint: disable=protected-access
+            sys._MEIPASS,
             "config",
         )
     else:
@@ -129,8 +131,6 @@ def setup_config():
 
 def main():
     """API entry point"""
-
-    import uvicorn  # pylint: disable=import-outside-toplevel
 
     load_env_file()
     setup_logging()

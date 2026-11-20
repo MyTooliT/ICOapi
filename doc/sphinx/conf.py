@@ -1,15 +1,14 @@
 """Sphinx configuration"""
 
-# pylint: disable=invalid-name
 
 # -- Imports ------------------------------------------------------------------
 
-from pathlib import Path
 from datetime import datetime
-from yaml import dump
+from pathlib import Path
 
 from fastapi.openapi.utils import get_openapi
 from sphinx_pyproject import SphinxConfig
+from yaml import dump
 
 from icoapi.api import app as webapp
 
@@ -19,11 +18,8 @@ sphinx_directory = Path(__file__).parent
 config = SphinxConfig(
     sphinx_directory.parent.parent / "pyproject.toml", globalns=globals()
 )
-# pylint: disable=redefined-builtin,undefined-variable
 copyright = f"{datetime.now().year}, {author}"  # type: ignore[name-defined]
-# pylint: enable=redefined-builtin
 project = name  # type: ignore[name-defined]
-# pylint: enable=undefined-variable
 
 # -- General configuration ----------------------------------------------------
 
@@ -44,12 +40,11 @@ myst_enable_extensions = [
     "dollarmath",
 ]
 
-# pylint: enable=invalid-name
 
 # -- Setup --------------------------------------------------------------------
 
 
-def setup(app):  # pylint: disable=unused-argument
+def setup(app):
     """Create YAML file for OpenAPI spec"""
 
     print("📚 Generate OpenAPI specification file")

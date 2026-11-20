@@ -21,16 +21,16 @@ threads) and does all the writing:
 
 # -- Imports ------------------------------------------------------------------
 
-from collections.abc import Sequence
 import logging
-from queue import Empty, Full, Queue
 import threading
+from collections.abc import Sequence
+from queue import Empty, Full, Queue
 from time import monotonic
 from types import TracebackType
 from typing import Any, Self
 
-from icoschema.v2 import BundleWriter, Provenance, SourceSpec
 import numpy as np
+from icoschema.v2 import BundleWriter, Provenance, SourceSpec
 
 # -- Globals ------------------------------------------------------------------
 
@@ -59,11 +59,11 @@ class WriterError(RuntimeError):
     """The data could not be written"""
 
 
-class _Stop:  # pylint: disable=too-few-public-methods
+class _Stop:
     """Marker: Everything is handed over, finish the file"""
 
 
-class ThreadedSource:  # pylint: disable=too-few-public-methods,too-many-instance-attributes
+class ThreadedSource:
     """Collect the rows of a source and hand them to the writer thread
 
     Has the interface of the ``SourceWriter`` of ICOschema that is used to
@@ -197,14 +197,14 @@ class ThreadedSource:  # pylint: disable=too-few-public-methods,too-many-instanc
 
         writer[self.name].append(
             block["timestamp"],
-            np.column_stack([
-                block[f"c{number}"] for number in range(self._channels)
-            ]),
+            np.column_stack(
+                [block[f"c{number}"] for number in range(self._channels)]
+            ),
             block["counter"] if self._has_counter else None,
         )
 
 
-class ThreadedBundleWriter:  # pylint: disable=too-many-instance-attributes
+class ThreadedBundleWriter:
     """Write a bundle (like ``BundleWriter``) with a thread of its own
 
     Args:
@@ -230,7 +230,6 @@ class ThreadedBundleWriter:  # pylint: disable=too-many-instance-attributes
 
     """
 
-    # pylint: disable-next=too-many-arguments
     def __init__(
         self,
         path: str,
@@ -265,14 +264,14 @@ class ThreadedBundleWriter:  # pylint: disable=too-many-instance-attributes
 
     # -- Thread -----------------------------------------------------------
 
-    def _run(
+    def _run(  # noqa: C901
         self, sources: list[SourceSpec], provenance: Provenance | None
     ) -> None:
         """Write everything that is handed over (the writer thread)"""
 
         try:
             writer = BundleWriter(self.path, sources, provenance=provenance)
-        except BaseException as error:  # pylint: disable=broad-exception-caught
+        except BaseException as error:
             self._open_error = error
             self._opened.set()
             return
@@ -295,7 +294,7 @@ class ThreadedBundleWriter:  # pylint: disable=too-many-instance-attributes
                 if item is not None and self._error is None:
                     try:
                         self._handle(writer, item)
-                    except BaseException as error:  # pylint: disable=broad-exception-caught
+                    except BaseException as error:
                         logger.exception("Cannot write to “%s”", self.path)
                         self._error = error
                 elif item is not None and item[0] == "flush":
@@ -305,12 +304,12 @@ class ThreadedBundleWriter:  # pylint: disable=too-many-instance-attributes
                     if self._error is None:
                         try:
                             writer.flush()
-                        except BaseException as error:  # pylint: disable=broad-exception-caught
+                        except BaseException as error:
                             self._error = error
         finally:
             try:
                 writer.close()
-            except BaseException as error:  # pylint: disable=broad-exception-caught
+            except BaseException as error:
                 self._error = self._error or error
 
     def _handle(self, writer: BundleWriter, item: tuple) -> None:

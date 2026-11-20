@@ -13,7 +13,7 @@ In the text below we assume that you installed
 - [uv](https://docs.astral.sh/uv), and
 - [just](https://github.com/casey/just)
 
-To run the tests run the following command:
+To check the code (ruff, mypy) and run the tests that need no hardware run the following command:
 
 ```sh
 just test
@@ -21,7 +21,7 @@ just test
 
 Tests are grouped with [pytest markers](https://docs.pytest.org/en/stable/how-to/mark.html):
 
-- `hardware`: tests that need the hardware described above. Run all other tests with `just test-no-hardware`.
+- `hardware`: tests that need the hardware described above. `just test` skips them, `just test-hardware` runs only them.
 - `mqtt`: tests that need an [MQTT](https://mqtt.org) broker. They are skipped, unless you set the environment variable `TEST_MQTT_BROKER` (host name of the broker). `TEST_MQTT_PORT` (default: 1883), `TEST_MQTT_USERNAME` and `TEST_MQTT_PASSWORD` are optional. The tests publish to topics below `icodaq-test/<random ID>` and remove what they published. Run only these tests with `just test-mqtt`, for example with a temporary [Mosquitto](https://mosquitto.org) broker:
 
   ```sh

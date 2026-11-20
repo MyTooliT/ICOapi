@@ -1,10 +1,10 @@
 """Routes for configuration data"""
 
+import logging
+import os
 from dataclasses import fields
 from datetime import datetime
 from pathlib import Path
-import logging
-import os
 from typing import Any
 
 import yaml
@@ -329,9 +329,7 @@ async def get_config_backups(
     try:
         files: list[ConfigFile] = []
         for f in fields(CONFIG_FILE_DEFINITIONS):
-            DEF = getattr(  # pylint: disable=invalid-name
-                CONFIG_FILE_DEFINITIONS, f.name
-            )
+            DEF = getattr(CONFIG_FILE_DEFINITIONS, f.name)
             backup_entries = [
                 ConfigFileBackup(
                     filename=backup_name,

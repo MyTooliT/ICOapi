@@ -15,7 +15,7 @@ class TestIncorrectState:
         self,
         stu_prefix,
         sth_prefix,
-        connect,  # pylint: disable=unused-argument
+        connect,
         client,
     ) -> None:
         """Test endpoint ``/reset`` while connected to a sensor device

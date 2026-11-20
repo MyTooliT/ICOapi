@@ -5,14 +5,13 @@ from icostate import ICOsystem
 from icostate.error import IncorrectStateError
 from icotronic.can.error import ErrorResponseError, NoResponseError
 
-from icoapi.models.models import STUDeviceResponseModel
 from icoapi.models.globals import (
     ICOsystemSingleton,
     MeasurementState,
     get_measurement_state,
     get_system,
 )
-from icoapi.scripts.stu_scripts import reset_stu, get_stu
+from icoapi.models.models import STUDeviceResponseModel
 from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_EXCEPTION,
     HTTP_400_INCORRECT_STATE_SPEC,
@@ -20,6 +19,7 @@ from icoapi.scripts.errors import (
     HTTP_502_CAN_NO_RESPONSE_SPEC,
     HTTP_503_CAN_NOT_CONNECTED_SPEC,
 )
+from icoapi.scripts.stu_scripts import get_stu, reset_stu
 
 router = APIRouter(
     prefix="/stu",
@@ -37,9 +37,7 @@ async def stu(
     try:
         stu_devices = await get_stu(system)
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_system_stu_connected(
-            system, False
-        )
+        await ICOsystemSingleton.refresh_system_stu_connected(system, False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
     await ICOsystemSingleton.refresh_system_stu_connected(system, True)
     return stu_devices
@@ -76,7 +74,9 @@ async def stu_reset(
     response_model=bool,
     responses={
         200: {
-            "description": ("Returns true if the STU is connected, false otherwise."),
+            "description": (
+                "Returns true if the STU is connected, false otherwise."
+            ),
             "content": {
                 "application/json": {
                     "schema": {"type": "boolean"},
@@ -93,9 +93,7 @@ async def stu_connected(system: ICOsystem = Depends(get_system)):
     try:
         connected = await system.is_sensor_node_connected()
     except (AttributeError, ErrorResponseError, NoResponseError) as error:
-        await ICOsystemSingleton.refresh_system_stu_connected(
-            system, False
-        )
+        await ICOsystemSingleton.refresh_system_stu_connected(system, False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
     await ICOsystemSingleton.refresh_system_stu_connected(system, True)
     return connected

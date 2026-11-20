@@ -18,9 +18,9 @@ A unit is ready, if
 # -- Imports ------------------------------------------------------------------
 
 import asyncio
-from dataclasses import asdict, dataclass, field
 import logging
 import os
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from fastapi import HTTPException
@@ -55,7 +55,7 @@ CHECK_TIMEOUT = 20.0
 
 
 @dataclass
-class UnitCheck:  # pylint: disable=too-many-instance-attributes
+class UnitCheck:
     """Result of the preflight check of a unit"""
 
     unit: str
@@ -229,7 +229,9 @@ async def check_unit(
     check = UnitCheck(unit=unit.key)
     try:
         async with asyncio.timeout(CHECK_TIMEOUT):
-            await _check(unit, check, instructions, resolved_channels, configure)
+            await _check(
+                unit, check, instructions, resolved_channels, configure
+            )
     except TimeoutError:
         check.problems.append(
             f"The unit did not answer in {CHECK_TIMEOUT:.0f} seconds"
@@ -244,7 +246,7 @@ async def check_unit(
         check.problems.append(str(error.detail))
     except AssertionError:
         check.problems.append("Invalid ADC configuration")
-    except Exception as error:  # pylint: disable=broad-exception-caught
+    except Exception as error:
         logger.exception("Check of unit <%s> failed", unit.key)
         check.problems.append(f"{type(error).__name__}: {error}")
 
@@ -265,15 +267,17 @@ async def check_setups(
     """
 
     return list(
-        await asyncio.gather(*(
-            check_unit(
-                setup.unit,
-                setup.instructions,
-                setup.resolved_channels,
-                configure=configure,
+        await asyncio.gather(
+            *(
+                check_unit(
+                    setup.unit,
+                    setup.instructions,
+                    setup.resolved_channels,
+                    configure=configure,
+                )
+                for setup in setups
             )
-            for setup in setups
-        ))
+        )
     )
 
 

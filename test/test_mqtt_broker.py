@@ -51,7 +51,6 @@ def wait_until(condition: Callable[[], bool], timeout: float = 5.0) -> bool:
     return condition()
 
 
-# pylint: disable-next=too-few-public-methods
 class Subscriber:
     """Client that collects the messages published to a topic"""
 
@@ -147,7 +146,7 @@ def fixture_create_bus(
 
     # Stop connections and remove retained messages that are still left
     for bus in buses:
-        bus._shutdown()  # pylint: disable=protected-access
+        bus._shutdown()
 
 
 # -- Tests --------------------------------------------------------------------
@@ -187,7 +186,9 @@ class TestMQTTBroker:
 
         bus = create_bus()
         first = await build_system_state()
-        second = first.model_copy(update={"can_network_found": not first.can_network_found})
+        second = first.model_copy(
+            update={"can_network_found": not first.can_network_found}
+        )
 
         await bus.start()
         await bus.publish_state(first)
@@ -242,10 +243,8 @@ class TestMQTTBroker:
         # Simulate a crash: The connection is closed without a disconnect
         # message. The network thread is stopped first, so the client does not
         # reconnect (and publish the state again).
-        # pylint: disable=protected-access
         bus._client.loop_stop()
         bus._client._sock.close()  # type: ignore[union-attr]
-        # pylint: enable=protected-access
 
         assert wait_until(lambda: len(current.messages) >= 2)
         assert current.messages[-1].payload == b""

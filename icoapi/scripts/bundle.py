@@ -18,19 +18,19 @@ JSON in the ``additional_data`` of the source, below the key ``icoapi``.
 
 # -- Imports ------------------------------------------------------------------
 
+import json
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-import json
-import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
 import h5py
-from icoschema.v2 import attachments
 import numpy as np
 import pandas as pd
+from fastapi import HTTPException
+from icoschema.v2 import attachments
 from tables import NoSuchNodeError
 
 from icoapi.models.models import EmbeddedFileInfo, SourceInfo
@@ -220,7 +220,8 @@ def _start_offsets(times: list[str | None]) -> list[float | None]:
     known = [time for time in parsed if time is not None]
     earliest = min(known) if known else None
     return [
-        None if time is None or earliest is None
+        None
+        if time is None or earliest is None
         else (time - earliest).total_seconds()
         for time in parsed
     ]
@@ -236,7 +237,9 @@ def list_sources(path: Path | str) -> list[SourceInfo]:
             for _name, table in tables
         ]
 
-    offsets = _start_offsets([attribute.get("Start_Time") for attribute in attributes])
+    offsets = _start_offsets(
+        [attribute.get("Start_Time") for attribute in attributes]
+    )
     return [
         SourceInfo(
             name=name,
@@ -245,7 +248,9 @@ def list_sources(path: Path | str) -> list[SourceInfo]:
             start_time=attribute.get("Start_Time"),
             start_offset=offset,
         )
-        for (name, _table), attribute, offset in zip(tables, attributes, offsets)
+        for (name, _table), attribute, offset in zip(
+            tables, attributes, offsets, strict=False
+        )
     ]
 
 
@@ -256,7 +261,7 @@ def source_name(tool_name: str | None) -> str:
     return name if name else "sth"
 
 
-def read_bundle_file(  # pylint: disable=too-many-locals
+def read_bundle_file(
     path: Path | str, source: str | None = None
 ) -> BundleFileData:
     """Read the data and metadata of a source of a bundle file in the old shape
@@ -296,7 +301,11 @@ def read_bundle_file(  # pylint: disable=too-many-locals
             status_code=404,
             detail=(
                 f"File has no source “{source}”. "
-                + (f"Sources: {', '.join(names)}" if names else "It has no sources")
+                + (
+                    f"Sources: {', '.join(names)}"
+                    if names
+                    else "It has no sources"
+                )
             ),
         )
 
@@ -313,15 +322,21 @@ def read_bundle_file(  # pylint: disable=too-many-locals
         rows = table[()]
         if len(rows) == 0:
             raise NoSuchNodeError(f"No measurement data in file “{path}”")
-        attributes = {name: _text(value) for name, value in table.attrs.items()}
-        sensors = table.parent["sensors"][()] if "sensors" in table.parent else []
+        attributes = {
+            name: _text(value) for name, value in table.attrs.items()
+        }
+        sensors = (
+            table.parent["sensors"][()] if "sensors" in table.parent else []
+        )
 
     extra = json.loads(attributes.get("additional_data", "{}")).get(
         ADDITIONAL_DATA_KEY, {}
     )
 
     channels = [
-        name for name in rows.dtype.names if name not in ("counter", "timestamp")
+        name
+        for name in rows.dtype.names
+        if name not in ("counter", "timestamp")
     ]
     slots = extra.get("slots") or list(SLOTS[: len(channels)])
     data: dict[str, Any] = {
@@ -332,7 +347,7 @@ def read_bundle_file(  # pylint: disable=too-many-locals
         ),
         "timestamp": rows["timestamp"],
     }
-    for slot, channel in zip(slots, channels):
+    for slot, channel in zip(slots, channels, strict=False):
         data[AXES[slot]] = rows[channel]
 
     return BundleFileData(
@@ -366,22 +381,26 @@ def _sensors_from_table(
     """
 
     result = []
-    for number, (_slot, row) in enumerate(zip(slots, sensors), start=1):
+    for number, (_slot, row) in enumerate(
+        zip(slots, sensors, strict=False), start=1
+    ):
         gain, offset = float(row["gain"]), float(row["offset"])
-        result.append({
-            "name": row["name"].decode(),
-            "sensor_type": row["sensor_type"].decode() or None,
-            "sensor_id": row["sensor_id"].decode(),
-            "unit": row["unit"].decode(),
-            "dimension": row["dimension"].decode(),
-            "phys_min": offset,
-            "phys_max": gain + offset,
-            "volt_min": 0.0,
-            "volt_max": 1.0,
-            "scaling_factor": gain,
-            "offset": offset,
-            "channel_number": number,
-        })
+        result.append(
+            {
+                "name": row["name"].decode(),
+                "sensor_type": row["sensor_type"].decode() or None,
+                "sensor_id": row["sensor_id"].decode(),
+                "unit": row["unit"].decode(),
+                "dimension": row["dimension"].decode(),
+                "phys_min": offset,
+                "phys_max": gain + offset,
+                "volt_min": 0.0,
+                "volt_max": 1.0,
+                "scaling_factor": gain,
+                "offset": offset,
+                "channel_number": number,
+            }
+        )
     return result
 
 

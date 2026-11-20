@@ -69,6 +69,7 @@ class CloudConnection:
 
 class METHODS(StrEnum):
     """HTTP methods"""
+
     GET = "GET"
     POST = "POST"
     PUT = "PUT"
@@ -84,6 +85,7 @@ class RouteDescription:
     They will call <method> on the <endpoint> and extract <field_name> from
     the response body.
     """
+
     method: METHODS
     endpoint: str
     field_name: str | None = None
@@ -92,29 +94,26 @@ class RouteDescription:
 @dataclass
 class BearerAuthRoutes:
     """Settings for bearer token authentication"""
+
     auth: RouteDescription
     refresh_auth: RouteDescription
 
 
 class BearerAuthConnection(CloudConnection):
     """Base class for any cloud using bearer token authentication"""
-    # pylint: disable=too-many-arguments
-    # pylint: disable=too-many-positional-arguments
+
     def __init__(
         self,
         service: str,
         username: str,
         password: str,
         domain: str,
-        settings: BearerAuthRoutes
+        settings: BearerAuthRoutes,
     ):
         super().__init__()
         self.service = service
         self.domain = domain
-        self.secrets = {
-            "username": username,
-            "password": password
-        }
+        self.secrets = {"username": username, "password": password}
         self.settings = settings
 
     def _update_tokens(self, auth_token: str, refresh_token: str):
@@ -122,9 +121,7 @@ class BearerAuthConnection(CloudConnection):
         self.session.cookies.set(
             "refresh_token", refresh_token, domain=self.domain
         )
-        self.session.headers.update(
-            {"Authorization": f"Bearer {auth_token}"}
-        )
+        self.session.headers.update({"Authorization": f"Bearer {auth_token}"})
         logger.info("Access and refresh token updated successfully.")
 
     def _acquire_access_token(self):
@@ -133,7 +130,7 @@ class BearerAuthConnection(CloudConnection):
             self.session.cookies.clear()
             response = self.session.post(
                 f"{self.service}/{self.settings.auth.endpoint}",
-                json=self.secrets
+                json=self.secrets,
             )
             response.raise_for_status()
 
@@ -141,7 +138,7 @@ class BearerAuthConnection(CloudConnection):
 
             self._update_tokens(
                 token_data.get(self.settings.auth.field_name),
-                token_data.get(self.settings.refresh_auth.field_name)
+                token_data.get(self.settings.refresh_auth.field_name),
             )
 
             return
@@ -149,14 +146,12 @@ class BearerAuthConnection(CloudConnection):
         except requests.exceptions.ConnectionError as e:
             logger.error("Connection Error: %s", e)
             raise HostNotFoundError(
-                f"Could not establish connection to {self.service} " +
-                f"under endpoint {self.settings.auth.endpoint}."
+                f"Could not establish connection to {self.service} "
+                + f"under endpoint {self.settings.auth.endpoint}."
             ) from e
         except requests.HTTPError as e:
             logger.error("Authorization failed - raised error: %s", e)
-            raise AuthorizationError(
-                "Authorization failed."
-            ) from e
+            raise AuthorizationError("Authorization failed.") from e
         except socket.gaierror as e:
             logger.error("Socket failed! raised error: %s", e)
             raise HostNotFoundError(
@@ -170,11 +165,11 @@ class BearerAuthConnection(CloudConnection):
                 " error: %s",
                 self.service,
                 self.settings.auth.endpoint,
-                e
+                e,
             )
             raise HostNotFoundError(
-                f"Could not establish connection to {self.service} " +
-                f"under endpoint {self.settings.auth.endpoint}."
+                f"Could not establish connection to {self.service} "
+                + f"under endpoint {self.settings.auth.endpoint}."
             ) from e
 
     def _refresh_with_refresh_token(self):
@@ -249,7 +244,7 @@ class BearerAuthConnection(CloudConnection):
             if response.status_code >= 500:
                 logger.error(
                     "Trident API could not be reached, raised code %s",
-                    response.status_code
+                    response.status_code,
                 )
             try:
                 response.raise_for_status()

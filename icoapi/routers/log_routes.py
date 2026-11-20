@@ -19,12 +19,12 @@ from starlette.responses import Response, StreamingResponse
 
 from icoapi.models.models import LogFileMeta, LogListResponse, LogResponse
 from icoapi.utils.logging_setup import (
-    log_watchers,
-    LOG_PATH,
-    parse_timestamps,
-    LOG_NAME,
     LOG_BACKUP_COUNT,
     LOG_MAX_BYTES,
+    LOG_NAME,
+    LOG_PATH,
+    log_watchers,
+    parse_timestamps,
 )
 from icoapi.utils.system_info import get_system_info
 
@@ -44,10 +44,10 @@ def list_logs():
     for name in sorted(log_files):
         path = os.path.join(base_dir, name)
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 lines = f.readlines()
             first_ts, last_ts = parse_timestamps(lines)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             first_ts = last_ts = None
 
         try:
@@ -89,7 +89,7 @@ def view_log_file(file: str = Query(...), limit: int = Query(0)):
         raise HTTPException(status_code=404, detail="Log file not found.")
 
     try:
-        with open(requested_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(requested_path, encoding="utf-8", errors="ignore") as f:
             if limit > 0:
                 # Efficient line-limiting (no storing the whole file)
                 lines = deque(f, maxlen=limit)

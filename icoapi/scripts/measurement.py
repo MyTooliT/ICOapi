@@ -1,18 +1,19 @@
 """Code for handling measurement data"""
 
-# pylint: disable=too-many-lines
-
 import asyncio
 import json
 import logging
 import os
-from contextlib import contextmanager
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
 from itertools import repeat
 from pathlib import Path
 from time import monotonic
-from typing import Any, Iterator, Protocol
+from typing import Any, Protocol
 
+import numpy as np
+import tables.exceptions
 from icolyzer import iftlibrary
 from icostate import ICOsystem, State
 from icotronic.can.error import UnsupportedFeatureException
@@ -22,19 +23,25 @@ from icotronic.can.streaming import (
     StreamingData,
     StreamingTimeoutError,
 )
-import numpy as np
-from starlette.websockets import WebSocketDisconnect
 from tables import File, Filters, Node, open_file
-import tables.exceptions
 
-from icoapi.models.models import ADCValues, MeasurementUnit
+from icoapi.models.event_bus import Channel
+from icoapi.models.globals import GeneralMessenger, MeasurementState
+from icoapi.models.models import (
+    ADCValues,
+    DataValueModel,
+    MeasurementInstructions,
+    MeasurementUnit,
+    Metadata,
+    MetadataPrefix,
+    ResolvedMeasurementChannels,
+)
 from icoapi.scripts.bundle import (
     BundleFileMetadata,
     BundleMetadataStorage,
     is_bundle_file,
 )
 from icoapi.scripts.data_handling import MeasurementSensorInfo
-from icoapi.scripts.recording import open_recording_file
 from icoapi.scripts.errors import (
     HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION,
 )
@@ -42,15 +49,7 @@ from icoapi.scripts.file_handling import (
     get_file_download_route,
     get_measurement_dir,
 )
-from icoapi.models.event_bus import Channel
-from icoapi.models.globals import GeneralMessenger, MeasurementState
-from icoapi.models.models import (
-    DataValueModel,
-    MeasurementInstructions,
-    Metadata,
-    MetadataPrefix,
-    ResolvedMeasurementChannels,
-)
+from icoapi.scripts.recording import open_recording_file
 from icoapi.scripts.sth_scripts import disconnect_sth_devices
 
 logger = logging.getLogger(__name__)
@@ -180,7 +179,9 @@ def create_objects(
     if len(timestamps) != len(ift_vals):
         raise ValueError("Both arrays must have the same length")
 
-    result = [{"x": t, "y": i} for t, i in zip(timestamps, ift_vals)]
+    result = [
+        {"x": t, "y": i} for t, i in zip(timestamps, ift_vals, strict=False)
+    ]
     return result
 
 
@@ -202,6 +203,46 @@ def maybe_get_ift_value(
     ):
         return None
     return iftlibrary.ift_value(samples, sample_frequency, window_length)
+
+
+async def send_json_to_clients(
+    measurement_state: MeasurementState, message: Any, what: str
+) -> None:
+    """Send a message to every client of the measurement stream
+
+    A client that can not be reached any more (for example a browser that
+    closed the stream by hiding the live view) is dropped from the clients.
+    The measurement does not depend on the people who watch it: a failing
+    client must **never** stop it, whatever the reason (a closed socket
+    raises ``RuntimeError`` or ``WebSocketDisconnect``, depending on the
+    moment).
+
+    Arguments:
+
+        measurement_state:
+            The state of the measurement that holds the clients
+
+        message:
+            The JSON data to send
+
+        what:
+            A description of the message for the log
+
+    """
+
+    # A copy: clients remove themselves from the list when they disconnect
+    for client in list(measurement_state.clients):
+        try:
+            await client.send_json(message)
+        except Exception as error:
+            logger.warning(
+                "Failed to send %s to client <%s>, dropping it: %s",
+                what,
+                getattr(client, "client", "?"),
+                type(error).__name__,
+            )
+            if client in measurement_state.clients:
+                measurement_state.clients.remove(client)
 
 
 async def send_ift_values(
@@ -246,20 +287,16 @@ async def send_ift_values(
         timestamp=1,
         dataloss=None,
     )
-    for client in measurement_state.clients:
-        try:
-            await client.send_json([
-                {
-                    **ift_wrapped.model_dump(),
-                    **frame_source(measurement_state),
-                }
-            ])
-            logger.debug("Sent IFT value to client <%s>", client.client)
-        except RuntimeError:
-            logger.warning("Client must be disconnected, passing")
-
-
-# pylint: disable=too-few-public-methods
+    await send_json_to_clients(
+        measurement_state,
+        [
+            {
+                **ift_wrapped.model_dump(),
+                **frame_source(measurement_state),
+            }
+        ],
+        "IFT value",
+    )
 
 
 class MetadataStorage(Protocol):
@@ -274,7 +311,7 @@ class MetadataStorage(Protocol):
     hdf: File
     acceleration: Node
 
-    def __setitem__(self, key: str, value: str) -> None: ...  # noqa: E704
+    def __setitem__(self, key: str, value: str) -> None: ...
 
 
 @dataclass
@@ -285,10 +322,7 @@ class ReopenedMetadataStorage:
     acceleration: Node
 
     def __setitem__(self, key: str, value: str) -> None:
-        self.acceleration.attrs[key] = value  # pylint: disable=no-member
-
-
-# pylint: enable=too-few-public-methods
+        self.acceleration.attrs[key] = value
 
 
 @contextmanager
@@ -358,14 +392,12 @@ def clear_metadata(
 
     assert not isinstance(storage, BundleMetadataStorage)
 
-    try:
+    with suppress(KeyError):
         del storage.acceleration.attrs[f"{prefix}_metadata"]
-    except KeyError:
-        pass
 
     removal_prefix = f"{prefix}__"
     for node in storage.hdf.list_nodes("/"):
-        node_name = node._v_name  # pylint: disable=protected-access
+        node_name = node._v_name
         if node_name.startswith(removal_prefix):
             storage.hdf.remove_node("/", node_name, recursive=True)
 
@@ -551,9 +583,6 @@ def get_sendable_data_and_apply_conversion(
     return data_to_send
 
 
-# pylint: disable=too-many-branches, too-many-locals, too-many-statements
-
-
 async def measurement_preparations(
     system: ICOsystem,
     instructions: MeasurementInstructions,
@@ -609,27 +638,24 @@ async def send_dataloss(
 
     logger.debug("Sending dataloss: %s to clients", dataloss)
 
-    for client in measurement_state.clients:
-        try:
-            await client.send_json([
-                {
-                    **DataValueModel(
-                        first=None,
-                        second=None,
-                        third=None,
-                        ift=None,
-                        counter=None,
-                        timestamp=None,
-                        dataloss=dataloss,
-                    ).model_dump(),
-                    **frame_source(measurement_state),
-                }
-            ])
-        except RuntimeError:
-            logger.warning(
-                "Failed to send dataloss to client <%s>",
-                client.client,
-            )
+    await send_json_to_clients(
+        measurement_state,
+        [
+            {
+                **DataValueModel(
+                    first=None,
+                    second=None,
+                    third=None,
+                    ift=None,
+                    counter=None,
+                    timestamp=None,
+                    dataloss=dataloss,
+                ).model_dump(),
+                **frame_source(measurement_state),
+            }
+        ],
+        "dataloss",
+    )
 
 
 async def notify_clients_of_measurement_error(
@@ -637,18 +663,15 @@ async def notify_clients_of_measurement_error(
 ) -> None:
     """Notify measurement WebSocket clients that the measurement failed"""
 
-    for client in measurement_state.clients:
-        try:
-            await client.send_json({
-                "error": True,
-                "type": type(error).__name__,
-                "message": str(error),
-            })
-        except RuntimeError:
-            logger.warning(
-                "Failed to notify client <%s> about measurement error",
-                client.client,
-            )
+    await send_json_to_clients(
+        measurement_state,
+        {
+            "error": True,
+            "type": type(error).__name__,
+            "message": str(error),
+        },
+        "measurement error",
+    )
     measurement_state.clients.clear()
 
 
@@ -706,7 +729,10 @@ def create_recording_payload(
         pass
 
     if error is not None:
-        payload["error"] = {"type": type(error).__name__, "message": str(error)}
+        payload["error"] = {
+            "type": type(error).__name__,
+            "message": str(error),
+        }
 
     if units is not None:
         payload["units"] = [asdict(unit) for unit in units]
@@ -716,8 +742,7 @@ def create_recording_payload(
     return payload
 
 
-# pylint: disable-next=too-many-arguments,too-many-positional-arguments
-async def publish_recording_event(
+async def publish_recording_event(  # noqa: PLR0917
     general_messenger: GeneralMessenger,
     channel: Channel,
     measurement_file_path: Path,
@@ -735,7 +760,7 @@ async def publish_recording_event(
     )
 
 
-async def run_measurement(
+async def run_measurement(  # noqa: C901, PLR0912, PLR0915
     system: ICOsystem,
     instructions: MeasurementInstructions,
     resolved_channels: ResolvedMeasurementChannels,
@@ -775,7 +800,6 @@ async def run_measurement(
         with open_recording_file(
             measurement_file_path, streaming_configuration
         ) as recording:
-
             logger.info(
                 "Opened measurement file: <%s> for writing",
                 measurement_file_path,
@@ -795,7 +819,6 @@ async def run_measurement(
             async with system.sensor_node.open_data_stream(
                 streaming_configuration
             ) as stream:
-
                 logger.info(
                     "Opened measurement stream: <%s>", measurement_file_path
                 )
@@ -819,21 +842,22 @@ async def run_measurement(
                         if enabled_channels == 1
                         else ("dual" if enabled_channels == 2 else "tripple")
                     ),
-                    ", ".join([
-                        f"{slot} -> channel {resolved.channel_number}"
-                        f" (sensor ID {resolved.sensor.sensor_id})"
-                        for slot, resolved in (
-                            ("first", resolved_channels.first),
-                            ("second", resolved_channels.second),
-                            ("third", resolved_channels.third),
-                        )
-                        if resolved.channel_number != 0
-                        and resolved.sensor is not None
-                    ]),
+                    ", ".join(
+                        [
+                            f"{slot} -> channel {resolved.channel_number}"
+                            f" (sensor ID {resolved.sensor.sensor_id})"
+                            for slot, resolved in (
+                                ("first", resolved_channels.first),
+                                ("second", resolved_channels.second),
+                                ("third", resolved_channels.third),
+                            )
+                            if resolved.channel_number != 0
+                            and resolved.sensor is not None
+                        ]
+                    ),
                 )
 
                 async for data, _ in stream:
-
                     if start_time == 0:
                         start_time = data.timestamp
                         logger.debug(
@@ -879,36 +903,33 @@ async def run_measurement(
                         sample_rate
                         // int(os.getenv("WEBSOCKET_UPDATE_RATE", "300"))
                     ):
-                        for client in measurement_state.clients:
-                            try:
-                                await client.send_json(data_collected_for_send)
-                            except RuntimeError:
-                                logger.warning(
-                                    "Failed to send data to client <%s>",
-                                    client.client,
-                                )
+                        await send_json_to_clients(
+                            measurement_state,
+                            data_collected_for_send,
+                            "data",
+                        )
                         data_collected_for_send.clear()
                         counter = 0
                     else:
-                        data_collected_for_send.append({
-                            **data_to_send.model_dump(),
-                            **frame_source(measurement_state),
-                        })
+                        data_collected_for_send.append(
+                            {
+                                **data_to_send.model_dump(),
+                                **frame_source(measurement_state),
+                            }
+                        )
                         counter += 1
 
                     # Exit conditions
-                    if instructions.time is not None:
-                        if (
-                            data.timestamp - first_timestamp
-                            >= instructions.time
-                        ):
-                            logger.info(
-                                "Timeout reached at with current being"
-                                " <%s> and first entry being %ss",
-                                data.timestamp,
-                                first_timestamp,
-                            )
-                            break
+                    if instructions.time is not None and (
+                        data.timestamp - first_timestamp >= instructions.time
+                    ):
+                        logger.info(
+                            "Timeout reached at with current being"
+                            " <%s> and first entry being %ss",
+                            data.timestamp,
+                            first_timestamp,
+                        )
+                        break
 
                     if measurement_state.stop_flag:
                         logger.info("Stop flag set - stopping measurement")
@@ -990,17 +1011,7 @@ async def run_measurement(
             units=measurement_state.units,
         )
         raise asyncio.CancelledError from e
-    except WebSocketDisconnect as e:
-        logger.info("WebSocket disconnected")
-        await mark_measurement_stopped(measurement_state, general_messenger)
-        await publish_recording_event(
-            general_messenger,
-            Channel.RECORDING_FAILED,
-            measurement_file_path,
-            e,
-            units=measurement_state.units,
-        )
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.exception("Measurement stopped due to an unexpected error")
         await notify_clients_of_measurement_error(measurement_state, e)
         await mark_measurement_stopped(measurement_state, general_messenger)
@@ -1017,6 +1028,3 @@ async def run_measurement(
             await client.close()
         logger.info("Ended measurement and cleared %s clients", clients)
         await measurement_state.reset()
-
-
-# pylint: enable=too-many-branches, too-many-locals, too-many-statements

@@ -27,6 +27,7 @@ def rename_sth(sth_prefix: str, mac_address: str, client: TestClient):
         str(f"{sth_prefix}/rename"),
         json={"mac_address": mac_address, "new_name": old_name},
     )
+    assert response.status_code == 200, response.text
     assert isinstance(response.json(), dict)
     assert response.json()["old_name"] == name
     assert response.json()["name"] == old_name
@@ -49,14 +50,20 @@ class TestSTH:
         # We assume that at least one sensor device is available
         assert len(sensor_devices) >= 1
 
-        sensor_device = sensor_devices[0]
-        assert sensor_device["device_number"] == 0
-        mac_address = sensor_device["mac_address"]
-        # Check that MAC address is valid and assert that it is equal to (the
-        # string representation) of itself
-        assert EUI(mac_address) == mac_address
-        assert len(sensor_device["name"]) <= 8
-        assert 0 >= sensor_device["rssi"] >= -90
+        # The STU numbers sensor nodes in the order it discovers them, which
+        # is not the order of the returned list (and other sensor nodes might
+        # be in range). We therefore only check that the numbers are unique.
+        device_numbers = [device["device_number"] for device in sensor_devices]
+        assert all(number >= 0 for number in device_numbers)
+        assert len(set(device_numbers)) == len(device_numbers)
+
+        for sensor_device in sensor_devices:
+            mac_address = sensor_device["mac_address"]
+            # Check that MAC address is valid and assert that it is equal to
+            # (the string representation) of itself
+            assert EUI(mac_address) == mac_address
+            assert len(sensor_device["name"]) <= 8
+            assert 0 >= sensor_device["rssi"] >= -90
 
     @mark.hardware
     def test_connect_disconnect(
@@ -113,7 +120,6 @@ class TestSTH:
         sth_prefix,
         client,
         connect,
-        # pylint: disable=unused-argument
     ) -> None:
         """Test endpoint ``/read-adc`` when connected to sensor node"""
 
@@ -148,7 +154,6 @@ class TestSTH:
         sth_prefix,
         connect,
         client,
-        # pylint: disable=unused-argument
     ) -> None:
         """Test endpoint ``/write-adc`` when connected to sensor node"""
 

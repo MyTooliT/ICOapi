@@ -52,7 +52,7 @@ import logging
 import math
 import random
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache
 from os import getenv
 from time import monotonic, time
 from types import TracebackType
@@ -64,7 +64,7 @@ from icotronic.can.adc import ADCConfiguration
 from icotronic.can.dataloss import MessageStats
 from icotronic.can.error import NoResponseError
 from icotronic.can.node.sensor import SensorNode
-from icotronic.can.node.stu import AsyncSensorNodeManager, STU
+from icotronic.can.node.stu import STU, AsyncSensorNodeManager
 from icotronic.can.sensor import SensorConfiguration
 from icotronic.can.status import State as NodeState
 from icotronic.can.streaming import StreamingConfiguration, StreamingData
@@ -164,7 +164,7 @@ def _configured_devices(index: int = 0) -> list[SimulatedSTH]:
                     supply_voltage=4.1 - 0.05 * number,
                 )
             )
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             logger.warning(
                 "Ignoring invalid simulated device <%s> (expected Name=MAC)",
                 entry,
@@ -195,7 +195,9 @@ def _dataloss() -> float:
     """Get the simulated probability that a streaming message is lost"""
 
     try:
-        return min(1.0, max(0.0, float(getenv("ICOAPI_SIMULATE_DATALOSS", "0"))))
+        return min(
+            1.0, max(0.0, float(getenv("ICOAPI_SIMULATE_DATALOSS", "0")))
+        )
     except ValueError:
         return 0.0
 
@@ -225,7 +227,7 @@ class SimulatedSTH:
     """Channel number in the first, second and third slot"""
 
 
-class SimulatedHardware:  # pylint: disable=too-few-public-methods
+class SimulatedHardware:
     """The simulated hardware: one STU and some sensor devices"""
 
     def __init__(self, index: int = 0) -> None:
@@ -242,7 +244,9 @@ class SimulatedHardware:  # pylint: disable=too-few-public-methods
         in_range = [device for device in self.devices if device.in_range]
         if isinstance(identifier, int):
             return (
-                in_range[identifier] if 0 <= identifier < len(in_range) else None
+                in_range[identifier]
+                if 0 <= identifier < len(in_range)
+                else None
             )
         for device in in_range:
             if identifier in (device.name, device.mac_address):
@@ -251,12 +255,12 @@ class SimulatedHardware:  # pylint: disable=too-few-public-methods
                 try:
                     if EUI(identifier) == device.mac_address:
                         return device
-                except Exception:  # pylint: disable=broad-exception-caught
+                except Exception:
                     continue
         return None
 
 
-@lru_cache(maxsize=None)
+@cache
 def _simulated_hardware(channel: str) -> SimulatedHardware:
     return SimulatedHardware(_network_index(channel))
 
@@ -278,7 +282,7 @@ def reset_simulated_hardware() -> None:
 # -- Streaming ----------------------------------------------------------------
 
 
-class SimulatedStream:  # pylint: disable=too-many-instance-attributes
+class SimulatedStream:
     """Replacement for the buffer that streaming data is read from
 
     Yields ``(StreamingData, lost_messages)`` in real time.
@@ -307,7 +311,9 @@ class SimulatedStream:  # pylint: disable=too-many-instance-attributes
         # One enabled channel: every message carries three samples of it.
         # Otherwise every message carries one sample per enabled channel.
         self._samples_per_message = 3 if len(self._slots) == 1 else 1
-        self._interval = self._samples_per_message * len(self._slots) / sample_rate
+        self._interval = (
+            self._samples_per_message * len(self._slots) / sample_rate
+        )
 
         self._index = 0
         self._counter = 0
@@ -390,7 +396,7 @@ class SimulatedStream:  # pylint: disable=too-many-instance-attributes
         return self._stats.dataloss()
 
 
-class SimulatedStreamContext:  # pylint: disable=too-few-public-methods
+class SimulatedStreamContext:
     """Replacement for the context manager that opens a data stream"""
 
     def __init__(
@@ -415,8 +421,6 @@ class SimulatedStreamContext:  # pylint: disable=too-few-public-methods
 
 class SimulatedSensorNode(SensorNode):  # type: ignore[misc]
     """A connected simulated sensor device (replacement for ``SensorNode``)"""
-
-    # pylint: disable=super-init-not-called,too-many-public-methods
 
     def __init__(self, hardware: SimulatedHardware, device: SimulatedSTH):
         self._hardware = hardware
@@ -497,8 +501,6 @@ class SimulatedSensorNode(SensorNode):  # type: ignore[misc]
 class SimulatedNodeManager(AsyncSensorNodeManager):  # type: ignore[misc]
     """Connects to a simulated sensor device (as ``AsyncSensorNodeManager``)"""
 
-    # pylint: disable=super-init-not-called
-
     def __init__(
         self, hardware: SimulatedHardware, identifier: int | str | EUI
     ) -> None:
@@ -530,8 +532,6 @@ class SimulatedNodeManager(AsyncSensorNodeManager):  # type: ignore[misc]
 
 class SimulatedSTU(STU):  # type: ignore[misc]
     """A simulated STU (replacement for ``STU``)"""
-
-    # pylint: disable=super-init-not-called
 
     def __init__(self, hardware: SimulatedHardware) -> None:
         self._hardware = hardware

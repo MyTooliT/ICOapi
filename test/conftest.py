@@ -3,10 +3,11 @@
 # -- Imports ------------------------------------------------------------------
 
 import asyncio
+from collections.abc import Iterator
 from os import environ
-from unittest.mock import AsyncMock, MagicMock
 from re import match
-from typing import Any, Iterator
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
 
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
@@ -16,8 +17,7 @@ from pytest import fixture
 
 from icoapi.api import app, setup_config
 from icoapi.models.event_bus import Channel, EventBus
-from icoapi.models.globals import GeneralMessenger
-from icoapi.models.globals import ICOsystemSingleton
+from icoapi.models.globals import GeneralMessenger, ICOsystemSingleton
 from icoapi.models.models import CANNetwork, CANStatus, SystemStateModel
 
 # -- Classes ------------------------------------------------------------------
@@ -49,7 +49,7 @@ def create_measurement_instructions(
 
     def set_default(name: str, value: Any) -> None:
         """Set instruction name to default value, if not already set before"""
-        if instructions.get(name, None) is None:
+        if instructions.get(name) is None:
             instructions[name] = value
 
     disabled = {
@@ -76,14 +76,16 @@ def create_measurement_instructions(
 def generate_measurement_fixture(fixture_name: str, instructions: str) -> str:
     """Create fixture for running measurement"""
 
-    if not all([
-        isinstance(fixture_name, str),
-        isinstance(instructions, str),
-        (0 < len(fixture_name) < 30),
-        (0 < len(instructions) < 40),
-        match(r"^[a-zA-Z_]+$", fixture_name),
-        match(r"^[a-zA-Z_]+$", instructions),
-    ]):
+    if not all(
+        [
+            isinstance(fixture_name, str),
+            isinstance(instructions, str),
+            (0 < len(fixture_name) < 30),
+            (0 < len(instructions) < 40),
+            match(r"^[a-zA-Z_]+$", fixture_name),
+            match(r"^[a-zA-Z_]+$", instructions),
+        ]
+    ):
         raise ValueError("Please do not try to generate/run arbitrary code 🥺")
 
     code = f"""
@@ -108,13 +110,10 @@ def {fixture_name}(
 
 # -- Fixtures -----------------------------------------------------------------
 
-# pylint: disable=redefined-outer-name
-
 
 def reset_can_state() -> None:
     """Forget the CAN connection and networks of the API"""
 
-    # pylint: disable=protected-access
     ICOsystemSingleton._instance = None
     ICOsystemSingleton._units = {}
     ICOsystemSingleton.status = CANStatus.NO_NETWORK
@@ -291,7 +290,6 @@ def fake_can_connection(request) -> Iterator[None]:
         if name in request.fixturenames:
             request.getfixturevalue(name)
 
-    # pylint: disable=protected-access
     original = (
         ICOsystemSingleton._instance,
         ICOsystemSingleton.status,
@@ -539,8 +537,6 @@ def measurement_instructions_three_channels(
     return instructions
 
 
-# pylint: disable=exec-used
-
 # If you think that creating the fixture by using exec is horrible, I do
 # agree ☹️. If you find a solution to specify the argument of the fixture
 # dynamically, then please fix the code and submit a pull request.
@@ -560,5 +556,3 @@ exec(
         "measurement_three_channels", "measurement_instructions_three_channels"
     )
 )
-
-# pylint: enable=exec-used

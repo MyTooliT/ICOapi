@@ -32,22 +32,29 @@ setup:
 reset-can:
 	uv run python -c "import asyncio; from icoapi.models.globals import ICOsystemSingleton; asyncio.run(ICOsystemSingleton.reset())"
 
-# Check code with various linters
+# Check code: formatting, linting and types; optionally only the given files
 [group('lint')]
-check: setup
-	uv run mypy .
-	uv run flake8 .
-	uv run pylint .
+check *files: setup
+	uv run ruff format --check {{ if files == "" { "." } else { files } }}
+	uv run ruff check {{ if files == "" { "." } else { files } }}
+	uv run mypy {{ if files == "" { "." } else { files } }}
 
-# Run tests
-[group('test')]
+# Format code and apply safe lint fixes
+[group('lint')]
+fix: setup
+	uv run ruff format
+	uv run ruff check --fix
+
+# Run hardware-independent tests (this is what CI and `release` run)
 [default]
-test *options: check
-	uv run pytest {{options}} --reruns 5 --reruns-delay 1
-
-# Run hardware-independent tests
 [group('test')]
-test-no-hardware: (test "-m 'not hardware'")
+test *options: check
+	uv run pytest -m "not hardware" {{options}} --reruns 5 --reruns-delay 1
+
+# Run only the hardware tests (never run in CI)
+[group('test')]
+test-hardware *options: check
+	uv run pytest -m hardware {{options}} --reruns 5 --reruns-delay 1
 
 # Run all tests, including the ones that need hardware, with simulated hardware (uses its own data folder `ICOdaq-simulated`, not your measurements)
 [group('test')]
@@ -63,36 +70,18 @@ test-simulated *options: check
 
 # Run tests that need an MQTT broker (set `TEST_MQTT_BROKER` and, if required, `TEST_MQTT_PORT`, `TEST_MQTT_USERNAME`, `TEST_MQTT_PASSWORD`)
 [group('test')]
-test-mqtt: (test "-m mqtt")
+test-mqtt: check
+	uv run pytest -m mqtt
 
 # Run API server
 [group('run')]
 run:
 	uv run python "{{package}}/api.py"
 
-# Release new package version
+# Release new version: `just release 1.2.3` (see scripts/release.py)
 [group('release')]
-[unix]
 release version:
-	#!/usr/bin/env sh -e
-	uv version {{version}}
-	version="$(uv version --short)"
-	git commit -a -m "Release: Release version ${version}"
-	git tag "${version}"
-	git push
-	git push --tags
-
-# Release new package version
-[group('release')]
-[windows]
-release version:
-	#!pwsh
-	uv version {{version}}
-	set version "$(uv version --short)"
-	git commit -a -m "Release: Release version ${version}"
-	git tag "${version}"
-	git push
-	git push --tags
+	uv run scripts/release.py {{version}}
 
 # ========
 # = HTTP =
