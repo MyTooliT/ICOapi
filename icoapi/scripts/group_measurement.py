@@ -16,14 +16,13 @@ stays in the file, which is closed correctly.
 """
 
 # The handling of failed measurements is the one of single measurements
-# pylint: disable=duplicate-code
 
 # -- Imports ------------------------------------------------------------------
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
-import logging
 from pathlib import Path
 from time import monotonic
 
@@ -50,16 +49,16 @@ from icoapi.models.models import (
 from icoapi.scripts.bundle import CollectedMetadata, source_name
 from icoapi.scripts.data_handling import MeasurementSensorInfo
 from icoapi.scripts.file_handling import get_measurement_dir
+from icoapi.scripts.live_stream import (
+    flush_clients,
+    live_demand,
+    send_to_clients,
+)
 from icoapi.scripts.measurement import (
     mark_measurement_stopped,
     notify_clients_of_measurement_error,
     publish_recording_event,
     write_metadata,
-)
-from icoapi.scripts.live_stream import (
-    flush_clients,
-    live_demand,
-    send_to_clients,
 )
 from icoapi.scripts.preflight import UnitCheck
 from icoapi.scripts.recording import SourceRecorder, create_source_spec
@@ -78,7 +77,7 @@ BATCH_MESSAGES = 128
 
 
 @dataclass
-class UnitRun:  # pylint: disable=too-many-instance-attributes
+class UnitRun:
     """Everything the measurement of one unit needs"""
 
     unit: Unit
@@ -197,14 +196,13 @@ def _conversion(
         slots = slots * values_per_message
     else:
         names = list(slots)
-    factors = np.array([
-        sensors[slot].scaling_factor * voltage_scaling for slot in slots
-    ])
+    factors = np.array(
+        [sensors[slot].scaling_factor * voltage_scaling for slot in slots]
+    )
     offsets = np.array([sensors[slot].offset for slot in slots])
     return factors, offsets, names
 
 
-# pylint: disable-next=too-many-locals
 async def _process_pending(
     run: UnitRun, measurement_state: MeasurementState
 ) -> None:
@@ -266,6 +264,7 @@ async def _process_pending(
             columns["second"],
             columns["third"],
             live_counters,
+            strict=False,
         )
     ]
     await _send_to_clients(measurement_state, rows)
@@ -397,7 +396,7 @@ async def _create_runs(
 
     names = unique_source_names([check.tool_name for check in checks])
     runs = []
-    for setup, check, name in zip(setups, checks, names):
+    for setup, check, name in zip(setups, checks, names, strict=False):
         assert setup.instructions.adc is not None
         resolved = setup.resolved_channels
         runs.append(
@@ -421,8 +420,7 @@ async def _create_runs(
     return runs
 
 
-# pylint: disable-next=too-many-arguments,too-many-locals,too-many-branches,too-many-positional-arguments
-async def run_group_measurement(
+async def run_group_measurement(  # noqa: C901
     setups: list[UnitSetup],
     checks: list[UnitCheck],
     instructions: MeasurementInstructions,
@@ -492,14 +490,16 @@ async def run_group_measurement(
                     writer[run.name], run.streaming_configuration
                 )
 
-            await _run_all([
-                asyncio.create_task(
-                    _stream_unit_guarded(
-                        run, instructions, measurement_state, failed_units
+            await _run_all(
+                [
+                    asyncio.create_task(
+                        _stream_unit_guarded(
+                            run, instructions, measurement_state, failed_units
+                        )
                     )
-                )
-                for run in runs
-            ])
+                    for run in runs
+                ]
+            )
             for run in runs:
                 await _send_dataloss(
                     measurement_state, run.name, run.overall_dataloss
@@ -540,7 +540,7 @@ async def run_group_measurement(
             units=measurement_state.units,
         )
         raise
-    except Exception as error:  # pylint: disable=broad-exception-caught
+    except Exception as error:
         logger.exception("Measurement stopped due to an unexpected error")
         await _fail(
             error,

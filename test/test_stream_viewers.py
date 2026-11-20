@@ -7,7 +7,6 @@ its connection. Depending on the moment, sending to such a client raises
 the data is written to the file regardless of who is watching.
 """
 
-# pylint: disable=too-few-public-methods
 
 # -- Imports ------------------------------------------------------------------
 
@@ -93,7 +92,11 @@ class TestViewersCanNotStopTheMeasurement:
     async def test_clients_after_a_gone_one_get_the_data(self) -> None:
         """A failing client does not keep the following ones from the data"""
 
-        first, gone, last = Client(), GoneClient(WebSocketDisconnect()), Client()
+        first, gone, last = (
+            Client(),
+            GoneClient(WebSocketDisconnect()),
+            Client(),
+        )
         state = state_with(first, gone, last)
 
         await send_json_to_clients(state, {"a": 1}, "data")

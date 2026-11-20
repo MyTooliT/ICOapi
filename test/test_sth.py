@@ -113,7 +113,6 @@ class TestSTH:
         sth_prefix,
         client,
         connect,
-        # pylint: disable=unused-argument
     ) -> None:
         """Test endpoint ``/read-adc`` when connected to sensor node"""
 
@@ -148,7 +147,6 @@ class TestSTH:
         sth_prefix,
         connect,
         client,
-        # pylint: disable=unused-argument
     ) -> None:
         """Test endpoint ``/write-adc`` when connected to sensor node"""
 

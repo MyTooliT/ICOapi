@@ -11,25 +11,28 @@ as first timestamp sets its start time again with the second message.
 # -- Imports ------------------------------------------------------------------
 
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
-from fastapi import HTTPException
 import h5py
+from fastapi import HTTPException
 from icoschema import DatasetBundle
 from icoschema.v2 import (
     BundleWriter,
     ChannelMetadata,
     LinearConversion,
-    Sensor as SchemaSensor,
     SourceSpec,
+)
+from icoschema.v2 import (
+    Sensor as SchemaSensor,
 )
 from icotronic.can.streaming import StreamingData
 from pytest import MonkeyPatch, approx, fixture, mark, raises
 from tables import NoSuchNodeError
+from test_measurement_events import FakeStream, Measurement
 
 from icoapi.models.event_bus import Channel
 from icoapi.models.models import MeasuredSensor, Metadata, MetadataPrefix
@@ -60,13 +63,6 @@ from icoapi.scripts.measurement import (
     write_metadata,
 )
 
-# pylint: disable=wrong-import-order,import-error
-from test_measurement_events import FakeStream, Measurement
-
-# pylint: enable=wrong-import-order,import-error
-
-# pylint: disable=redefined-outer-name,too-few-public-methods
-
 # -- Fixtures -----------------------------------------------------------------
 
 FORMATS = ["legacy", "bundle"]
@@ -89,7 +85,9 @@ class CounterStream(FakeStream):
         self.counters = counters
 
     async def _messages(self):
-        for counter, timestamp in zip(self.counters, self.timestamps):
+        for counter, timestamp in zip(
+            self.counters, self.timestamps, strict=False
+        ):
             yield (
                 StreamingData(
                     counter=counter, timestamp=timestamp, values=[8000] * 3
@@ -211,7 +209,11 @@ class TestRecording:
             data[file_format] = get_file_data(str(fake.file_path))
 
         legacy, bundle = data["legacy"], data["bundle"]
-        assert list(legacy.acceleration_df.columns) == ["counter", "timestamp", "x"]
+        assert list(legacy.acceleration_df.columns) == [
+            "counter",
+            "timestamp",
+            "x",
+        ]
         assert list(bundle.acceleration_df.columns) == list(
             legacy.acceleration_df.columns
         )
@@ -238,7 +240,10 @@ class TestRecording:
 
             monkeypatch.setattr(measurement, "send_dataloss", send_dataloss)
             await fake.run(
-                CounterStream([0, 1, 4, 5, 255, 2], [100.0, 100.2, 100.4, 100.6, 100.8, 101.0])
+                CounterStream(
+                    [0, 1, 4, 5, 255, 2],
+                    [100.0, 100.2, 100.4, 100.6, 100.8, 101.0],
+                )
             )
 
         assert reported["legacy"] > 0
@@ -295,7 +300,10 @@ class TestFileData:
 
         assert len(data.acceleration_df) == 9
         attributes = data.acceleration_meta.attributes
-        assert attributes["conversion"] is True or attributes["conversion"] == "true"
+        assert (
+            attributes["conversion"] is True
+            or attributes["conversion"] == "true"
+        )
         assert attributes["adc_prescaler"] == 2
         assert attributes["adc_acquisition_time"] == 8
         assert attributes["adc_oversampling_rate"] == 64
@@ -409,7 +417,9 @@ class TestSources:
         ]
         with BundleWriter(str(path), specs) as writer:
             for index in range(4):
-                writer["Test-STH"].append_row(index * 1000, [1.0 + index], index)
+                writer["Test-STH"].append_row(
+                    index * 1000, [1.0 + index], index
+                )
                 writer["Other-STH"].append_row(
                     index * 1000, [100.0 + index], index
                 )
@@ -509,7 +519,10 @@ class TestSources:
         assert error.value.status_code == 422
 
         shown = await get_file_meta(two.name, directory, "Other-STH")
-        assert [info.name for info in shown.sources] == ["Test-STH", "Other-STH"]
+        assert [info.name for info in shown.sources] == [
+            "Test-STH",
+            "Other-STH",
+        ]
         assert shown.acceleration.attributes["sth_mac_address"] == (
             "11-11-11-11-11-02"
         )
@@ -541,7 +554,9 @@ class TestSources:
         with open_metadata_storage(two) as storage:
             clear_metadata(MetadataPrefix.POST, storage)
             write_metadata(
-                MetadataPrefix.POST, Metadata("2", "turning", {"feed": 3}), storage
+                MetadataPrefix.POST,
+                Metadata("2", "turning", {"feed": 3}),
+                storage,
             )
 
         for source in ("Test-STH", "Other-STH"):
@@ -681,9 +696,8 @@ class TestMetadata:
         path = tmp_path / "other.hdf5"
         with h5py.File(path, "w") as file:
             file.attrs["icoschema_format_version"] = "2.0"
-        with raises(NoSuchNodeError):
-            with open_metadata_storage(path):
-                pass
+        with raises(NoSuchNodeError), open_metadata_storage(path):
+            pass
 
 
 class TestEmbeddedFiles:
@@ -755,7 +769,6 @@ def _with_pre_metadata(open_file):
 def test_downsample_keeps_peaks() -> None:
     """Reducing data keeps the smallest and largest values"""
 
-    # pylint: disable=import-outside-toplevel
     import numpy as np
     import pandas as pd
 
@@ -765,11 +778,13 @@ def test_downsample_keeps_peaks() -> None:
     values = np.sin(np.arange(rows) / 50.0)
     values[12_345] = 99.0
     values[77_777] = -99.0
-    data = pd.DataFrame({
-        "counter": np.arange(rows) % 256,
-        "timestamp": np.arange(rows),
-        "x": values,
-    })
+    data = pd.DataFrame(
+        {
+            "counter": np.arange(rows) % 256,
+            "timestamp": np.arange(rows),
+            "x": values,
+        }
+    )
 
     reduced = downsample_min_max(data, 2_000)
     assert len(reduced) <= 2_100

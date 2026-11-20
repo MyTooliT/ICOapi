@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from logging import getLogger
 from typing import Any
 
-from httpx_ws import aconnect_ws, AsyncWebSocketSession
+from httpx_ws import AsyncWebSocketSession, aconnect_ws
 from pytest import fixture, mark, raises
 
 from icoapi.models.globals import TridentHandler, get_messenger
@@ -311,7 +311,10 @@ class TestStateWebSocket:
             messages = await get_websocket_messages(ws, 3)
 
         assert [
-            (message["data"]["cloud"]["enabled"], message["data"]["cloud"]["healthy"])
+            (
+                message["data"]["cloud"]["enabled"],
+                message["data"]["cloud"]["healthy"],
+            )
             for message in messages
         ] == [(True, False), (True, True), (False, True)]
 

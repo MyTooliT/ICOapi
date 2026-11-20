@@ -18,9 +18,9 @@ a WebSocket can only handle one sender that waits for a slow connection.
 # -- Imports ------------------------------------------------------------------
 
 import asyncio
-from dataclasses import dataclass
 import logging
 import os
+from dataclasses import dataclass
 from time import monotonic
 from typing import Any
 from weakref import WeakKeyDictionary
@@ -71,7 +71,7 @@ def configure_client(
     _settings[client] = LiveSettings(rate or None, updates or None)
 
 
-class _ClientSender:  # pylint: disable=too-few-public-methods
+class _ClientSender:
     """Send the live data to one client"""
 
     def __init__(self, client: Any) -> None:
@@ -130,7 +130,7 @@ class _ClientSender:  # pylint: disable=too-few-public-methods
             self._last_sent = monotonic()
             try:
                 await self.client.send_json(message)
-            except Exception:  # pylint: disable=broad-exception-caught
+            except Exception:
                 logger.warning(
                     "Failed to send data to client <%s>, dropping it",
                     getattr(self.client, "client", "?"),

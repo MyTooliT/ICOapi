@@ -1,16 +1,16 @@
 """Data Model Information"""
+
 from __future__ import annotations
 
 import datetime
-from enum import unique, StrEnum
 from dataclasses import dataclass, field
+from enum import StrEnum, unique
 from json import JSONEncoder
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pandas
-from pydantic import BaseModel, ConfigDict, model_validator
-
 from icostate import ADCConfiguration, SensorNodeInfo
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class STHDeviceResponseModel(BaseModel):
@@ -66,10 +66,10 @@ class STUName(BaseModel):
 class ADCValues:
     """Data model for ADC values"""
 
-    prescaler: Optional[int]
-    acquisition_time: Optional[int]
-    oversampling_rate: Optional[int]
-    reference_voltage: Optional[float]
+    prescaler: int | None
+    acquisition_time: int | None
+    oversampling_rate: int | None
+    reference_voltage: float | None
 
     def to_adc_configuration(self) -> ADCConfiguration:
         """Get the ADC configuration of this object
@@ -82,19 +82,23 @@ class ADCValues:
 
             Get ADC configuration to calculate default sample rate
 
-            >>> adc_values = ADCValues(prescaler=None,
-            ...                        acquisition_time=None,
-            ...                        oversampling_rate=None,
-            ...                        reference_voltage=None)
+            >>> adc_values = ADCValues(
+            ...     prescaler=None,
+            ...     acquisition_time=None,
+            ...     oversampling_rate=None,
+            ...     reference_voltage=None,
+            ... )
             >>> round(adc_values.to_adc_configuration().sample_rate())
             9524
 
             Get sample rate for custom ADC values
 
-            >>> adc_values = ADCValues(prescaler=2,
-            ...                        acquisition_time=8,
-            ...                        oversampling_rate=256,
-            ...                        reference_voltage=None)
+            >>> adc_values = ADCValues(
+            ...     prescaler=2,
+            ...     acquisition_time=8,
+            ...     oversampling_rate=256,
+            ...     reference_voltage=None,
+            ... )
             >>> round(adc_values.to_adc_configuration().sample_rate())
             2381
 
@@ -118,7 +122,7 @@ class MeasurementInstructionChannel:
     `ResolvedChannel`), never supplied by the client.
     """
 
-    sensor_id: Optional[str] = None
+    sensor_id: str | None = None
 
 
 @dataclass
@@ -143,7 +147,7 @@ class Metadata:
 
     version: str
     profile: str
-    parameters: Dict[str, Quantity | Any]
+    parameters: dict[str, Quantity | Any]
 
 
 @dataclass
@@ -174,9 +178,6 @@ class UnitInstructions:
     adc: ADCValues | None = None
     sensor_configuration: PCBSensorConfiguration | None = None
     mac_address: str | None = None
-
-
-# pylint: disable=too-many-instance-attributes
 
 
 @dataclass
@@ -235,9 +236,6 @@ class MeasurementInstructions:
     units: dict[str, UnitInstructions] | None = None
 
 
-# pylint: enable=too-many-instance-attributes
-
-
 class DataValueModel(BaseModel, JSONEncoder):
     """Data model for sending measured data"""
 
@@ -276,6 +274,7 @@ class FileCloudStatus(StrEnum):
 @dataclass
 class FileCloudDetails:
     """Data model for details of file on cloud"""
+
     status: FileCloudStatus
     id: int | None
     upload_timestamp: str | None
@@ -342,6 +341,7 @@ class EmbeddedFileInfo(BaseModel, JSONEncoder):
 
 class EmbeddedFileDeleteResponse(BaseModel, JSONEncoder):
     """Response for embedded file deletion"""
+
     file_name: str
     dataset_name: str
 
@@ -374,22 +374,22 @@ class MeasurementUnit:
     """Name of the unit (``interface:channel`` of its network)"""
     source: str
     """Name of the source of the unit in the measurement file"""
-    tool_name: Optional[str] = None
-    stu_mac_address: Optional[str] = None
-    sth_mac_address: Optional[str] = None
+    tool_name: str | None = None
+    stu_mac_address: str | None = None
+    sth_mac_address: str | None = None
 
 
 @dataclass
-class MeasurementStatus:  # pylint: disable=too-many-instance-attributes
+class MeasurementStatus:
     """Measurement status information"""
 
     running: bool
-    name: Optional[str] = None
-    start_time: Optional[str] = None
-    tool_name: Optional[str] = None
-    start_supply_voltage: Optional[float] = None
-    instructions: Optional[MeasurementInstructions] = None
-    units: Optional[list[MeasurementUnit]] = None
+    name: str | None = None
+    start_time: str | None = None
+    tool_name: str | None = None
+    start_supply_voltage: float | None = None
+    instructions: MeasurementInstructions | None = None
+    units: list[MeasurementUnit] | None = None
     """The units of the measurement (``None`` without multi STU support)"""
 
 
@@ -513,15 +513,13 @@ class SocketMessage(BaseModel, JSONEncoder):
     """Data model for WebSocket message"""
 
     message: str
-    data: Optional[Any] = None
-
-
-# pylint: disable=too-many-instance-attributes
+    data: Any | None = None
 
 
 @dataclass
 class CloudConfig:
     """Trident configuration data"""
+
     connector: str
     protocol: str
     domain: str
@@ -533,11 +531,6 @@ class CloudConfig:
     enabled: bool
     manage_assets_path: str | None = None
     virtual_group_root: str | None = None
-
-
-# pylint: enable=too-many-instance-attributes
-
-# pylint: disable=invalid-name, missing-class-docstring
 
 
 @dataclass
@@ -555,9 +548,6 @@ class TridentBucketObject:
     StorageClass: str
 
 
-# pylint: enable=invalid-name, missing-class-docstring
-
-
 @dataclass
 class LogResponse:
     """Response to log requests"""
@@ -572,15 +562,15 @@ class LogFileMeta:
 
     name: str
     size: int
-    first_timestamp: Optional[str]
-    last_timestamp: Optional[str]
+    first_timestamp: str | None
+    last_timestamp: str | None
 
 
 @dataclass
 class LogListResponse:
     """Response for multiple log files"""
 
-    files: List[LogFileMeta]
+    files: list[LogFileMeta]
     directory: str
     max_bytes: int
     backup_count: int

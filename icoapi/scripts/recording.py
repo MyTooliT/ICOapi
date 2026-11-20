@@ -14,11 +14,11 @@ multi STU support (see :mod:`icoapi.scripts.features`).
 
 # -- Imports ------------------------------------------------------------------
 
+import json
+import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
-import json
-import logging
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Self
@@ -27,8 +27,10 @@ import numpy as np
 from icoschema.v2 import (
     ChannelMetadata,
     LinearConversion,
-    Sensor as SchemaSensor,
     SourceSpec,
+)
+from icoschema.v2 import (
+    Sensor as SchemaSensor,
 )
 from icostate import ADCConfiguration, ICOsystem
 from icotronic.can.dataloss import MessageStats
@@ -93,8 +95,6 @@ class RecordingFile(ABC):
     ) -> None:
         """Close the file"""
 
-    # pylint: disable=too-many-arguments
-
     @abstractmethod
     def start(
         self,
@@ -129,8 +129,6 @@ class RecordingFile(ABC):
                 The MAC address of the STU
 
         """
-
-    # pylint: enable=too-many-arguments
 
     @abstractmethod
     def add_sensors(
@@ -176,7 +174,7 @@ class LegacyRecordingFile(RecordingFile):
         assert self._storage is not None
         return self._storage
 
-    def start(  # pylint: disable=too-many-arguments
+    def start(
         self,
         *,
         adc: ADCConfiguration,
@@ -187,8 +185,7 @@ class LegacyRecordingFile(RecordingFile):
         stu_mac_address: str,
     ) -> None:
         # Avoid circular import
-        # pylint: disable-next=import-outside-toplevel,cyclic-import
-        from icoapi.scripts.measurement import write_metadata
+        from icoapi.scripts.measurement import write_metadata  # noqa: PLC0415
 
         storage = self.storage
         storage["conversion"] = "true"
@@ -288,7 +285,7 @@ class SourceRecorder:
         self._last_counter = counter
 
         # Microseconds since the start of the measurement
-        timestamp = int(round(data.timestamp * 1_000_000))
+        timestamp = round(data.timestamp * 1_000_000)
         if self._single_channel:
             # One enabled channel: Every message contains three values (that
             # share counter and timestamp) of that channel
@@ -352,9 +349,7 @@ class SourceRecorder:
                 np.repeat(counters.astype(np.uint8), per_message),
             )
         else:
-            self._source.append_rows(
-                micros, values, counters.astype(np.uint8)
-            )
+            self._source.append_rows(micros, values, counters.astype(np.uint8))
 
     def dataloss(self) -> float:
         """Get the amount of lost messages (between 0 and 1)"""
@@ -362,7 +357,6 @@ class SourceRecorder:
         return self._stats.dataloss()
 
 
-# pylint: disable-next=too-many-arguments,too-many-locals
 def create_source_spec(
     *,
     name: str,
@@ -438,10 +432,12 @@ def create_source_spec(
                 ),
             )
         )
-        sensors.append({
-            **sensor.model_dump(),
-            "channel_number": resolved.channel_number,
-        })
+        sensors.append(
+            {
+                **sensor.model_dump(),
+                "channel_number": resolved.channel_number,
+            }
+        )
 
     return SourceSpec(
         name=name,
@@ -453,18 +449,22 @@ def create_source_spec(
         adc_acquisition_time=adc.acquisition_time,
         adc_oversample_rate=adc.oversampling_rate,
         pre_metadata=pre_metadata,
-        additional_data=json.dumps({
-            ADDITIONAL_DATA_KEY: {
-                "version": _api_version(),
-                "slots": slots,
-                "sensors": sensors,
-                "tool_name": tool_name or "",
-                "start_supply_voltage": start_supply_voltage,
-                "simulated": (
-                    "true" if isinstance(system, SimulatedICOsystem) else None
-                ),
+        additional_data=json.dumps(
+            {
+                ADDITIONAL_DATA_KEY: {
+                    "version": _api_version(),
+                    "slots": slots,
+                    "sensors": sensors,
+                    "tool_name": tool_name or "",
+                    "start_supply_voltage": start_supply_voltage,
+                    "simulated": (
+                        "true"
+                        if isinstance(system, SimulatedICOsystem)
+                        else None
+                    ),
+                }
             }
-        }),
+        ),
     )
 
 
@@ -498,7 +498,7 @@ class BundleRecordingFile(RecordingFile):
         if self._writer is not None:
             self._writer.close()
 
-    def start(  # pylint: disable=too-many-arguments
+    def start(
         self,
         *,
         adc: ADCConfiguration,
@@ -509,8 +509,7 @@ class BundleRecordingFile(RecordingFile):
         stu_mac_address: str,
     ) -> None:
         # Avoid circular import
-        # pylint: disable-next=import-outside-toplevel,cyclic-import
-        from icoapi.scripts.measurement import write_metadata
+        from icoapi.scripts.measurement import write_metadata  # noqa: PLC0415
 
         collected = CollectedMetadata()
         if instructions.meta:

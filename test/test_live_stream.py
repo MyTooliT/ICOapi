@@ -79,10 +79,12 @@ class TestSending:
         client = SlowClient()
         state = state_with(client)
 
-        await asyncio.gather(*(
-            send_to_clients(state, [{"source": f"STH-{number}"}])
-            for number in range(3)
-        ))
+        await asyncio.gather(
+            *(
+                send_to_clients(state, [{"source": f"STH-{number}"}])
+                for number in range(3)
+            )
+        )
         await flush_clients(state)
 
         assert [row["source"] for row in client.rows] == [
@@ -128,10 +130,12 @@ class TestSending:
 
         # Returns at once although the client receives nothing
         await asyncio.wait_for(
-            asyncio.gather(*(
-                send_to_clients(state, [{"number": number}])
-                for number in range(total)
-            )),
+            asyncio.gather(
+                *(
+                    send_to_clients(state, [{"number": number}])
+                    for number in range(total)
+                )
+            ),
             timeout=5,
         )
         release.set()
@@ -193,7 +197,9 @@ class TestSettings:
 
         start = monotonic()
         for number in range(200):
-            await send_to_clients(state, [{"source": "A", "timestamp": number}])
+            await send_to_clients(
+                state, [{"source": "A", "timestamp": number}]
+            )
             await asyncio.sleep(0.001)
         await flush_clients(state)
         duration = monotonic() - start
@@ -205,17 +211,21 @@ class TestSettings:
         assert len(client.messages) <= 20 * duration + 3
         assert len(client.messages) < 200
 
-    async def test_stream_route_takes_the_settings(self, monkeypatch: Any) -> None:
+    async def test_stream_route_takes_the_settings(
+        self, monkeypatch: Any
+    ) -> None:
         """The client says what it wants when it connects"""
 
-        from fastapi.testclient import TestClient  # pylint: disable=import-outside-toplevel
+        from fastapi.testclient import TestClient
 
-        from icoapi.api import app  # pylint: disable=import-outside-toplevel
+        from icoapi.api import app
 
         seen: list[Any] = []
         original = live_stream.configure_client
 
-        def spy(client: Any, rate: float | None, updates: float | None) -> None:
+        def spy(
+            client: Any, rate: float | None, updates: float | None
+        ) -> None:
             seen.append((rate, updates))
             original(client, rate, updates)
 

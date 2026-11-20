@@ -7,10 +7,10 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-from icotronic.can.streaming import StreamingConfiguration
-from icotronic.measurement.storage import Storage
 import numpy as np
 import tables
+from icotronic.can.streaming import StreamingConfiguration
+from icotronic.measurement.storage import Storage
 from pytest import fixture, mark
 
 from icoapi.api import app
@@ -53,14 +53,14 @@ def fixture_analyze_hdf5_file(
 
     hdf5_path = temporary_measurement_dir / "analyze.hdf5"
     with tables.open_file(str(hdf5_path), mode="w") as hdf5_file:
-        acceleration_dtype = np.dtype([
-            ("counter", np.uint32),
-            ("timestamp", np.float64),
-            ("first", np.float32),
-        ])
-        table = hdf5_file.create_table(
-            "/", "acceleration", acceleration_dtype
+        acceleration_dtype = np.dtype(
+            [
+                ("counter", np.uint32),
+                ("timestamp", np.float64),
+                ("first", np.float32),
+            ]
         )
+        table = hdf5_file.create_table("/", "acceleration", acceleration_dtype)
         row = table.row
         row["counter"] = 1
         row["timestamp"] = 1.5
@@ -89,7 +89,7 @@ def fixture_metadata_hdf5_file(temporary_measurement_dir: Path) -> Path:
 
 # -- Tests --------------------------------------------------------------------
 
-# pylint: disable=too-many-public-methods
+
 class TestFileRoutes:
     """File route test methods"""
 
@@ -234,27 +234,27 @@ class TestFileRoutes:
         assert files_by_name["not_uploaded.hdf5"] == {
             "status": "not_uploaded",
             "upload_timestamp": None,
-            "id": None
+            "id": None,
         }
         assert files_by_name["outdated.hdf5"] == {
             "status": "outdated",
             "upload_timestamp": "2025-01-03T00:00:00Z",
-            "id": 1
+            "id": 1,
         }
         assert files_by_name["up_to_date.hdf5"] == {
             "status": "up_to_date",
             "upload_timestamp": "2025-01-03T00:00:00Z",
-            "id": 2
+            "id": 2,
         }
         assert files_by_name["recent_cloud.hdf5"] == {
             "status": "up_to_date",
             "upload_timestamp": None,
-            "id": 3
+            "id": 3,
         }
         assert files_by_name["updating.hdf5"] == {
             "status": "updating",
             "upload_timestamp": "2025-01-06T00:00:00Z",
-            "id": 4
+            "id": 4,
         }
 
     def test_cloud_status_exact_name_match(
@@ -336,7 +336,7 @@ class TestFileRoutes:
         assert files_by_name["ambiguous.hdf5"] == {
             "status": "outdated",
             "upload_timestamp": "2025-01-03T00:00:00Z",
-            "id": 11
+            "id": 11,
         }
 
     def test_cloud_status_duplicate_exact_name_error(
@@ -418,7 +418,7 @@ class TestFileRoutes:
         assert files_by_name["duplicate.hdf5"] == {
             "status": "error",
             "upload_timestamp": None,
-            "id": None
+            "id": None,
         }
 
     def test_upload_embedded_file(
@@ -435,14 +435,18 @@ class TestFileRoutes:
         )
 
         assert response.status_code == 200
-        assert response.json() == [{
-            "dataset_name": "hello_txt",
-            "original_name": "hello.txt",
-            "mime": "text/plain",
-            "size": len(payload),
-        }]
+        assert response.json() == [
+            {
+                "dataset_name": "hello_txt",
+                "original_name": "hello.txt",
+                "mime": "text/plain",
+                "size": len(payload),
+            }
+        ]
 
-        with tables.open_file(str(measurement_hdf5_file), mode="r") as hdf5_file:
+        with tables.open_file(
+            str(measurement_hdf5_file), mode="r"
+        ) as hdf5_file:
             dataset = hdf5_file.get_node("/embedded_files/hello_txt")
 
             assert dataset.dtype.name == "uint8"
@@ -456,7 +460,9 @@ class TestFileRoutes:
     ) -> None:
         """Test endpoint ``/{name}/embedded`` for duplicate filenames"""
 
-        with tables.open_file(str(measurement_hdf5_file), mode="a") as hdf5_file:
+        with tables.open_file(
+            str(measurement_hdf5_file), mode="a"
+        ) as hdf5_file:
             group = hdf5_file.create_group("/", "embedded_files")
             hdf5_file.create_array(group, "hello_txt", np.array([1, 2, 3]))
 
@@ -470,7 +476,9 @@ class TestFileRoutes:
         assert response.status_code == 200
         assert response.json()[0]["dataset_name"] == "hello_txt__1"
 
-        with tables.open_file(str(measurement_hdf5_file), mode="r") as hdf5_file:
+        with tables.open_file(
+            str(measurement_hdf5_file), mode="r"
+        ) as hdf5_file:
             dataset = hdf5_file.get_node("/embedded_files/hello_txt__1")
             assert dataset.read().tobytes() == b"new-payload"
             assert dataset.attrs["original_name"] == "hello.txt"
@@ -484,7 +492,10 @@ class TestFileRoutes:
             "files/measurement.hdf5/embedded",
             files=[
                 ("files", ("hello.txt", b"first", "text/plain")),
-                ("files", ("world.bin", b"\x01\x02", "application/octet-stream")),
+                (
+                    "files",
+                    ("world.bin", b"\x01\x02", "application/octet-stream"),
+                ),
             ],
         )
 
@@ -504,7 +515,9 @@ class TestFileRoutes:
             },
         ]
 
-        with tables.open_file(str(measurement_hdf5_file), mode="r") as hdf5_file:
+        with tables.open_file(
+            str(measurement_hdf5_file), mode="r"
+        ) as hdf5_file:
             hello = hdf5_file.get_node("/embedded_files/hello_txt")
             world = hdf5_file.get_node("/embedded_files/world_bin")
             assert hello.read().tobytes() == b"first"
@@ -551,7 +564,9 @@ class TestFileRoutes:
         """Test endpoint ``/{name}/embedded/{dataset_name}``"""
 
         payload = b"download-payload"
-        with tables.open_file(str(measurement_hdf5_file), mode="a") as hdf5_file:
+        with tables.open_file(
+            str(measurement_hdf5_file), mode="a"
+        ) as hdf5_file:
             group = hdf5_file.create_group("/", "embedded_files")
             dataset = hdf5_file.create_array(group, "hello_txt", payload)
             dataset.attrs["mime"] = "text/plain"
@@ -562,12 +577,8 @@ class TestFileRoutes:
         assert response.status_code == 200
         assert response.content == payload
         assert response.headers["content-type"] == "text/plain; charset=utf-8"
-        assert (
-            response.headers["content-disposition"]
-            == (
-                'attachment; filename="hello.txt";'
-                " filename*=UTF-8''hello.txt"
-            )
+        assert response.headers["content-disposition"] == (
+            "attachment; filename=\"hello.txt\"; filename*=UTF-8''hello.txt"
         )
 
     def test_download_embedded_file_not_found(
@@ -589,16 +600,23 @@ class TestFileRoutes:
     ) -> None:
         """Test endpoint ``/{name}/embedded/{dataset_name}`` for deletion"""
 
-        with tables.open_file(str(measurement_hdf5_file), mode="a") as hdf5_file:
+        with tables.open_file(
+            str(measurement_hdf5_file), mode="a"
+        ) as hdf5_file:
             group = hdf5_file.create_group("/", "embedded_files")
             hdf5_file.create_array(group, "hello_txt", b"payload")
 
         response = client.delete("files/measurement.hdf5/embedded/hello_txt")
 
         assert response.status_code == 200
-        assert response.json() == {'dataset_name': 'hello_txt', 'file_name': 'measurement.hdf5'}
+        assert response.json() == {
+            "dataset_name": "hello_txt",
+            "file_name": "measurement.hdf5",
+        }
 
-        with tables.open_file(str(measurement_hdf5_file), mode="r") as hdf5_file:
+        with tables.open_file(
+            str(measurement_hdf5_file), mode="r"
+        ) as hdf5_file:
             assert "/embedded_files/hello_txt" not in hdf5_file
 
     def test_delete_embedded_file_not_found(
@@ -650,19 +668,21 @@ class TestFileRoutes:
         assert response.status_code == 200
 
         metadata = json.loads(response.text.splitlines()[0])
-        assert metadata["embedded_files"] == [{
-            "dataset_name": "hello_txt",
-            "original_name": "hello.txt",
-            "mime": "text/plain",
-            "size": len(payload),
-            "download_path": "files/analyze.hdf5/embedded/hello_txt",
-        }]
+        assert metadata["embedded_files"] == [
+            {
+                "dataset_name": "hello_txt",
+                "original_name": "hello.txt",
+                "mime": "text/plain",
+                "size": len(payload),
+                "download_path": "files/analyze.hdf5/embedded/hello_txt",
+            }
+        ]
 
     @mark.parametrize("prefix", ["pre", "post"])
     def test_meta_add_when_missing(
         self,
         client,
-        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+        metadata_hdf5_file: Path,
         prefix: str,
     ) -> None:
         """Adding metadata should work for a file that has none yet"""
@@ -689,7 +709,7 @@ class TestFileRoutes:
     def test_meta_overwrite_when_present(
         self,
         client,
-        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+        metadata_hdf5_file: Path,
         prefix: str,
     ) -> None:
         """Posting metadata again should replace the previous value"""
@@ -724,7 +744,7 @@ class TestFileRoutes:
     def test_delete_meta_when_present(
         self,
         client,
-        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+        metadata_hdf5_file: Path,
         prefix: str,
     ) -> None:
         """Deleting metadata should remove the attribute from the file"""
@@ -749,7 +769,7 @@ class TestFileRoutes:
     def test_delete_meta_when_missing(
         self,
         client,
-        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+        metadata_hdf5_file: Path,
         prefix: str,
     ) -> None:
         """Deleting metadata that was never set should not fail"""
@@ -770,7 +790,9 @@ class TestFileRoutes:
 
         meta = client.get("files/analyze/meta/analyze.hdf5").json()
 
-        assert meta["acceleration"]["attributes"]["start_supply_voltage"] == 3.3
+        assert (
+            meta["acceleration"]["attributes"]["start_supply_voltage"] == 3.3
+        )
         assert isinstance(
             meta["acceleration"]["attributes"]["start_supply_voltage"], float
         )
@@ -778,7 +800,7 @@ class TestFileRoutes:
     def test_meta_omits_start_supply_voltage_when_absent(
         self,
         client,
-        metadata_hdf5_file: Path,  # pylint: disable=unused-argument
+        metadata_hdf5_file: Path,
     ) -> None:
         """Older files without the attribute should simply omit it"""
 
@@ -800,4 +822,3 @@ class TestFileRoutes:
 
         assert post_response.status_code == 404
         assert delete_response.status_code == 404
-# pylint: enable=too-many-public-methods

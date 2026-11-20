@@ -3,12 +3,13 @@
 # -- Imports ------------------------------------------------------------------
 
 import asyncio
-from pathlib import Path
 import threading
+from pathlib import Path
 from time import perf_counter, sleep
 from typing import Any
 
 import h5py
+import numpy as np
 from icoschema import DatasetBundle
 from icoschema.v2 import (
     BundleWriter,
@@ -18,7 +19,6 @@ from icoschema.v2 import (
     SourceSpec,
 )
 from icoschema.v2.storage.writer import SourceWriter
-import numpy as np
 from pytest import MonkeyPatch, raises
 
 from icoapi.scripts import writer_thread
@@ -139,12 +139,12 @@ def test_file_is_closed_and_complete_after_exception(tmp_path: Path) -> None:
     """Leaving the block with an exception still writes everything"""
 
     path = tmp_path / "exception.hdf5"
-    with raises(RuntimeError):
-        with ThreadedBundleWriter(
-            str(path), [spec()], block_rows=10
-        ) as writer:
-            fill(writer["a"], 35)
-            raise RuntimeError("failed")
+    with (
+        raises(RuntimeError),
+        ThreadedBundleWriter(str(path), [spec()], block_rows=10) as writer,
+    ):
+        fill(writer["a"], 35)
+        raise RuntimeError("failed")
 
     assert len(sources(path)["a"].timestamps) == 35
 
@@ -208,7 +208,7 @@ def test_failure_of_the_writer_thread(
     # Closing works and reports the problem; the thread is gone
     with raises(WriterError, match="No space left on device"):
         writer.close()
-    assert not writer._thread.is_alive()  # pylint: disable=protected-access
+    assert not writer._thread.is_alive()
 
 
 def test_disk_that_is_too_slow(
@@ -295,7 +295,7 @@ async def test_slow_disk_does_not_hold_the_loop_up(
     """A disk that is slow for a moment does not stop the event loop"""
 
     # What both ways of writing end in
-    original = SourceWriter._write_rows  # pylint: disable=protected-access
+    original = SourceWriter._write_rows
 
     def write_rows(self: SourceWriter, rows: Any) -> None:
         sleep(0.05)
@@ -350,8 +350,16 @@ def test_same_file_as_writer_of_icoschema(tmp_path: Path) -> None:
         fill(threaded_writer["a"], 500)
 
     first, second = sources(direct)["a"], sources(threaded)["a"]
-    for column in ("timestamps", "counter", "channel1", "channel2", "channel3"):
-        np.testing.assert_array_equal(getattr(first, column), getattr(second, column))
+    for column in (
+        "timestamps",
+        "counter",
+        "channel1",
+        "channel2",
+        "channel3",
+    ):
+        np.testing.assert_array_equal(
+            getattr(first, column), getattr(second, column)
+        )
     assert first.hardware_metadata == second.hardware_metadata
 
 
@@ -369,13 +377,19 @@ def test_append_rows_equals_append_row(tmp_path: Path) -> None:
     ) as writer:
         for index in range(rows):
             writer["a"].append_row(
-                int(timestamps[index]), list(values[index]), int(counters[index])
+                int(timestamps[index]),
+                list(values[index]),
+                int(counters[index]),
             )
     with ThreadedBundleWriter(
         str(tmp_path / "batch.hdf5"), [spec()], block_rows=2048
     ) as writer:
-        writer["a"].append_rows(timestamps[:3000], values[:3000], counters[:3000])
-        writer["a"].append_rows(timestamps[3000:], values[3000:], counters[3000:])
+        writer["a"].append_rows(
+            timestamps[:3000], values[:3000], counters[:3000]
+        )
+        writer["a"].append_rows(
+            timestamps[3000:], values[3000:], counters[3000:]
+        )
 
     expected = sources(tmp_path / "single.hdf5")["a"]
     result = sources(tmp_path / "batch.hdf5")["a"]
@@ -387,14 +401,15 @@ def test_append_rows_equals_append_row(tmp_path: Path) -> None:
 def test_recorder_batch_equals_single_messages(tmp_path: Path) -> None:
     """Storing messages in batches gives the data and statistics of one by one"""
 
-    # pylint: disable=import-outside-toplevel
     from icotronic.can.streaming import StreamingConfiguration, StreamingData
 
     from icoapi.scripts.recording import SourceRecorder
 
     counters = [1, 2, 3, 7, 8, 8, 12, 255, 0, 1, 5]
     timestamps = [index * 0.001 for index in range(len(counters))]
-    values = [[float(index), index + 0.25, -float(index)] for index in range(11)]
+    values = [
+        [float(index), index + 0.25, -float(index)] for index in range(11)
+    ]
 
     def record(name: str, batched: bool) -> tuple[Any, float]:
         path = tmp_path / name
@@ -415,7 +430,7 @@ def test_recorder_batch_equals_single_messages(tmp_path: Path) -> None:
                 )
             else:
                 for counter, timestamp, value in zip(
-                    counters, timestamps, values
+                    counters, timestamps, values, strict=False
                 ):
                     recorder.add_streaming_data(
                         StreamingData(counter, timestamp, list(value))

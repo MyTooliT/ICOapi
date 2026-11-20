@@ -19,7 +19,6 @@ from icoapi.models.models import SystemStateModel
 # -- Classes --------------------------------------------------------------------
 
 
-# pylint: disable-next=too-few-public-methods
 class FakeWebSocket:
     """Minimal WebSocket double that records sent JSON messages"""
 
@@ -341,6 +340,9 @@ class TestGeneralMessenger:
         assert len(client.messages) == 1
         message = client.messages[0]
         assert message["message"] == "state"
-        assert {"can_network_found", "disk_capacity", "cloud", "measurement_status"} <= (
-            set(message["data"])
-        )
+        assert {
+            "can_network_found",
+            "disk_capacity",
+            "cloud",
+            "measurement_status",
+        } <= (set(message["data"]))

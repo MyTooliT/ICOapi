@@ -1,12 +1,12 @@
 """Helpers for comparing local files with cloud metadata"""
+
 import hashlib
-import os
-from datetime import datetime, UTC
 import logging
+import os
+from datetime import UTC, datetime
 
-from icoapi.models.models import FileCloudStatus, FileCloudDetails
+from icoapi.models.models import FileCloudDetails, FileCloudStatus
 from icoapi.models.trident import RemoteObjectDetails
-
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +23,7 @@ def parse_cloud_timestamp(timestamp: str | None) -> datetime:
         else timestamp
     )
     parsed = datetime.fromisoformat(normalized)
-    return (
-        parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
-    )
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
 def get_cloud_details(
@@ -36,13 +34,12 @@ def get_cloud_details(
     """Build cloud sync details for a local file"""
 
     cloud_details = FileCloudDetails(
-        status=FileCloudStatus.NOT_UPLOADED,
-        upload_timestamp=None,
-        id=None
+        status=FileCloudStatus.NOT_UPLOADED, upload_timestamp=None, id=None
     )
 
     matches = [
-        file for file in cloud_files
+        file
+        for file in cloud_files
         if file.name == filename and file.last_status != "deleted"
     ]
 
@@ -52,7 +49,9 @@ def get_cloud_details(
     if len(matches) > 1:
         logger.error(
             "Multiple non-deleted matches for file %s: with statuses %s",
-            filename, str(list(map(lambda x: x.last_status, matches))))
+            filename,
+            str(list(map(lambda x: x.last_status, matches))),
+        )
         raise ValueError(
             f"Multiple non-deleted matches for file {filename}: with "
             f"ids {list(map(lambda x: x.id, matches))} "
@@ -61,13 +60,15 @@ def get_cloud_details(
 
     latest_match = matches[0]
 
-    local_modified = datetime.fromtimestamp(os.path.getmtime(file_path), tz=UTC)
+    local_modified = datetime.fromtimestamp(
+        os.path.getmtime(file_path), tz=UTC
+    )
     cloud_modified = parse_cloud_timestamp(latest_match.s3_lastmodified)
 
     cloud_details.upload_timestamp = latest_match.s3_lastmodified
     cloud_details.id = latest_match.id
 
-    if latest_match.last_status == 'available':
+    if latest_match.last_status == "available":
         if local_modified > cloud_modified:
             local_hash = None
             with open(file_path, "rb") as f:

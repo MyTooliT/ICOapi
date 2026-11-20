@@ -1,10 +1,10 @@
 """Helper code for handling configuration files"""
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Optional, Tuple, Union
 import numbers
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -34,7 +34,7 @@ SENSOR_REQUIRED_FIELDS = {
 CONFIG_BACKUP_DIRNAME = "backup"
 BACKUP_TIMESTAMP_FORMAT = "%Y%m%dT%H%M%SZ"
 
-PathLike = Union[str, Path]
+PathLike = str | Path
 
 
 @dataclass
@@ -47,9 +47,6 @@ class ConfigFileDescription:
     filename: str
 
 
-# pylint: disable=invalid-name
-
-
 @dataclass
 class ConfigFileDefinition:
     """Configuration file definition"""
@@ -58,8 +55,6 @@ class ConfigFileDefinition:
     SENSORS: ConfigFileDescription
     DATASPACE: ConfigFileDescription
 
-
-# pylint: enable=invalid-name
 
 CONFIG_FILE_DEFINITIONS = ConfigFileDefinition(
     METADATA=ConfigFileDescription(
@@ -193,7 +188,7 @@ def validate_profile(profile_key: str, profile_value: dict) -> list[str]:
 
 
 def validate_sections(
-        section: dict, path: list[str], errors: list[str]
+    section: dict, path: list[str], errors: list[str]
 ) -> None:
     """Validate profile sections"""
 
@@ -202,7 +197,7 @@ def validate_sections(
         return
 
     for key, value in section.items():
-        current_path = path + [str(key)]
+        current_path = [*path, str(key)]
         if not isinstance(value, dict):
             errors.append(
                 " -> ".join(current_path)
@@ -223,7 +218,7 @@ def is_field_definition(value: dict[str, Any]) -> bool:
 
 
 def validate_field_definition(
-        field: dict[str, Any], path: list[str], errors: list[str]
+    field: dict[str, Any], path: list[str], errors: list[str]
 ) -> None:
     """Validate field definition"""
 
@@ -231,20 +226,17 @@ def validate_field_definition(
         field_value = field.get(key)
         if not isinstance(field_value, str) or not field_value.strip():
             errors.append(
-                " -> ".join(path + [key]) + ": expected non-empty string"
+                " -> ".join([*path, key]) + ": expected non-empty string"
             )
 
     options = field.get("options")
     if options is not None and not isinstance(options, list):
         errors.append(
-            " -> ".join(path + ["options"]) + ": expected list when provided"
+            " -> ".join([*path, "options"]) + ": expected list when provided"
         )
 
 
-# pylint: disable=too-many-branches, too-many-locals, too-many-statements
-
-
-def validate_sensors_payload(payload: Any) -> list[str]:
+def validate_sensors_payload(payload: Any) -> list[str]:  # noqa: C901, PLR0912, PLR0915
     """Validate sensor config data"""
 
     if not isinstance(payload, dict):
@@ -269,7 +261,7 @@ def validate_sensors_payload(payload: Any) -> list[str]:
             for field in SENSOR_REQUIRED_FIELDS:
                 value = sensor.get(field)
                 if value is None or (
-                        isinstance(value, str) and not value.strip()
+                    isinstance(value, str) and not value.strip()
                 ):
                     errors.append(
                         f"sensors[{index}] -> {field}: expected non-empty"
@@ -291,10 +283,10 @@ def validate_sensors_payload(payload: Any) -> list[str]:
                 )
 
             for numeric_field in (
-                    "phys_min",
-                    "phys_max",
-                    "volt_min",
-                    "volt_max",
+                "phys_min",
+                "phys_max",
+                "volt_min",
+                "volt_max",
             ):
                 value = sensor.get(numeric_field)
                 if not isinstance(value, numbers.Real):
@@ -364,16 +356,12 @@ def validate_sensors_payload(payload: Any) -> list[str]:
                         )
 
     default_configuration_id = payload.get("default_configuration_id")
-    if default_configuration_id is not None:
-        if not isinstance(default_configuration_id, str):
-            errors.append(
-                "default_configuration_id: expected str when provided"
-            )
+    if default_configuration_id is not None and not isinstance(
+        default_configuration_id, str
+    ):
+        errors.append("default_configuration_id: expected str when provided")
 
     return errors
-
-
-# pylint: enable=too-many-branches, too-many-locals, too-many-statements
 
 
 def validate_dataspace_payload(payload: Any) -> list[str]:
@@ -387,34 +375,33 @@ def validate_dataspace_payload(payload: Any) -> list[str]:
     connection = payload.get("connection")
     if not isinstance(connection, dict):
         errors.append("connection: expected mapping with connection details")
+    elif not isinstance(connection.get("enabled"), bool):
+        errors.append("connection -> enabled: expected boolean")
     else:
-        if not isinstance(connection.get("enabled"), bool):
-            errors.append("connection -> enabled: expected boolean")
-        else:
-            if connection.get("enabled") is False:
-                return errors
+        if connection.get("enabled") is False:
+            return errors
 
-            for key in [
-                "connector",
-                "protocol",
-                "domain",
-                "base_path",
-                "username",
-                "password",
-                "bucket",
-            ]:
-                value = connection.get(key)
-                if not is_valid_string(value):
-                    errors.append(
-                        f"connection -> {key}: expected non-empty string"
-                    )
+        for key in [
+            "connector",
+            "protocol",
+            "domain",
+            "base_path",
+            "username",
+            "password",
+            "bucket",
+        ]:
+            value = connection.get(key)
+            if not is_valid_string(value):
+                errors.append(
+                    f"connection -> {key}: expected non-empty string"
+                )
 
     return errors
 
 
 def store_config_file(
-        content: bytes, config_dir: PathLike, filename: str
-) -> Tuple[Optional[Path], Path]:
+    content: bytes, config_dir: PathLike, filename: str
+) -> tuple[Path | None, Path]:
     """Store configuration file"""
     config_path = Path(config_dir)
     config_path.mkdir(parents=True, exist_ok=True)
@@ -434,7 +421,7 @@ def move_file_to_backup(file_path: Path) -> Path:
     backup_dir = file_path.parent / CONFIG_BACKUP_DIRNAME
     backup_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = datetime.now(timezone.utc).strftime(BACKUP_TIMESTAMP_FORMAT)
+    timestamp = datetime.now(UTC).strftime(BACKUP_TIMESTAMP_FORMAT)
     backup_path = build_backup_path(backup_dir, file_path.name, timestamp)
 
     file_path.replace(backup_path)
@@ -472,14 +459,14 @@ def split_base_and_suffix(filename: str) -> tuple[str, str]:
 
 
 def parse_info_header_from_file(
-        config_file: Path,
+    config_file: Path,
 ) -> ConfigFileInfoHeader | None:
     """Get config file header information from config file"""
 
-    if not config_file.suffix == ".yaml":
+    if config_file.suffix != ".yaml":
         return None
 
-    with open(config_file, "r", encoding="utf-8") as f:
+    with open(config_file, encoding="utf-8") as f:
         content = yaml.safe_load(f)
         errors = validate_yaml_info_header(content)
         if len(errors) > 0:
@@ -495,11 +482,8 @@ def parse_info_header_from_file(
         )
 
 
-# pylint: disable=too-many-locals
-
-
 def list_config_backups(
-        config_dir: PathLike, filename: str
+    config_dir: PathLike, filename: str
 ) -> list[tuple[str, str, ConfigFileInfoHeader | None]]:
     """List configuration backups"""
 
@@ -520,7 +504,7 @@ def list_config_backups(
         if entry_suffix != suffix or not entry_base.startswith(prefix):
             continue
 
-        remainder = entry_base[len(prefix):]
+        remainder = entry_base[len(prefix) :]
         timestamp_piece, _, _ = remainder.partition("_")
         if not timestamp_piece:
             continue
@@ -542,9 +526,6 @@ def list_config_backups(
     return entries
 
 
-# pylint: enable=too-many-locals
-
-
 def is_backup_file_for(filename: str, backup_filename: str) -> bool:
     """Check if a file is a backup file of another config file"""
 
@@ -558,7 +539,7 @@ def is_backup_file_for(filename: str, backup_filename: str) -> bool:
     if not backup_base.startswith(prefix):
         return False
 
-    remainder = backup_base[len(prefix):]
+    remainder = backup_base[len(prefix) :]
     timestamp_piece, _, _ = remainder.partition("_")
     if not timestamp_piece:
         return False

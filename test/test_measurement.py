@@ -7,13 +7,12 @@ from logging import getLogger
 from pathlib import Path
 from time import sleep, time
 
+import numpy as np
 from fastapi import HTTPException
 from icostate import ADCConfiguration
 from icotronic.can.streaming import StreamingConfiguration
 from icotronic.measurement.storage import Storage
 from pytest import mark, raises
-
-import numpy as np
 
 from icoapi.models.globals import MeasurementSingleton
 from icoapi.models.models import (
@@ -97,9 +96,7 @@ class TestWriteMetadata:
 
         file_path = tmp_path / "image_array_overwrite.hdf5"
 
-        with Storage(
-            file_path, StreamingConfiguration(first=True)
-        ) as storage:
+        with Storage(file_path, StreamingConfiguration(first=True)) as storage:
             write_image_array(
                 storage, "post__pictures", np.array([b"hello"]), True
             )
@@ -118,9 +115,7 @@ class TestWriteMetadata:
 
         file_path = tmp_path / "picture_overwrite.hdf5"
 
-        with Storage(
-            file_path, StreamingConfiguration(first=True)
-        ) as storage:
+        with Storage(file_path, StreamingConfiguration(first=True)) as storage:
             write_metadata(
                 MetadataPrefix.POST,
                 Metadata(
@@ -420,8 +415,9 @@ class TestMeasurement:
         response = client.post(start, json=instructions)
 
         assert response.status_code == 422
-        assert "requires inline sensor configuration" in (
-            response.json()["detail"]
+        assert (
+            "requires inline sensor configuration"
+            in (response.json()["detail"])
         )
 
     def test_measurement_execute_requires_inline_sensor_config(
@@ -456,8 +452,9 @@ class TestMeasurement:
         response = client.post(execute, json=instructions)
 
         assert response.status_code == 422
-        assert "requires inline sensor configuration" in (
-            response.json()["detail"]
+        assert (
+            "requires inline sensor configuration"
+            in (response.json()["detail"])
         )
 
     def test_measurement_execute_rejects_while_already_running(
@@ -499,7 +496,7 @@ class TestMeasurement:
     def test_measurement_start_no_input(
         self,
         measurement_prefix,
-        connect,  # pylint: disable=unused-argument
+        connect,
         client,
     ) -> None:
         """Test endpoint ``/start`` without specifying required input data"""
@@ -508,12 +505,14 @@ class TestMeasurement:
         response = client.post(start)
         assert response.status_code == 422
         assert response.json() == {
-            "detail": [{
-                "input": None,
-                "loc": ["body"],
-                "msg": "Field required",
-                "type": "missing",
-            }]
+            "detail": [
+                {
+                    "input": None,
+                    "loc": ["body"],
+                    "msg": "Field required",
+                    "type": "missing",
+                }
+            ]
         }
 
     @mark.hardware
@@ -560,7 +559,6 @@ class TestMeasurement:
         assert response.json() is None
 
     @mark.hardware
-    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
     def test_measurement_execute(
         self,
         measurement_prefix,
@@ -645,7 +643,7 @@ class TestMeasurement:
     def test_measurement_post_meta(
         self,
         measurement_prefix,
-        measurement_single_channel,  # pylint: disable=unused-argument
+        measurement_single_channel,
         client,
     ) -> None:
         """Test adding post metadata to file after measurement has stopped
@@ -693,7 +691,7 @@ class TestMeasurement:
     @mark.hardware
     def test_measurement_survives_closing_the_stream(
         self,
-        measurement_single_channel,  # pylint: disable=unused-argument
+        measurement_single_channel,
         measurement_prefix,
         client,
     ) -> None:
@@ -718,7 +716,7 @@ class TestMeasurement:
     @mark.hardware
     def test_measurement_stream_simple(
         self,
-        measurement_single_channel,  # pylint: disable=unused-argument
+        measurement_single_channel,
         measurement_prefix,
         client,
     ) -> None:
@@ -751,7 +749,7 @@ class TestMeasurement:
     @mark.hardware
     def test_measurement_stream_dataloss(
         self,
-        measurement_single_channel,  # pylint: disable=unused-argument
+        measurement_single_channel,
         measurement_prefix,
         client,
     ) -> None:
@@ -774,7 +772,7 @@ class TestMeasurement:
     @mark.hardware
     def test_measurement_stream_ift_value(
         self,
-        measurement_ift_value,  # pylint: disable=unused-argument
+        measurement_ift_value,
         measurement_prefix,
         client,
     ) -> None:
@@ -821,7 +819,7 @@ class TestMeasurement:
     @mark.hardware
     def test_measurement_stream_three_values(
         self,
-        measurement_three_channels,  # pylint: disable=unused-argument
+        measurement_three_channels,
         measurement_prefix,
         client,
     ) -> None:
@@ -839,6 +837,5 @@ class TestMeasurement:
             assert -125 <= message["first"] <= 125
             assert -125 <= message["second"] <= 125
             assert -125 <= message["third"] <= 125
-            # pylint: enable=fixme
             assert 0 <= message["counter"] <= 255
             assert message["ift"] is None

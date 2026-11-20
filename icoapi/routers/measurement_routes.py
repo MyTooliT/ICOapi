@@ -3,8 +3,9 @@
 import asyncio
 import datetime
 import logging
+from collections.abc import Awaitable
 from pathlib import Path
-from typing import Annotated, Awaitable
+from typing import Annotated
 
 import pathvalidate
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
@@ -12,29 +13,30 @@ from icostate.error import IncorrectStateError
 from icotronic.can import NoResponseError
 from icotronic.can.error import UnsupportedFeatureException
 from icotronic.can.sensor import SensorConfiguration
-from netaddr import AddrFormatError, EUI
+from netaddr import EUI, AddrFormatError
 from starlette import status
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from icoapi.models.globals import (
+    ICOsystem,
+    ICOsystemSingleton,
+    MeasurementState,
+    Unit,
+    get_measurement_state,
+    get_messenger,
+    get_system,
+)
 from icoapi.models.models import (
-    MeasurementStatus,
     ControlResponse,
     MeasurementInstructionChannel,
     MeasurementInstructions,
+    MeasurementStatus,
     MeasurementUnit,
     ResolvedChannel,
     ResolvedMeasurementChannels,
 )
-from icoapi.utils.measurement_examples import EXECUTE_EXAMPLES
-from icoapi.models.globals import (
-    Unit,
-    get_messenger,
-    get_system,
-    get_measurement_state,
-    ICOsystemSingleton,
-    MeasurementState,
-    ICOsystem,
-)
+from icoapi.scripts.bundle import source_name
+from icoapi.scripts.data_handling import resolve_measurement_channels
 from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_EXCEPTION,
     HTTP_400_UNSUPPOERTED_FEATURE_EXCEPTION,
@@ -46,14 +48,18 @@ from icoapi.scripts.errors import (
     HTTP_504_MEASUREMENT_TIMEOUT_SPEC,
     HTTP_EXECUTE_STEP_FAILED_EXCEPTION,
 )
-
-from icoapi.scripts.data_handling import resolve_measurement_channels
-from icoapi.scripts.bundle import source_name
 from icoapi.scripts.features import multi_stu_support
-from icoapi.scripts.live_stream import configure_client
+from icoapi.scripts.file_handling import get_measurement_dir
 from icoapi.scripts.group_measurement import (
     run_group_measurement,
     unique_source_names,
+)
+from icoapi.scripts.live_stream import configure_client
+from icoapi.scripts.measurement import (
+    measurement_preparations,
+    run_measurement,
+    verify_sensor_configuration_applied,
+    write_sensor_config_if_required,
 )
 from icoapi.scripts.preflight import (
     UnitCheck,
@@ -62,6 +68,11 @@ from icoapi.scripts.preflight import (
     describe_checks,
     raise_for_failed_checks,
 )
+from icoapi.scripts.sth_scripts import (
+    connect_sth_device_by_mac,
+    disconnect_sth_devices,
+    write_sth_adc,
+)
 from icoapi.scripts.unit_instructions import (
     UnitSetup,
     check_unit_names,
@@ -69,18 +80,7 @@ from icoapi.scripts.unit_instructions import (
     mac_address_of_unit,
     unit_setups,
 )
-from icoapi.scripts.file_handling import get_measurement_dir
-from icoapi.scripts.measurement import (
-    measurement_preparations,
-    run_measurement,
-    verify_sensor_configuration_applied,
-    write_sensor_config_if_required,
-)
-from icoapi.scripts.sth_scripts import (
-    connect_sth_device_by_mac,
-    disconnect_sth_devices,
-    write_sth_adc,
-)
+from icoapi.utils.measurement_examples import EXECUTE_EXAMPLES
 
 router = APIRouter(prefix="/measurement", tags=["Measurement"])
 
@@ -166,11 +166,7 @@ async def _single_unit_status(
     if not multi_stu_support():
         return None
     unit = next(
-        (
-            unit
-            for unit in ICOsystemSingleton.units()
-            if unit.system is system
-        ),
+        (unit for unit in ICOsystemSingleton.units() if unit.system is system),
         None,
     )
     if unit is None:
@@ -298,7 +294,6 @@ def _uses_several_units() -> bool:
     return multi_stu_support() and len(ICOsystemSingleton.units()) > 1
 
 
-# pylint: disable-next=too-many-arguments,too-many-positional-arguments
 async def _begin_group_measurement(
     instructions: MeasurementInstructions,
     setups: list[UnitSetup],
@@ -341,6 +336,7 @@ async def _begin_group_measurement(
             for check, name in zip(
                 checks,
                 unique_source_names([check.tool_name for check in checks]),
+                strict=False,
             )
         ]
         measurement_state.tool_name = ", ".join(
@@ -439,7 +435,7 @@ async def _disconnect_units(units: list[Unit]) -> None:
             return
         try:
             await disconnect_sth_devices(unit.system)
-        except Exception as error:  # pylint: disable=broad-exception-caught
+        except Exception as error:
             logger.warning(
                 "Cannot disconnect sensor device of unit <%s>: %s",
                 unit.key,
@@ -460,8 +456,7 @@ async def _connect_units(
 
     check_unit_names(instructions, units)
     addresses = {
-        unit.key: mac_address_of_unit(instructions, unit.key)
-        for unit in units
+        unit.key: mac_address_of_unit(instructions, unit.key) for unit in units
     }
     missing = [key for key, address in addresses.items() if not address]
     if missing:
@@ -488,7 +483,10 @@ async def _connect_units(
             and system.sensor_node_attributes.mac_address == requested
         )
         try:
-            if system.sensor_node_attributes is not None and not already_connected:
+            if (
+                system.sensor_node_attributes is not None
+                and not already_connected
+            ):
                 await _run_execute_step(
                     "connect", disconnect_sth_devices(system)
                 )
@@ -547,7 +545,6 @@ async def preflight(
     return describe_checks(checks)
 
 
-# pylint: disable=duplicate-code
 def _instructions_without_channels() -> MeasurementInstructions:
     """Get instructions of a measurement without channels (for the check)"""
 
@@ -563,9 +560,6 @@ def _instructions_without_channels() -> MeasurementInstructions:
         ift_channel="",
         ift_window_width=50,
     )
-
-
-# pylint: enable=duplicate-code
 
 
 @router.post(
@@ -600,15 +594,16 @@ async def start_measurement(
     except IncorrectStateError as exc:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION from exc
     except NoResponseError as exc:
-        await ICOsystemSingleton.refresh_system_stu_connected(
-            system, False
-        )
+        await ICOsystemSingleton.refresh_system_stu_connected(system, False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from exc
     except AssertionError as exc:
         raise HTTP_422_INVALID_ADC_CONFIGURATION_EXCEPTION from exc
 
     return await _begin_measurement(
-        instructions, resolved_channels, system, measurement_state,
+        instructions,
+        resolved_channels,
+        system,
+        measurement_state,
         general_messenger,
     )
 
@@ -702,9 +697,7 @@ async def execute_measurement(
 
     try:
         if system.sensor_node_attributes is not None and not already_connected:
-            await _run_execute_step(
-                "connect", disconnect_sth_devices(system)
-            )
+            await _run_execute_step("connect", disconnect_sth_devices(system))
 
         if not already_connected:
             await _run_execute_step(
@@ -726,9 +719,7 @@ async def execute_measurement(
             "sensor-configuration",
             write_sensor_config_if_required(system, sensor_configuration),
         )
-        await verify_sensor_configuration_applied(
-            system, sensor_configuration
-        )
+        await verify_sensor_configuration_applied(system, sensor_configuration)
     except Exception:
         if system.sensor_node_attributes is not None:
             await disconnect_sth_devices(system)
@@ -742,7 +733,10 @@ async def execute_measurement(
     # that *other*, already-running measurement's connection instead of
     # cleaning up this failed call.
     return await _begin_measurement(
-        instructions, resolved_channels, system, measurement_state,
+        instructions,
+        resolved_channels,
+        system,
+        measurement_state,
         general_messenger,
     )
 

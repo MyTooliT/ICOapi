@@ -1,13 +1,18 @@
-from dataclasses import dataclass, field
 import json
+import logging
+from dataclasses import dataclass, field
 from http.client import HTTPException
 from os import PathLike
-from typing import Any, Optional
+from typing import Any
 
 import requests
-import logging
 
-from icoapi.models.cloud import BearerAuthConnection, BearerAuthRoutes, METHODS, RouteDescription
+from icoapi.models.cloud import (
+    METHODS,
+    BearerAuthConnection,
+    BearerAuthRoutes,
+    RouteDescription,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,23 +46,23 @@ class RemoteObjectDetails:
     bucket: str
     objectname: str
     name: str
-    description: Optional[str]
+    description: str | None
     metadata: dict
     created_at: str
-    s3_lastmodified: Optional[str]
+    s3_lastmodified: str | None
     s3_size: int
     origin: str
     author: str
     type: str
-    etag: Optional[str]
+    etag: str | None
     last_status: str
     last_status_time: str
     secrets_count: int
     access_total_count: int
     access_week_count: int
-    last_access_time: Optional[str]
+    last_access_time: str | None
     active_offerings_count: int
-    virtual_group: Optional[Any]
+    virtual_group: Any | None
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "RemoteObjectDetails":
@@ -94,13 +99,13 @@ class StorageClient:
             auth=RouteDescription(
                 method=METHODS.POST,
                 endpoint="auth/login",
-                field_name="access_token"
+                field_name="access_token",
             ),
             refresh_auth=RouteDescription(
                 method=METHODS.POST,
                 endpoint="auth/refresh",
-                field_name="refresh_token"
-            )
+                field_name="refresh_token",
+            ),
         )
         self.connection = BearerAuthConnection(
             service, username, password, domain, settings
@@ -114,7 +119,7 @@ class StorageClient:
             response = self.connection.get("/management/files")
         except Exception:
             logger.error("Error getting remote objects.")
-            raise HTTPException
+            raise HTTPException from None
 
         try:
             return RemoteObjectListDetails.from_dict(response.json())
@@ -144,11 +149,7 @@ class StorageClient:
         with open(file_path, "rb") as f:
             return requests.put(presigned_url, data=f)
 
-    def update_file(
-            self,
-            file_id: int,
-            file_path: str | PathLike
-    ):
+    def update_file(self, file_id: int, file_path: str | PathLike):
         presigned_url_response = self.connection.get(
             f"/management/files/{file_id}/upload-url",
         )

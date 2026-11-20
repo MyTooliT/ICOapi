@@ -30,7 +30,6 @@ from icoapi.scripts.simulation import (
 
 # -- Fixtures -----------------------------------------------------------------
 
-# pylint: disable=redefined-outer-name
 
 SIMULATED = CANNetwork(
     interface=SIMULATED_INTERFACE, channel=SIMULATED_CHANNEL, bitrate=1000000
@@ -93,7 +92,9 @@ class TestDiscovery:
         def detect(**_: Any) -> list[dict[str, Any]]:
             raise AssertionError("Searched for real adapters")
 
-        monkeypatch.setattr(can_scripts.can, "detect_available_configs", detect)
+        monkeypatch.setattr(
+            can_scripts.can, "detect_available_configs", detect
+        )
 
         assert await discover_can_networks() == [SIMULATED]
 
@@ -193,7 +194,9 @@ class TestSystem:
         assert await system.is_sensor_node_connected()
         assert system.sensor_node_attributes is not None
         assert system.sensor_node_attributes.name == "Test-STH"
-        assert system.sensor_node_attributes.mac_address == nodes[0].mac_address
+        assert (
+            system.sensor_node_attributes.mac_address == nodes[0].mac_address
+        )
         assert await system.sensor_node.get_supply_voltage() > 3
 
         await system.disconnect_sensor_node()
@@ -375,7 +378,9 @@ class TestAPI:
         ]
 
         mac_address = devices[0]["mac_address"]
-        response = await http.put("sth/connect", json={"mac_address": mac_address})
+        response = await http.put(
+            "sth/connect", json={"mac_address": mac_address}
+        )
         assert response.status_code == 200
         response = await http.get("state")
         assert response.json()["sth_connected"] == {

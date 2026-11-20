@@ -12,8 +12,9 @@ import socket
 import sys
 import time
 from datetime import datetime
-from importlib.metadata import PackageNotFoundError, version as pkg_version
-from typing import Any, Dict
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
+from typing import Any
 
 import psutil
 
@@ -28,7 +29,7 @@ TRACKED_PACKAGES = [
 ]
 
 
-def _package_versions() -> Dict[str, str]:
+def _package_versions() -> dict[str, str]:
     """Get installed versions of the packages this app depends on"""
 
     versions = {}
@@ -40,7 +41,7 @@ def _package_versions() -> Dict[str, str]:
     return versions
 
 
-def _disk_usage() -> Dict[str, Any]:
+def _disk_usage() -> dict[str, Any]:
     """Get disk usage for the drive the logs/app data are stored on"""
 
     try:
@@ -55,7 +56,7 @@ def _disk_usage() -> Dict[str, Any]:
         return {}
 
 
-def get_system_info() -> Dict[str, Any]:
+def get_system_info() -> dict[str, Any]:
     """Collect diagnostic information about the host system
 
     This is intentionally limited to hardware/OS/runtime facts that are
