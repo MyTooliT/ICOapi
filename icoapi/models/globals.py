@@ -3,13 +3,13 @@
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Annotated, Any, List
-from fastapi import Query
-from starlette.websockets import WebSocket
+from typing import Annotated, Any, ClassVar
 
+from fastapi import Query
 from icostate import CANInitError, ICOsystem
 from icostate.state import State
 from icotronic.can.error import ErrorResponseError, NoResponseError
+from starlette.websockets import WebSocket
 
 from icoapi.models.event_bus import (
     Channel,
@@ -20,18 +20,17 @@ from icoapi.models.event_bus import (
 from icoapi.models.models import (
     CANNetwork,
     CANStatus,
+    CloudConfig,
     ConnectedSTHModel,
     Feature,
     MeasurementInstructions,
     MeasurementStatus,
-    Metadata,
     MeasurementUnit,
+    Metadata,
     SystemStateModel,
-    CloudConfig,
     UnitStateModel,
 )
 from icoapi.models.trident import StorageClient
-from icoapi.scripts.data_handling import read_and_parse_trident_config
 from icoapi.scripts.can_scripts import (
     UnknownCANNetworkError,
     discover_can_networks,
@@ -39,17 +38,18 @@ from icoapi.scripts.can_scripts import (
     is_can_autoconnect,
     select_can_network,
 )
+from icoapi.scripts.data_handling import read_and_parse_trident_config
 from icoapi.scripts.errors import (
     HTTP_404_UNIT_NOT_FOUND_EXCEPTION,
     HTTP_409_MEASUREMENT_RUNNING_EXCEPTION,
     HTTP_503_CAN_NOT_CONNECTED_EXCEPTION,
 )
 from icoapi.scripts.features import multi_stu_support
-from icoapi.scripts.simulation import SIMULATED_INTERFACE, SimulatedICOsystem
 from icoapi.scripts.file_handling import (
     get_dataspace_file_path,
     get_disk_space_in_gib,
 )
+from icoapi.scripts.simulation import SIMULATED_INTERFACE, SimulatedICOsystem
 
 logger = logging.getLogger(__name__)
 
@@ -71,12 +71,12 @@ async def _release_connection(system: Any) -> None:
     if notifier is not None:
         try:
             await asyncio.to_thread(notifier.stop)
-        except Exception as error:  # pylint: disable=broad-exception-caught
+        except Exception as error:
             logger.warning("Error while stopping CAN notifier: %s", error)
     if bus is not None:
         try:
             await asyncio.to_thread(bus.shutdown)
-        except Exception as error:  # pylint: disable=broad-exception-caught
+        except Exception as error:
             logger.warning("Error while shutting down CAN bus: %s", error)
     if connection is not None:
         connection.notifier = None
@@ -92,18 +92,20 @@ async def _flush_bus(system: Any) -> None:
         return
     try:
         await asyncio.to_thread(reset)
-    except Exception as error:  # pylint: disable=broad-exception-caught
+    except Exception as error:
         logger.warning("Cannot flush CAN buffers: %s", error)
 
 
 async def _disconnect_system(system: Any) -> None:
     """Close the connection of a system (even if closing it cleanly fails)"""
 
-    logger.debug("Trying to disconnect CAN connection with ID <%s>", id(system))
+    logger.debug(
+        "Trying to disconnect CAN connection with ID <%s>", id(system)
+    )
     try:
         if system.state == State.STU_CONNECTED:
             await system.disconnect_stu()
-    except Exception as error:  # pylint: disable=broad-exception-caught
+    except Exception as error:
         logger.warning("Error while disconnecting from STU: %s", error)
     # Make sure the adapter is released, even if the clean shutdown failed
     await _release_connection(system)
@@ -155,7 +157,7 @@ async def open_system(network: CANNetwork) -> ICOsystem:
         logger.error("STU does not respond: %s", error)
         try:
             await system.disconnect_stu()
-        except Exception as close_error:  # pylint: disable=broad-exception-caught
+        except Exception as close_error:
             logger.warning("Error while closing network: %s", close_error)
         await _release_connection(system)
         raise
@@ -221,10 +223,10 @@ class ICOsystemSingleton:
 
     _instance: ICOsystem | None = None
     _lock = asyncio.Lock()
-    _messengers: list[WebSocket] = []
+    _messengers: ClassVar[list[WebSocket]] = []
 
     status = CANStatus.NO_NETWORK
-    networks: list[CANNetwork] = []
+    networks: ClassVar[list[CANNetwork]] = []
     selected: CANNetwork | None = None
     error: str | None = None
     stu_connected = False
@@ -232,7 +234,7 @@ class ICOsystemSingleton:
     # Multi STU support: Every connected network is a unit. The attributes
     # above and the instance describe the first unit, which is used by every
     # operation that does not name a unit.
-    _units: dict[str, Unit] = {}
+    _units: ClassVar[dict[str, Unit]] = {}
 
     @classmethod
     async def _scan(cls) -> None:
@@ -494,10 +496,12 @@ class ICOsystemSingleton:
         for network in previous:
             try:
                 await cls.connect(network)
-            except Exception as error:  # pylint: disable=broad-exception-caught
+            except Exception as error:
                 if len(previous) == 1:
                     raise
-                logger.error("Cannot reconnect unit <%s>: %s", network.key, error)
+                logger.error(
+                    "Cannot reconnect unit <%s>: %s", network.key, error
+                )
                 failure = failure or error
         if failure is not None and not cls._units:
             raise failure
@@ -514,7 +518,7 @@ class ICOsystemSingleton:
                     for network in list(cls.networks):
                         try:
                             await cls.connect(network)
-                        except Exception as error:  # pylint: disable=broad-exception-caught
+                        except Exception as error:
                             logger.warning(
                                 "Autoconnect: cannot use network <%s>: %s",
                                 network.key,
@@ -524,7 +528,7 @@ class ICOsystemSingleton:
                     await cls.connect()
                 else:
                     logger.warning("Autoconnect: no CAN network found")
-        except Exception as error:  # pylint: disable=broad-exception-caught
+        except Exception as error:
             logger.error("Cannot connect to CAN network: %s", error)
 
     @classmethod
@@ -581,7 +585,9 @@ class ICOsystemSingleton:
     def get_unit(cls, unit: str) -> Unit | None:
         """Get the unit with the given name (if there is one)"""
 
-        return next((found for found in cls.units() if found.key == unit), None)
+        return next(
+            (found for found in cls.units() if found.key == unit), None
+        )
 
     @classmethod
     async def get_instance(cls):
@@ -596,7 +602,9 @@ class ICOsystemSingleton:
         async with cls._lock:
             await cls._teardown()
             cls.status = (
-                CANStatus.NETWORK_FOUND if cls.networks else CANStatus.NO_NETWORK
+                CANStatus.NETWORK_FOUND
+                if cls.networks
+                else CANStatus.NO_NETWORK
             )
         await get_messenger().push_messenger_update()
 
@@ -655,9 +663,6 @@ async def get_system(
     return icosystem
 
 
-# pylint: disable=too-many-instance-attributes
-
-
 class MeasurementState:
     """
     This class serves as state management for keeping track of ongoing measurements.
@@ -666,7 +671,7 @@ class MeasurementState:
 
     def __init__(self) -> None:
         self.task: asyncio.Task | None = None
-        self.clients: List[WebSocket] = []
+        self.clients: list[WebSocket] = []
         self.lock = asyncio.Lock()
         self.running = False
         self.name: str | None = None
@@ -708,9 +713,6 @@ class MeasurementState:
             instructions=self.instructions,
             units=self.units,
         )
-
-
-# pylint: enable=too-many-instance-attributes
 
 
 class MeasurementSingleton:
@@ -773,9 +775,6 @@ async def require_no_measurement() -> None:
         raise HTTP_409_MEASUREMENT_RUNNING_EXCEPTION
 
 
-# pylint: disable=missing-function-docstring
-
-
 class TridentHandler:
     """Singleton Wrapper for the Trident API client"""
 
@@ -798,7 +797,9 @@ class TridentHandler:
             config.domain,
         )
         if config.manage_assets_path:
-            cls.feature.manage_url = f"{config.service}/{config.manage_assets_path}"
+            cls.feature.manage_url = (
+                f"{config.service}/{config.manage_assets_path}"
+            )
         await get_messenger().push_messenger_update()
         logger.info(
             "Created TridentClient for user <%s> at service <%s>",
@@ -869,13 +870,10 @@ async def setup_trident():
     except KeyError as e:
         logger.exception("Cannot parse dataspace config file: %s", e)
         await TridentHandler.reset()
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("Cannot establish Trident connection: %s", e)
         await TridentHandler.reset()
         await TridentHandler.set_enabled()
-
-
-# pylint: enable=missing-function-docstring
 
 
 async def build_system_state() -> SystemStateModel:

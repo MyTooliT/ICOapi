@@ -1,18 +1,18 @@
 """Scripts for sensor nodes (e.g. STHs)"""
 
-from typing import List
 import logging
-from netaddr import EUI
-from icostate import ADCConfiguration, ICOsystem, SensorNodeInfo
 
-from icoapi.models.models import STHRenameResponseModel, ADCValues
+from icostate import ADCConfiguration, ICOsystem, SensorNodeInfo
+from netaddr import EUI
+
+from icoapi.models.models import ADCValues, STHRenameResponseModel
 
 logger = logging.getLogger(__name__)
 
 
 async def get_sth_devices_from_network(
     system: ICOsystem,
-) -> List[SensorNodeInfo]:
+) -> list[SensorNodeInfo]:
     """Get a list of available sensor devices"""
 
     sensor_devices = await system.collect_sensor_nodes()

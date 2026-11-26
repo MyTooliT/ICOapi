@@ -5,12 +5,12 @@ use the API at the same time. Actions of one client must not break the
 measurement another client started.
 """
 
-# pylint: disable=duplicate-code
 
 # -- Imports ------------------------------------------------------------------
 
 from asyncio import gather, sleep
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 from fastapi import HTTPException
@@ -58,7 +58,7 @@ class TestRunningMeasurementProtection:
         method: str,
         path: str,
         client,
-        running_measurement,  # pylint: disable=unused-argument
+        running_measurement,
     ) -> None:
         """The CAN connection must not be changed or scanned"""
 
@@ -71,7 +71,7 @@ class TestRunningMeasurementProtection:
         self,
         state_prefix,
         client,
-        running_measurement,  # pylint: disable=unused-argument
+        running_measurement,
     ) -> None:
         """Reading the state is what other clients need, it stays possible"""
 
@@ -81,7 +81,7 @@ class TestRunningMeasurementProtection:
         assert response.json()["measurement_status"]["running"] is True
 
 
-class TestConcurrentStart:  # pylint: disable=too-few-public-methods
+class TestConcurrentStart:
     """Starting measurements from several clients at the same time"""
 
     async def test_only_one_measurement_starts(
@@ -129,7 +129,6 @@ class TestConcurrentStart:  # pylint: disable=too-few-public-methods
         try:
             results = await gather(
                 *(
-                    # pylint: disable-next=protected-access
                     measurement_routes._begin_measurement(
                         instructions,
                         MagicMock(),

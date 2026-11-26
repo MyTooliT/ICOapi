@@ -7,8 +7,8 @@ tests use two simulated networks.
 # -- Imports ------------------------------------------------------------------
 
 import asyncio
-from collections.abc import AsyncGenerator, Generator
 import json
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 from typing import Any
 
@@ -36,8 +36,6 @@ from icoapi.scripts.simulation import (
     reset_simulated_hardware,
 )
 
-# pylint: disable=redefined-outer-name,duplicate-code,too-many-lines
-
 # -- Globals ------------------------------------------------------------------
 
 UNITS = ["simulated:SIM1", "simulated:SIM2"]
@@ -52,7 +50,7 @@ NETWORKS = [
 @fixture
 def simulated_units(
     monkeypatch: MonkeyPatch, isolated_can_state: None
-) -> Generator[None, None, None]:
+) -> Generator[None]:
     """Switch on multi STU support and simulate two networks"""
 
     del isolated_can_state
@@ -67,7 +65,7 @@ def simulated_units(
 
 
 @fixture
-async def connected(simulated_units: None) -> AsyncGenerator[None, None]:
+async def connected(simulated_units: None) -> AsyncGenerator[None]:
     """Connect both networks"""
 
     del simulated_units
@@ -94,7 +92,7 @@ async def with_sensor_nodes(connected: None) -> None:
 def files(tmp_path: Path, monkeypatch: MonkeyPatch) -> Path:
     """Directory of the measurement files"""
 
-    from icoapi.routers import (  # pylint: disable=import-outside-toplevel
+    from icoapi.routers import (
         measurement_routes,
     )
 
@@ -110,7 +108,7 @@ def files(tmp_path: Path, monkeypatch: MonkeyPatch) -> Path:
     return tmp_path
 
 
-class Client:  # pylint: disable=too-few-public-methods
+class Client:
     """WebSocket client that collects everything it gets"""
 
     client = "test"
@@ -221,10 +219,9 @@ class TestUnits:
         del with_sensor_nodes
         first, second = ICOsystemSingleton.units()
 
-        assert (
-            (await first.system.get_stu_mac_address()).format()
-            != (await second.system.get_stu_mac_address()).format()
-        )
+        assert (await first.system.get_stu_mac_address()).format() != (
+            await second.system.get_stu_mac_address()
+        ).format()
         assert (
             first.connected_sth().mac_address  # type: ignore[union-attr]
             != second.connected_sth().mac_address  # type: ignore[union-attr]
@@ -305,7 +302,7 @@ class TestUnits:
 
         try:
             await ICOsystemSingleton.connect(NETWORKS[1])
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             pass
         else:
             raise AssertionError("Connecting should have failed")
@@ -358,7 +355,7 @@ class TestPreflight:
         result = (await http.get("measurement/preflight")).json()
 
         assert result["ready"] is False
-        assert [u["problems"] for u in result["units"]][0] == []
+        assert next(u["problems"] for u in result["units"]) == []
         assert "No sensor device" in result["units"][1]["problems"][0]
 
     async def test_weak_connection(
@@ -484,7 +481,6 @@ class TestMeasurement:
         sources = read_sources(path)
         assert len(sources) == 2
 
-    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
     async def test_one_failing_unit_stops_all(
         self,
         with_sensor_nodes: None,
@@ -527,9 +523,11 @@ class TestMeasurement:
         # What was recorded is in the file, and the file is closed
         (path,) = measurement_files(files)
         sources = read_sources(path)
-        assert len(sources["Test-STH-2"].timestamps) < len(
-            sources["Test-STH"].timestamps
-        ) or len(sources["Test-STH"].timestamps) < 1000
+        assert (
+            len(sources["Test-STH-2"].timestamps)
+            < len(sources["Test-STH"].timestamps)
+            or len(sources["Test-STH"].timestamps) < 1000
+        )
         assert not MeasurementSingleton.get_instance().running
 
     async def test_not_started_if_one_unit_is_not_ready(
@@ -656,7 +654,6 @@ class TestMeasurementUnits:
         assert channel == Channel.RECORDING_FINISHED
         assert payload["units"] == running
 
-    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
     async def test_failed_event(
         self,
         with_sensor_nodes: None,
@@ -723,7 +720,6 @@ class TestMeasurementUnits:
         ((_, payload),) = recording_event_bus.events
         assert payload["units"] == [unit]
 
-    # pylint: disable-next=too-many-arguments,too-many-positional-arguments
     async def test_without_the_feature(
         self,
         simulated_units: None,
@@ -782,9 +778,7 @@ class TestExecute:
         assert response.status_code == 200, response.text
         await wait_until_stopped()
         (path,) = measurement_files(files)
-        assert (
-            len(read_sources(path)) == 2
-        )
+        assert len(read_sources(path)) == 2
 
     async def test_every_unit_needs_an_address(
         self, connected: None, http: AsyncClient
@@ -910,20 +904,26 @@ class TestUnitInstructions:
         assert sources["Test-STH"].channel_count == 1
         assert sources["Test-STH-2"].channel_count == 2
         assert (
-            sources["Test-STH-2"].hardware_metadata.channel2_metadata.sensor.sensor_id
+            sources[
+                "Test-STH-2"
+            ].hardware_metadata.channel2_metadata.sensor.sensor_id
             == second
         )
         # Two channels: One value per message, not three
-        assert len(sources["Test-STH-2"].timestamps) * 3 > len(
-            sources["Test-STH"].timestamps
-        ) > len(sources["Test-STH-2"].timestamps)
+        assert (
+            len(sources["Test-STH-2"].timestamps) * 3
+            > len(sources["Test-STH"].timestamps)
+            > len(sources["Test-STH-2"].timestamps)
+        )
 
         assert list(get_file_data(str(path), "Test-STH").acceleration_df) == [
             "counter",
             "timestamp",
             "x",
         ]
-        assert list(get_file_data(str(path), "Test-STH-2").acceleration_df) == [
+        assert list(
+            get_file_data(str(path), "Test-STH-2").acceleration_df
+        ) == [
             "counter",
             "timestamp",
             "x",

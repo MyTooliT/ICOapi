@@ -3,16 +3,15 @@
 import logging
 import os
 import platform
-import sys
-from typing import Iterable, Tuple
-from urllib.parse import quote
-import shutil
 import re
+import shutil
+import sys
+from collections.abc import Iterable
+from urllib.parse import quote
 
 import numpy as np
 import pathvalidate
 import tables
-
 from dotenv import load_dotenv
 from platformdirs import user_data_dir
 
@@ -73,7 +72,7 @@ def load_env_file():
         )
     if not env_loaded and is_bundled():
         # Fourth try: we should be in the bundled state
-        bundle_dir = sys._MEIPASS  # pylint: disable=protected-access
+        bundle_dir = sys._MEIPASS
         logger.warning(
             "Environment variables not found in local directory. Trying to"
             " load from app data: %s",
@@ -162,14 +161,10 @@ def tries_to_traverse_directory(received_filename: str | os.PathLike) -> bool:
     ]
     filename = str(received_filename)
 
-    for substring in forbidden_substrings:
-        if substring in filename:
-            return True
-
-    return False
+    return any(substring in filename for substring in forbidden_substrings)
 
 
-def is_dangerous_filename(filename: str) -> Tuple[bool, str | None]:
+def is_dangerous_filename(filename: str) -> tuple[bool, str | None]:
     """
     Tries to determine if a filename is dangerous.
     Mainly by focussing on two aspects:
@@ -198,7 +193,7 @@ def get_disk_space_in_gib(
         available_gb = round(free / (2**30), 2)
 
         return DiskCapacity(total_gb, available_gb)
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("Error retrieving disk space: %s", e)
         return DiskCapacity(None, None)
 
@@ -324,12 +319,8 @@ def get_embedded_file_from_hdf5(
             if isinstance(raw_content, bytes)
             else raw_content.tobytes()
         )
-        original_name = getattr(
-            dataset.attrs, "original_name", dataset_name
-        )
-        mime = getattr(
-            dataset.attrs, "mime", "application/octet-stream"
-        )
+        original_name = getattr(dataset.attrs, "original_name", dataset_name)
+        mime = getattr(dataset.attrs, "mime", "application/octet-stream")
 
     return EmbeddedFileContent(
         content=content,
@@ -338,9 +329,7 @@ def get_embedded_file_from_hdf5(
     )
 
 
-def delete_embedded_file_from_hdf5(
-    hdf5_path: str, dataset_name: str
-) -> None:
+def delete_embedded_file_from_hdf5(hdf5_path: str, dataset_name: str) -> None:
     """Delete an embedded file dataset from an HDF5 file"""
 
     if is_bundle_file(hdf5_path):

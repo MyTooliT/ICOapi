@@ -1,18 +1,25 @@
 """Support for uploading data to cloud storage"""
+
 import logging
 import os
-from typing import Optional
 
-from fastapi import HTTPException, APIRouter
-from fastapi.params import Depends, Annotated, Body
+from fastapi import APIRouter, HTTPException
+from fastapi.params import Annotated, Body, Depends
 from starlette.status import HTTP_502_BAD_GATEWAY
 
-from icoapi.models.globals import get_trident_client, setup_trident, get_dataspace_config
+from icoapi.models.globals import (
+    get_dataspace_config,
+    get_trident_client,
+    setup_trident,
+)
 from icoapi.models.models import CloudConfig, FileCloudDetails, FileCloudStatus
 from icoapi.models.trident import (
     AuthorizationError,
-    FileUploadDetails, HostNotFoundError,
-    PresignError, RemoteObjectDetails, StorageClient,
+    FileUploadDetails,
+    HostNotFoundError,
+    PresignError,
+    RemoteObjectDetails,
+    StorageClient,
 )
 from icoapi.scripts.bundle import is_bundle_file, list_sources
 from icoapi.scripts.data_handling import get_file_data
@@ -37,7 +44,7 @@ async def upload_file(
     filename: Annotated[str, Body(embed=True)],
     client: Annotated[StorageClient, Depends(get_trident_client)],
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
-    config: Annotated[CloudConfig, Depends(get_dataspace_config)]
+    config: Annotated[CloudConfig, Depends(get_dataspace_config)],
 ):
     """Upload file to cloud storage"""
 
@@ -57,13 +64,21 @@ async def upload_file(
         )
         metadata = file_data.acceleration_meta
 
-        for (key, item) in metadata.attributes["pre_metadata"]["parameters"].items():
+        for key, item in metadata.attributes["pre_metadata"][
+            "parameters"
+        ].items():
             if key.endswith("_pictures"):
-                metadata.attributes["pre_metadata"]["parameters"][key] = len(item)
+                metadata.attributes["pre_metadata"]["parameters"][key] = len(
+                    item
+                )
 
-        for (key, item) in metadata.attributes["post_metadata"]["parameters"].items():
+        for key, item in metadata.attributes["post_metadata"][
+            "parameters"
+        ].items():
             if key.endswith("_pictures"):
-                metadata.attributes["post_metadata"]["parameters"][key] = len(item)
+                metadata.attributes["post_metadata"]["parameters"][key] = len(
+                    item
+                )
 
         upload_details = FileUploadDetails(
             key=filename,
@@ -93,7 +108,7 @@ async def upload_file(
 
 @router.post("/update")
 async def update_file(
-    file_id: Annotated[Optional[int], Body(embed=True)],
+    file_id: Annotated[int | None, Body(embed=True)],
     filename: Annotated[str, Body(embed=True)],
     client: Annotated[StorageClient, Depends(get_trident_client)],
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
@@ -104,17 +119,23 @@ async def update_file(
 
     try:
         client.update_file(file_id, os.path.join(measurement_dir, filename))
-        logger.info("Successfully updated file <%s> with id <%i>", filename, file_id)
+        logger.info(
+            "Successfully updated file <%s> with id <%i>", filename, file_id
+        )
         return FileCloudDetails(
             id=file_id,
             status=FileCloudStatus.UP_TO_DATE,
-            upload_timestamp=None
+            upload_timestamp=None,
         )
     except PresignError as e:
-        raise HTTPException(status_code=500, detail="Error getting presigned URL") from e
+        raise HTTPException(
+            status_code=500, detail="Error getting presigned URL"
+        ) from e
     except HTTPException as e:
         logger.error(e)
-        raise HTTPException(status_code=500, detail="Error updating file") from e
+        raise HTTPException(
+            status_code=500, detail="Error updating file"
+        ) from e
 
 
 @router.post("/authenticate")
@@ -137,13 +158,13 @@ async def authenticate(
         except HTTPException as e:
             logger.error(e)
         except HostNotFoundError as e:
-            raise HTTPException(  # pylint: disable=raise-missing-from
+            raise HTTPException(
                 status_code=HTTP_502_BAD_GATEWAY, detail=str(e)
-            )
+            ) from e
         except AuthorizationError as e:
-            raise HTTPException(  # pylint: disable=raise-missing-from
+            raise HTTPException(
                 status_code=HTTP_502_BAD_GATEWAY, detail=str(e)
-            )
+            ) from e
 
 
 @router.get("")

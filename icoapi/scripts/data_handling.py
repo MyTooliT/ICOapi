@@ -1,15 +1,16 @@
 """Code for handling sensor data"""
+
 import json
 import logging
 import os
 from os import PathLike, path
-from typing import List, Optional
+
 import numpy as np
 import pandas as pd
 import tables
 import yaml
 from fastapi import HTTPException
-
+from icotronic.measurement.storage import StorageData
 from tables import (
     Float32Col,
     IsDescription,
@@ -17,19 +18,20 @@ from tables import (
     StringCol,
     UInt8Col,
 )
-from icotronic.measurement.storage import StorageData
 
 from icoapi.models.models import (
+    ADCValues,
+    CloudConfig,
     EmbeddedFileInfo,
     HDF5NodeInfo,
     MeasurementInstructions,
-    MetadataPrefix, ParsedHDF5FileContent, Sensor,
+    MetadataPrefix,
+    ParsedHDF5FileContent,
     PCBSensorConfiguration,
     ResolvedChannel,
     ResolvedMeasurementChannels,
-    CloudConfig,
+    Sensor,
 )
-from icoapi.models.models import ADCValues
 from icoapi.scripts.bundle import is_bundle_file, read_bundle_file
 from icoapi.scripts.config_helper import validate_dataspace_payload
 from icoapi.scripts.errors import (
@@ -46,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 class AccelerationDataNotFoundError(HTTPException):
     """Exception raised when acceleration data is not found in HDF5 file"""
+
     def __init__(self):
         super().__init__(
             status_code=500,
@@ -173,22 +176,24 @@ def get_sensor_defaults() -> list[Sensor]:
 def get_sensor_configuration_defaults() -> list[dict]:
     """Get sensor channel default mapping"""
 
-    return [{
-        "configuration_id": "default",
-        "configuration_name": "Default",
-        "channels": {
-            "1": {"sensor_id": "acc100g_01"},
-            "2": {"sensor_id": "acc40g_y"},
-            "3": {"sensor_id": "acc40g_z"},
-            "4": {"sensor_id": "acc40g_x"},
-            "5": {"sensor_id": "temp_01"},
-            "6": {"sensor_id": "photo_01"},
-            "7": {"sensor_id": "backpack_01"},
-            "8": {"sensor_id": "backpack_02"},
-            "9": {"sensor_id": "backpack_03"},
-            "10": {"sensor_id": "vbat_01"},
-        },
-    }]
+    return [
+        {
+            "configuration_id": "default",
+            "configuration_name": "Default",
+            "channels": {
+                "1": {"sensor_id": "acc100g_01"},
+                "2": {"sensor_id": "acc40g_y"},
+                "3": {"sensor_id": "acc40g_z"},
+                "4": {"sensor_id": "acc40g_x"},
+                "5": {"sensor_id": "temp_01"},
+                "6": {"sensor_id": "photo_01"},
+                "7": {"sensor_id": "backpack_01"},
+                "8": {"sensor_id": "backpack_02"},
+                "9": {"sensor_id": "backpack_03"},
+                "10": {"sensor_id": "vbat_01"},
+            },
+        }
+    ]
 
 
 def get_voltage_from_raw(v_ref: float) -> float:
@@ -222,7 +227,7 @@ def read_and_parse_sensor_data(
     """Read sensor configuration from file"""
 
     try:
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             data = yaml.safe_load(file)
             sensors = [Sensor(**sensor) for sensor in data["sensors"]]
             sensor_map: dict[str, Sensor] = {s.sensor_id: s for s in sensors}
@@ -258,9 +263,9 @@ def read_and_parse_sensor_data(
         ) from error
 
 
-def get_sensor_config_data() -> (
-    tuple[list[Sensor], list[PCBSensorConfiguration], str]
-):
+def get_sensor_config_data() -> tuple[
+    list[Sensor], list[PCBSensorConfiguration], str
+]:
     """Get sensor configuration data"""
 
     file_path = get_sensors_file_path()
@@ -312,7 +317,7 @@ def is_inline_sensor_config_required() -> bool:
 
 
 def get_active_sensor_configuration(
-    sensor_configuration: Optional[PCBSensorConfiguration],
+    sensor_configuration: PCBSensorConfiguration | None,
 ) -> PCBSensorConfiguration:
     """Get the sensor configuration to resolve `sensor_id` against
 
@@ -340,7 +345,7 @@ def get_active_sensor_configuration(
 
 
 def resolve_channel(
-    sensor_id: Optional[str], channels: dict[int, Sensor]
+    sensor_id: str | None, channels: dict[int, Sensor]
 ) -> ResolvedChannel:
     """Resolve a `sensor_id` to its channel number and Sensor within
     `channels` (a configuration's channel -> sensor mapping).
@@ -363,7 +368,8 @@ def resolve_channel(
     for channel_number, sensor in channels.items():
         if sensor.sensor_id == sensor_id:
             logger.debug(
-                "Resolved sensor ID %s to channel %s", sensor_id,
+                "Resolved sensor ID %s to channel %s",
+                sensor_id,
                 channel_number,
             )
             return ResolvedChannel(
@@ -411,9 +417,6 @@ def resolve_measurement_channels(
     )
 
 
-# pylint: disable=too-few-public-methods
-
-
 class SensorDescription(IsDescription):
     """Description of HDF5 sensor table"""
 
@@ -433,11 +436,8 @@ class SensorDescription(IsDescription):
     offset = Float32Col()  # Float for offset
 
 
-# pylint: enable=too-few-public-methods
-
-
 def add_sensor_data_to_storage(
-    storage: StorageData, resolved_channels: List[ResolvedChannel]
+    storage: StorageData, resolved_channels: list[ResolvedChannel]
 ) -> None:
     """Add sensor and channel data to storage object"""
 
@@ -485,10 +485,10 @@ def read_and_parse_trident_config(file_path: str) -> CloudConfig:
         )
 
     try:
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             payload = yaml.safe_load(file)
     except Exception as e:
-        raise Exception(  # pylint: disable=broad-exception-raised
+        raise Exception(
             f"Error parsing dataspace config file: {file_path}"
         ) from e
 
@@ -499,7 +499,11 @@ def read_and_parse_trident_config(file_path: str) -> CloudConfig:
 
     data = payload.get("connection")
     if bool(data.get("enabled", False)):
-        logger.info("Found dataspace config: %s@%s", str(data["username"]), str(data["domain"]))
+        logger.info(
+            "Found dataspace config: %s@%s",
+            str(data["username"]),
+            str(data["domain"]),
+        )
 
     return CloudConfig(
         protocol=str(data["protocol"]).strip(),
@@ -510,13 +514,10 @@ def read_and_parse_trident_config(file_path: str) -> CloudConfig:
         password=str(data["password"]),
         default_bucket=str(data["bucket"]),
         enabled=bool(data["enabled"]),
-        manage_assets_path=data["manage_assets_path"] if "manage_assets_path" in data else None,
-        virtual_group_root=data["virtual_group_root"] if "virtual_group_root" in data else None,
-        connector=data["connector"]
+        manage_assets_path=data.get("manage_assets_path", None),
+        virtual_group_root=data.get("virtual_group_root", None),
+        connector=data["connector"],
     )
-
-
-# pylint: disable=too-few-public-methods
 
 
 class MeasurementSensorInfo:
@@ -548,16 +549,11 @@ class MeasurementSensorInfo:
         )
 
 
-# pylint: enable=too-few-public-methods
-
-
 def get_node_names(hdf5_file_handle: tables.File) -> list[str]:
     """Get name of HDF5 nodes"""
 
     nodes = hdf5_file_handle.list_nodes("/")
-    return [
-        node._v_pathname for node in nodes  # pylint: disable=protected-access
-    ]
+    return [node._v_pathname for node in nodes]
 
 
 def get_picture_node_names(hdf5_file_handle: tables.File) -> list[str]:
@@ -590,9 +586,6 @@ def parse_json_if_possible(val):
         return val
 
 
-# pylint: disable=protected-access
-
-
 def node_to_dict(node):
     """Convert HDF5 metadata node to dictionary"""
 
@@ -605,7 +598,7 @@ def node_to_dict(node):
 
     for key in node._v_attrs._f_list(attrset="all"):
         raw = node._v_attrs[key]
-        # first coerce numpy‐types to Python
+        # first coerce numpy-types to Python
         if hasattr(raw, "tolist"):
             pyval = raw.tolist()
         elif hasattr(raw, "item"):
@@ -616,9 +609,6 @@ def node_to_dict(node):
         info.attributes[key] = parse_json_if_possible(pyval)
 
     return info
-
-
-# pylint: enable=protected-access
 
 
 def get_embedded_file_infos(
@@ -641,9 +631,7 @@ def get_embedded_file_infos(
             EmbeddedFileInfo(
                 dataset_name=node.name,
                 original_name=getattr(node.attrs, "original_name", node.name),
-                mime=getattr(
-                    node.attrs, "mime", "application/octet-stream"
-                ),
+                mime=getattr(node.attrs, "mime", "application/octet-stream"),
                 size=size,
                 download_path="",
             )
@@ -657,12 +645,10 @@ def merge_pictures_into_metadata(
 ) -> None:
     """Add the pictures of a file to the parameters of its metadata"""
 
-    # pylint: disable=consider-using-dict-items, consider-iterating-dictionary
     try:
-        for pics_key in pictures.keys():
-
+        for pics_key, pics in pictures.items():
             obj: dict[int, str] = {}
-            for index, pic in enumerate(pictures[pics_key]):
+            for index, pic in enumerate(pics):
                 obj[index] = pic
             if MetadataPrefix.PRE in pics_key:
                 stripped_key = pics_key.split(f"{MetadataPrefix.PRE}__")[1]
@@ -670,12 +656,10 @@ def merge_pictures_into_metadata(
                     stripped_key
                 ] = obj
             elif MetadataPrefix.POST in pics_key:
-                stripped_key = pics_key.split(f"{MetadataPrefix.POST}__")[
-                    1
-                ]
-                acceleration_meta.attributes["post_metadata"][
-                    "parameters"
-                ][stripped_key] = obj
+                stripped_key = pics_key.split(f"{MetadataPrefix.POST}__")[1]
+                acceleration_meta.attributes["post_metadata"]["parameters"][
+                    stripped_key
+                ] = obj
             else:
                 logger.error("Unknown picture key: %s", pics_key)
     except KeyError:
@@ -685,15 +669,10 @@ def merge_pictures_into_metadata(
             status_code=500, detail="Picture data is not prefixed."
         ) from error
 
-    # pylint: enable=consider-using-dict-items, consider-iterating-dictionary
-
-
-# pylint: disable=too-many-locals
-
 
 def get_file_data(
-        file_path: str,
-        source: str | None = None,
+    file_path: str,
+    source: str | None = None,
 ) -> ParsedHDF5FileContent:
     """Get HDF5 measurement data
 
@@ -728,7 +707,6 @@ def get_file_data(
         )
 
     with tables.open_file(file_path, mode="r") as file_handle:
-
         picture_node_names = get_picture_node_names(file_handle)
         pictures: dict[str, list[str]] = {}
         embedded_files: list[EmbeddedFileInfo] = []
@@ -780,9 +758,6 @@ def get_file_data(
     )
 
 
-# pylint: enable=too-many-locals
-
-
 def get_bundle_file_data(
     file_path: str, source: str | None = None
 ) -> ParsedHDF5FileContent:
@@ -814,9 +789,7 @@ def get_bundle_file_data(
     )
 
 
-def downsample_min_max(
-    data: pd.DataFrame, max_rows: int
-) -> pd.DataFrame:
+def downsample_min_max(data: pd.DataFrame, max_rows: int) -> pd.DataFrame:
     """Reduce the number of rows of measurement data, but keep the peaks
 
     The data is split into buckets of consecutive rows. Of every bucket the
@@ -843,7 +816,9 @@ def downsample_min_max(
 
     rows = len(data)
     channels = [
-        column for column in data.columns if column not in ("counter", "timestamp")
+        column
+        for column in data.columns
+        if column not in ("counter", "timestamp")
     ]
     if rows <= max_rows or not channels:
         return data

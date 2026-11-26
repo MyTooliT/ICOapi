@@ -1,29 +1,30 @@
 """Routes for measurement data"""
 
-from collections import OrderedDict
 import json
-import threading
 import logging
 import os
+import threading
+from collections import OrderedDict
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, AsyncGenerator
+from typing import Annotated
 from urllib.parse import quote
+
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
-from fastapi.params import Depends
 from fastapi.concurrency import run_in_threadpool
+from fastapi.params import Depends
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.responses import PlainTextResponse
 from tables import HDF5ExtError, NoSuchNodeError
-
 
 from icoapi.models.globals import get_trident_client
 from icoapi.models.models import (
     Dataset,
     EmbeddedFileDeleteResponse,
     EmbeddedFileUploadResponse,
-    FileCloudStatus,
     FileCloudDetails,
+    FileCloudStatus,
     FileListResponseModel,
     MeasuredSensor,
     MeasurementFileDetails,
@@ -50,14 +51,13 @@ from icoapi.scripts.errors import (
 from icoapi.scripts.file_handling import (
     append_embedded_file_to_hdf5,
     delete_embedded_file_from_hdf5,
-    get_embedded_file_from_hdf5,
     get_disk_space_in_gib,
     get_drive_or_root_path,
+    get_embedded_file_from_hdf5,
     get_measurement_dir,
     get_suffixed_filename,
     is_dangerous_filename,
 )
-
 from icoapi.scripts.measurement import (
     clear_metadata,
     open_metadata_storage,
@@ -76,7 +76,7 @@ def _source_names(file_path: str) -> list[str] | None:
         if not is_bundle_file(file_path):
             return None
         return [source.name for source in list_sources(file_path)]
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:
         # E.g. a file that is written at the moment
         return None
 
@@ -97,7 +97,7 @@ async def list_files_and_capacity(
                 cloud_files = storage.get_remote_objects().files
             except HTTPException:
                 logger.error("Error listing cloud files")
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:
                 logger.error(
                     "General exception when comparing files to cloud: %s", e
                 )
@@ -111,12 +111,14 @@ async def list_files_and_capacity(
                 ).isoformat()
                 file_size = os.path.getsize(file_path)
                 try:
-                    cloud_details = get_cloud_details(file_path, filename, cloud_files)
+                    cloud_details = get_cloud_details(
+                        file_path, filename, cloud_files
+                    )
                 except ValueError:
                     cloud_details = FileCloudDetails(
                         status=FileCloudStatus.ERROR,
                         upload_timestamp=None,
-                        id=None
+                        id=None,
                     )
                 cloud_details = (
                     cloud_details
@@ -124,7 +126,7 @@ async def list_files_and_capacity(
                     else FileCloudDetails(
                         status=FileCloudStatus.NOT_UPLOADED,
                         upload_timestamp=None,
-                        id=None
+                        id=None,
                     )
                 )
 
@@ -185,7 +187,7 @@ async def delete_file(
             return {"detail": f"File '{name}' deleted successfully"}
         except Exception as e:
             raise HTTPException(
-                status_code=500, detail=f"Failed to delete file: {str(e)}"
+                status_code=500, detail=f"Failed to delete file: {e!s}"
             ) from e
     else:
         raise HTTPException(status_code=404, detail="File not found")
@@ -281,7 +283,7 @@ async def get_analyzed_file(
     # Streaming generator function
     # We approach this as a StreamingResponse because reading, parsing and
     # sending the complete dataset takes forever
-    async def data_generator() -> AsyncGenerator[str, None]:
+    async def data_generator() -> AsyncGenerator[str]:
         # First: yield metadata
         sensors_raw = parsed_file_content.sensor_df.to_dict(orient="records")
         for sensor_raw in sensors_raw:
@@ -294,20 +296,22 @@ async def get_analyzed_file(
             embedded_file.model_copy(
                 update={
                     "download_path": (
-                        f"files/{name}/embedded/"
-                        f"{embedded_file.dataset_name}"
+                        f"files/{name}/embedded/{embedded_file.dataset_name}"
                     )
                 }
             )
             for embedded_file in parsed_file_content.embedded_files
         ]
-        yield ParsedMetadata(
-            acceleration=parsed_file_content.acceleration_meta,
-            pictures=parsed_file_content.pictures,
-            sensors=sensors,
-            embedded_files=embedded_files,
-            sources=parsed_file_content.sources,
-        ).model_dump_json() + "\n"
+        yield (
+            ParsedMetadata(
+                acceleration=parsed_file_content.acceleration_meta,
+                pictures=parsed_file_content.pictures,
+                sensors=sensors,
+                embedded_files=embedded_files,
+                sources=parsed_file_content.sources,
+            ).model_dump_json()
+            + "\n"
+        )
 
         # Then: yield measurement data
         batch_size = 1000
@@ -373,9 +377,7 @@ async def post_analyzed_file(
 async def upload_embedded_file(
     name: str,
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
-    files: list[UploadFile] = File(
-        ..., description="Files to store in HDF5"
-    ),
+    files: list[UploadFile] = File(..., description="Files to store in HDF5"),
 ) -> list[EmbeddedFileUploadResponse]:
     """Append uploaded files below the embedded_files group"""
 
@@ -483,8 +485,7 @@ async def delete_embedded_file(
         raise HTTP_422_INVALID_HDF5_FILE_EXCEPTION from exc
 
     return EmbeddedFileDeleteResponse(
-        dataset_name=dataset_name,
-        file_name=name
+        dataset_name=dataset_name, file_name=name
     )
 
 
@@ -494,7 +495,6 @@ async def get_file_meta(
     measurement_dir: Annotated[str, Depends(get_measurement_dir)],
     source: SourceQuery = None,
 ) -> ParsedMetadata:
-
     """Get measurement file metadata"""
 
     data = get_file_data(os.path.join(measurement_dir, name), source)

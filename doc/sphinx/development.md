@@ -13,7 +13,7 @@ In the text below we assume that you installed
 - [uv](https://docs.astral.sh/uv), and
 - [just](https://github.com/casey/just)
 
-To run the tests run the following command:
+To check the code (ruff, mypy) and run the tests that need no hardware run the following command:
 
 ```sh
 just test
@@ -21,7 +21,7 @@ just test
 
 Tests are grouped with [pytest markers](https://docs.pytest.org/en/stable/how-to/mark.html):
 
-- `hardware`: tests that need the hardware described above. Run all other tests with `just test-no-hardware`.
+- `hardware`: tests that need the hardware described above. `just test` skips them, `just test-hardware` runs only them.
 - `mqtt`: tests that need an [MQTT](https://mqtt.org) broker. They are skipped, unless you set the environment variable `TEST_MQTT_BROKER` (host name of the broker). `TEST_MQTT_PORT` (default: 1883), `TEST_MQTT_USERNAME` and `TEST_MQTT_PASSWORD` are optional. The tests publish to topics below `icodaq-test/<random ID>` and remove what they published. Run only these tests with `just test-mqtt`, for example with a temporary [Mosquitto](https://mosquitto.org) broker:
 
   ```sh
@@ -77,22 +77,12 @@ The application is set up to log _everything_. This is how the logging is set up
 
 2. Make sure all [workflows of the CI system work correctly](https://github.com/MyTooliT/ICOapi/actions)
 
-3. Release a new version on [PyPI](https://pypi.org/project/icoapi/):
+3. Write the release notes into `doc/release/<VERSION>.md` (for a new minor version `<MAJOR>.<MINOR>.md` works too) and commit them. If there is no such file, GitHub generates the notes.
+
+4. Release a new version:
 
    ```sh
    just release <VERSION>
    ```
 
-4. Open the [release notes](https://github.com/MyTooliT/ICOapi/tree/main/doc/release) for the latest version and [create a new release](https://github.com/MyTooliT/ICOapi/releases/new)
-   1. Paste them into the main text of the release web page
-   2. Insert the version number into the tag field
-   3. For the release title use “Version <VERSION>”, where `<VERSION>` specifies the version number (e.g. “Version 0.2”)
-   4. Click on “Publish Release”
-
-   **Note:** Alternatively you can also use the [`gh`](https://cli.github.com) command:
-
-   ```sh
-   gh release create
-   ```
-
-   to create the release notes.
+   This runs the checks and tests, updates the version, tags it and pushes. The tag publishes the package on [PyPI](https://pypi.org/project/icoapi/) and the command creates the [GitHub release](https://github.com/MyTooliT/ICOapi/releases) “Version <VERSION>” with the release notes.

@@ -111,7 +111,10 @@ def check_unit_names(
 
     names = [unit.key for unit in units]
     unknown = sorted(
-        (set(instructions.units or {}) | set(instructions.unit_mac_addresses or {}))
+        (
+            set(instructions.units or {})
+            | set(instructions.unit_mac_addresses or {})
+        )
         - set(names)
     )
     if unknown:

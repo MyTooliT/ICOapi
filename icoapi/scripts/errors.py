@@ -46,9 +46,7 @@ HTTP_400_UNSUPPOERTED_FEATURE_SPEC = {
                 "required": ["detail", "status_code"],
             },
             "example": {
-                "detail": (
-                    "Unsupported STH sensor configuration."
-                ),
+                "detail": ("Unsupported STH sensor configuration."),
                 "status_code": 400,
             },
         }
@@ -443,7 +441,7 @@ HTTP_500_CONFIG_RESTORE_SPEC = {
                 "status_code": 500,
             },
         }
-    }
+    },
 }
 HTTP_500_CLOUD_UPLOAD_PRESIGN_EXCEPTION = HTTPException(
     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -479,8 +477,9 @@ HTTP_500_CLOUD_UPLOAD_PRESIGN_SPEC = {
 }
 
 
-class HTTP_500_SUPPLY_VOLTAGE_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
+class HTTP_500_SUPPLY_VOLTAGE_EXCEPTION(HTTPException):
     """Failed to read supply voltage."""
+
     def __init__(self, e: str):
         super().__init__(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -502,9 +501,9 @@ HTTP_500_SUPPLY_VOLTAGE_SPEC = {
             "example": {
                 "detail": "Failed to read supply voltage.",
                 "status_code": 500,
-            }
+            },
         }
-    }
+    },
 }
 
 
@@ -543,8 +542,9 @@ HTTP_422_INLINE_SENSOR_CONFIG_REQUIRED_SPEC = {
 }
 
 
-class HTTP_422_UNKNOWN_SENSOR_ID_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
+class HTTP_422_UNKNOWN_SENSOR_ID_EXCEPTION(HTTPException):
     """A requested sensor_id is not in the active sensor configuration."""
+
     def __init__(self, sensor_id: str):
         super().__init__(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -580,7 +580,7 @@ HTTP_422_UNKNOWN_SENSOR_ID_SPEC = {
 }
 
 
-class HTTP_EXECUTE_STEP_FAILED_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
+class HTTP_EXECUTE_STEP_FAILED_EXCEPTION(HTTPException):
     """One step of `POST /measurement/execute` failed.
 
     Reuses whatever status code the underlying failure would already map to
@@ -589,6 +589,7 @@ class HTTP_EXECUTE_STEP_FAILED_EXCEPTION(HTTPException):  # pylint: disable=inva
     an orchestrator driving `execute` can tell which part of the sequence
     failed without probing each endpoint individually.
     """
+
     def __init__(self, step: str, status_code: int, reason: str):
         super().__init__(
             status_code=status_code,
@@ -620,9 +621,10 @@ HTTP_EXECUTE_STEP_FAILED_SPEC = {
 }
 
 
-class HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION(HTTPException):  # pylint: disable=invalid-name
+class HTTP_502_SENSOR_CONFIGURATION_MISMATCH_EXCEPTION(HTTPException):
     """The sensor channel configuration read back from the STH doesn't
     match what was just written - the hardware write did not take."""
+
     def __init__(self, expected: str, actual: str):
         super().__init__(
             status_code=status.HTTP_502_BAD_GATEWAY,

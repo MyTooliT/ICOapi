@@ -45,7 +45,7 @@ async def reset_can():
 
     try:
         await ICOsystemSingleton.reset()
-    except Exception as error:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    except Exception as error:
         logger.error("Cannot reconnect to CAN network: %s", error)
 
 

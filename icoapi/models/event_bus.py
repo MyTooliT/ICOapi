@@ -58,7 +58,7 @@ class EventBus(ABC):
         connect later.
         """
 
-    async def close(self) -> None:
+    async def close(self) -> None:  # noqa: B027
         """Release all resources used by the bus"""
 
 
@@ -133,7 +133,9 @@ class WebSocketEventBus(EventBus):
         )
 
         if len(self._clients) > 0:
-            logger.info("Pushed SystemState to %s clients.", len(self._clients))
+            logger.info(
+                "Pushed SystemState to %s clients.", len(self._clients)
+            )
 
     async def send_state_to(
         self, client: WebSocket, state: SystemStateModel
@@ -188,7 +190,7 @@ class CompositeEventBus(EventBus):
         results = await asyncio.gather(
             *(action(bus) for bus in self._buses), return_exceptions=True
         )
-        for bus, result in zip(self._buses, results):
+        for bus, result in zip(self._buses, results, strict=False):
             if isinstance(result, Exception):
                 logger.error(
                     "Publishing via %s failed: %s",

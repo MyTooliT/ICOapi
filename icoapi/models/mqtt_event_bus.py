@@ -11,6 +11,7 @@ Publishing never blocks: the network connection is handled by the thread of
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -51,11 +52,13 @@ def _integer(environ: Mapping[str, str], name: str, default: int) -> int:
     try:
         return int(value)
     except ValueError as error:
-        raise ValueError(f"{name} must be an integer, not “{value}”") from error
+        raise ValueError(
+            f"{name} must be an integer, not “{value}”"
+        ) from error
 
 
 @dataclass(frozen=True)
-class MQTTSettings:  # pylint: disable=too-many-instance-attributes
+class MQTTSettings:
     """Settings for the connection to the MQTT broker
 
     Read from the environment by :meth:`from_env`.
@@ -152,7 +155,6 @@ def create_client(settings: MQTTSettings) -> mqtt.Client:
     )
 
 
-# pylint: disable-next=too-many-instance-attributes
 class MQTTEventBus(EventBus):
     """Event bus that publishes to an MQTT broker
 
@@ -194,7 +196,9 @@ class MQTTEventBus(EventBus):
         loop = self._loop
         if loop is not None:
             try:
-                loop.call_soon_threadsafe(logger.log, level, message, *arguments)
+                loop.call_soon_threadsafe(
+                    logger.log, level, message, *arguments
+                )
                 return
             except RuntimeError:  # Event loop is closed
                 pass
@@ -250,7 +254,9 @@ class MQTTEventBus(EventBus):
 
         if reason_code.is_failure:
             self._log(
-                logging.ERROR, "MQTT broker refused connection: %s", reason_code
+                logging.ERROR,
+                "MQTT broker refused connection: %s",
+                reason_code,
             )
             return
 
@@ -312,7 +318,9 @@ class MQTTEventBus(EventBus):
         client.on_connect = self._on_connect
         client.on_disconnect = self._on_disconnect
 
-        client.connect_async(settings.broker, settings.port, settings.keepalive)
+        client.connect_async(
+            settings.broker, settings.port, settings.keepalive
+        )
         client.loop_start()
         logger.info(
             "Started MQTT event bus for broker <%s:%s> with base topic <%s>",
@@ -339,7 +347,9 @@ class MQTTEventBus(EventBus):
             raise ValueError(
                 f"Channel <{channel}> is not an event, use `publish_state`"
             )
-        self._publish(topic, json.dumps(payload, default=str), EVENT_QOS, False)
+        self._publish(
+            topic, json.dumps(payload, default=str), EVENT_QOS, False
+        )
 
     def _shutdown(self) -> None:
         """Remove the retained state and disconnect from the broker"""
@@ -353,10 +363,8 @@ class MQTTEventBus(EventBus):
 
         # Without connection the message would never be published
         if client.is_connected():
-            try:
+            with contextlib.suppress(RuntimeError, ValueError):
                 info.wait_for_publish(timeout=2)
-            except (RuntimeError, ValueError):
-                pass
         client.disconnect()
         client.loop_stop()
         self._log(logging.INFO, "Closed MQTT event bus")

@@ -22,7 +22,6 @@ from icoapi.models.mqtt_event_bus import (
 # -- Classes --------------------------------------------------------------------
 
 
-# pylint: disable-next=too-few-public-methods
 class FakePublishInfo:
     """Result of a publish request"""
 
@@ -36,7 +35,6 @@ class FakePublishInfo:
         self.waited_for.append(timeout)
 
 
-# pylint: disable-next=too-many-instance-attributes
 class FakeMQTTClient:
     """Double for the MQTT client that records how it is used"""
 
@@ -59,17 +57,13 @@ class FakeMQTTClient:
         """Call the handler for a finished connection attempt"""
 
         assert self.on_connect is not None
-        self.on_connect(  # pylint: disable=not-callable
-            self, None, None, reason_code, None
-        )
+        self.on_connect(self, None, None, reason_code, None)
 
     def simulate_disconnect(self, reason_code: mqtt.ReasonCode) -> None:
         """Call the handler for a lost connection"""
 
         assert self.on_disconnect is not None
-        self.on_disconnect(  # pylint: disable=not-callable
-            self, None, None, reason_code, None
-        )
+        self.on_disconnect(self, None, None, reason_code, None)
 
     def username_pw_set(self, username: str, password: str | None) -> None:
         """Record credentials"""
@@ -84,7 +78,11 @@ class FakeMQTTClient:
         self.tls = arguments
 
     def will_set(
-        self, topic: str, payload: Any = None, qos: int = 0, retain: bool = False
+        self,
+        topic: str,
+        payload: Any = None,
+        qos: int = 0,
+        retain: bool = False,
     ) -> None:
         """Record last will"""
 
@@ -136,14 +134,16 @@ SUCCESS = mqtt.ReasonCode(mqtt.PacketTypes.CONNACK, "Success")
 NOT_AUTHORIZED = mqtt.ReasonCode(mqtt.PacketTypes.CONNACK, "Not authorized")
 
 
-def create_bus(
-    fake: FakeMQTTClient, **settings: Any
-) -> MQTTEventBus:
+def create_bus(fake: FakeMQTTClient, **settings: Any) -> MQTTEventBus:
     """Create MQTT event bus that uses a fake client"""
 
     return MQTTEventBus(
         MQTTSettings(
-            **{"broker": "broker.test", "base_topic": "icodaq/test", **settings}
+            **{
+                "broker": "broker.test",
+                "base_topic": "icodaq/test",
+                **settings,
+            }
         ),
         client_factory=lambda _settings: cast(mqtt.Client, fake),
     )
@@ -164,10 +164,12 @@ class TestMQTTSettings:
     def test_defaults(self) -> None:
         """Only broker and base topic are required"""
 
-        settings = MQTTSettings.from_env({
-            "MQTT_BROKER": "broker.test",
-            "MQTT_BASE_TOPIC": "icodaq/line-3/",
-        })
+        settings = MQTTSettings.from_env(
+            {
+                "MQTT_BROKER": "broker.test",
+                "MQTT_BASE_TOPIC": "icodaq/line-3/",
+            }
+        )
 
         assert settings == MQTTSettings(
             broker="broker.test", base_topic="icodaq/line-3"
@@ -178,20 +180,22 @@ class TestMQTTSettings:
     def test_all_settings(self) -> None:
         """All settings should be read"""
 
-        settings = MQTTSettings.from_env({
-            "MQTT_BROKER": "broker.test",
-            "MQTT_BASE_TOPIC": "icodaq",
-            "MQTT_PORT": "1884",
-            "MQTT_USERNAME": "user",
-            "MQTT_PASSWORD": "secret",
-            "MQTT_TLS": "True",
-            "MQTT_TLS_CA_CERTS": "ca.pem",
-            "MQTT_TLS_CERTFILE": "client.pem",
-            "MQTT_TLS_KEYFILE": "client.key",
-            "MQTT_CLIENT_ID": "icoapi-1",
-            "MQTT_KEEPALIVE": "30",
-            "MQTT_BUFFER_SIZE": "10",
-        })
+        settings = MQTTSettings.from_env(
+            {
+                "MQTT_BROKER": "broker.test",
+                "MQTT_BASE_TOPIC": "icodaq",
+                "MQTT_PORT": "1884",
+                "MQTT_USERNAME": "user",
+                "MQTT_PASSWORD": "secret",
+                "MQTT_TLS": "True",
+                "MQTT_TLS_CA_CERTS": "ca.pem",
+                "MQTT_TLS_CERTFILE": "client.pem",
+                "MQTT_TLS_KEYFILE": "client.key",
+                "MQTT_CLIENT_ID": "icoapi-1",
+                "MQTT_KEEPALIVE": "30",
+                "MQTT_BUFFER_SIZE": "10",
+            }
+        )
 
         assert settings == MQTTSettings(
             broker="broker.test",
@@ -211,11 +215,13 @@ class TestMQTTSettings:
     def test_tls_default_port(self) -> None:
         """TLS should use the standard TLS port by default"""
 
-        settings = MQTTSettings.from_env({
-            "MQTT_BROKER": "broker.test",
-            "MQTT_BASE_TOPIC": "icodaq",
-            "MQTT_TLS": "1",
-        })
+        settings = MQTTSettings.from_env(
+            {
+                "MQTT_BROKER": "broker.test",
+                "MQTT_BASE_TOPIC": "icodaq",
+                "MQTT_TLS": "1",
+            }
+        )
 
         assert settings is not None
         assert settings.port == 8883
@@ -246,13 +252,17 @@ class TestMQTTSettings:
 
         assert create_mqtt_event_bus({}) is None
         with caplog.at_level(logging.ERROR):
-            assert create_mqtt_event_bus({"MQTT_BROKER": "broker.test"}) is None
+            assert (
+                create_mqtt_event_bus({"MQTT_BROKER": "broker.test"}) is None
+            )
         assert "MQTT is disabled" in caplog.text
         assert (
-            create_mqtt_event_bus({
-                "MQTT_BROKER": "broker.test",
-                "MQTT_BASE_TOPIC": "icodaq",
-            })
+            create_mqtt_event_bus(
+                {
+                    "MQTT_BROKER": "broker.test",
+                    "MQTT_BASE_TOPIC": "icodaq",
+                }
+            )
             is not None
         )
 
@@ -352,7 +362,9 @@ class TestMQTTEventBus:
         assert not fake.published
 
         first = await build_system_state()
-        second = first.model_copy(update={"can_network_found": not first.can_network_found})
+        second = first.model_copy(
+            update={"can_network_found": not first.can_network_found}
+        )
         await bus.publish_state(first)
         await bus.publish_state(second)
         fake.published.clear()
@@ -470,10 +482,11 @@ class TestMQTTEventBus:
             )
         )
         await bus.start()
-        # pylint: disable=protected-access
         try:
             codes = [
-                bus._publish("icodaq/test/Recording/Finished", "{}", 1, False).rc
+                bus._publish(
+                    "icodaq/test/Recording/Finished", "{}", 1, False
+                ).rc
                 for _ in range(4)
             ]
         finally:
@@ -499,9 +512,7 @@ class TestLifespan:
         async def nothing(*_arguments: Any, **_keywords: Any) -> None:
             """Do nothing"""
 
-        monkeypatch.setattr(
-            api.ICOsystemSingleton, "startup", nothing
-        )
+        monkeypatch.setattr(api.ICOsystemSingleton, "startup", nothing)
         monkeypatch.setattr(api.ICOsystemSingleton, "close_instance", nothing)
         monkeypatch.setattr(
             api, "get_dataspace_config", lambda: SimpleNamespace(enabled=False)

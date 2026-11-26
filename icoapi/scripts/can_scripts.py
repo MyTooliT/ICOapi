@@ -77,7 +77,7 @@ def _discover() -> list[CANNetwork]:
     for interface in [] if mode == ONLY else get_discovery_interfaces():
         try:
             found = can.detect_available_configs(interfaces=[interface])
-        except Exception as error:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as error:
             logger.warning(
                 "Cannot search for CAN networks using interface <%s>: %s",
                 interface,

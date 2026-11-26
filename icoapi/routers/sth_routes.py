@@ -2,32 +2,36 @@
 
 import logging
 from typing import Annotated
+
 from fastapi import APIRouter, Body, Depends
-from icotronic.can.error import NoResponseError
 from icostate import ICOsystem
 from icostate.error import IncorrectStateError
+from icotronic.can.error import NoResponseError
 
+from icoapi.models.globals import (
+    ICOsystemSingleton,
+    get_messenger,
+    get_system,
+    require_no_measurement,
+)
+from icoapi.models.models import (
+    ADCValues,
+    STHDeviceResponseModel,
+    STHRenameRequestModel,
+    STHRenameResponseModel,
+    SupplyVoltageResponseModel,
+)
 from icoapi.scripts.errors import (
     HTTP_400_INCORRECT_STATE_EXCEPTION,
     HTTP_400_INCORRECT_STATE_SPEC,
     HTTP_404_STH_UNREACHABLE_EXCEPTION,
     HTTP_404_STH_UNREACHABLE_SPEC,
     HTTP_409_MEASUREMENT_RUNNING_SPEC,
-    HTTP_500_SUPPLY_VOLTAGE_EXCEPTION, HTTP_500_SUPPLY_VOLTAGE_SPEC, HTTP_502_CAN_NO_RESPONSE_SPEC,
+    HTTP_500_SUPPLY_VOLTAGE_EXCEPTION,
+    HTTP_500_SUPPLY_VOLTAGE_SPEC,
     HTTP_502_CAN_NO_RESPONSE_EXCEPTION,
+    HTTP_502_CAN_NO_RESPONSE_SPEC,
     HTTP_503_CAN_NOT_CONNECTED_SPEC,
-)
-from icoapi.models.models import (
-    ADCValues,
-    STHDeviceResponseModel,
-    STHRenameRequestModel,
-    STHRenameResponseModel, SupplyVoltageResponseModel,
-)
-from icoapi.models.globals import (
-    ICOsystemSingleton,
-    get_messenger,
-    get_system,
-    require_no_measurement,
 )
 from icoapi.scripts.sth_scripts import (
     connect_sth_device_by_mac,
@@ -126,9 +130,7 @@ async def sth(
             STHDeviceResponseModel.from_network(device) for device in devices
         ]
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_system_stu_connected(
-            system, False
-        )
+        await ICOsystemSingleton.refresh_system_stu_connected(system, False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -154,9 +156,7 @@ async def sth_connect(
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_system_stu_connected(
-            system, False
-        )
+        await ICOsystemSingleton.refresh_system_stu_connected(system, False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
     await get_messenger().push_messenger_update()
 
@@ -177,9 +177,7 @@ async def sth_disconnect(system: ICOsystem = Depends(get_system)) -> None:
     except IncorrectStateError as error:
         raise HTTP_400_INCORRECT_STATE_EXCEPTION from error
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_system_stu_connected(
-            system, False
-        )
+        await ICOsystemSingleton.refresh_system_stu_connected(system, False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
     await get_messenger().push_messenger_update()
 
@@ -207,9 +205,7 @@ async def sth_rename(
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_system_stu_connected(
-            system, False
-        )
+        await ICOsystemSingleton.refresh_system_stu_connected(system, False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -270,9 +266,7 @@ async def read_adc(system: ICOsystem = Depends(get_system)) -> ADCValues:
 
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_system_stu_connected(
-            system, False
-        )
+        await ICOsystemSingleton.refresh_system_stu_connected(system, False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -295,9 +289,7 @@ async def write_adc(
     except TimeoutError as error:
         raise HTTP_404_STH_UNREACHABLE_EXCEPTION from error
     except NoResponseError as error:
-        await ICOsystemSingleton.refresh_system_stu_connected(
-            system, False
-        )
+        await ICOsystemSingleton.refresh_system_stu_connected(system, False)
         raise HTTP_502_CAN_NO_RESPONSE_EXCEPTION from error
 
 
@@ -306,16 +298,22 @@ async def write_adc(
     responses={
         200: {"description": "Supply voltage of connected STH."},
         500: HTTP_500_SUPPLY_VOLTAGE_SPEC,
-    }
+    },
 )
-async def get_supply_voltage(system: ICOsystem = Depends(get_system)) -> SupplyVoltageResponseModel:
+async def get_supply_voltage(
+    system: ICOsystem = Depends(get_system),
+) -> SupplyVoltageResponseModel:
     """Get supply voltage of connected STH."""
     try:
         supply_voltage: float = await system.sensor_node.get_supply_voltage()
         formatted_supply_voltage = round(supply_voltage, 2)
-        logger.info("Connected STH supply voltage: %sV", formatted_supply_voltage)
+        logger.info(
+            "Connected STH supply voltage: %sV", formatted_supply_voltage
+        )
         return SupplyVoltageResponseModel(supply_voltage=supply_voltage)
 
     except AttributeError as error:
-        logger.error("Could not get supply voltage from connected STH: %s", str(error))
+        logger.error(
+            "Could not get supply voltage from connected STH: %s", str(error)
+        )
         raise HTTP_500_SUPPLY_VOLTAGE_EXCEPTION(str(error)) from error

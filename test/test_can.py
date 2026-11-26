@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, ClassVar
 
-from conftest import RecordingEventBus  # pylint: disable=import-error
+from conftest import RecordingEventBus
 from fastapi import HTTPException
 from icostate import CANInitError
 from icostate.state import State
@@ -70,10 +70,13 @@ class FakeSystem:
 
 # -- Fixtures -----------------------------------------------------------------
 
-# pylint: disable=redefined-outer-name,unused-argument
 
-NETWORK_1 = CANNetwork(interface="pcan", channel="PCAN_USBBUS1", bitrate=1000000)
-NETWORK_2 = CANNetwork(interface="pcan", channel="PCAN_USBBUS2", bitrate=1000000)
+NETWORK_1 = CANNetwork(
+    interface="pcan", channel="PCAN_USBBUS1", bitrate=1000000
+)
+NETWORK_2 = CANNetwork(
+    interface="pcan", channel="PCAN_USBBUS2", bitrate=1000000
+)
 
 
 @fixture
@@ -126,7 +129,9 @@ class TestDiscovery:
     async def test_no_networks(self, monkeypatch: MonkeyPatch) -> None:
         """Finding nothing returns an empty list"""
 
-        monkeypatch.setattr(can_scripts.can, "detect_available_configs", lambda **_: [])
+        monkeypatch.setattr(
+            can_scripts.can, "detect_available_configs", lambda **_: []
+        )
         assert await discover_can_networks() == []
 
     async def test_backend_error_means_no_networks(
@@ -160,7 +165,9 @@ class TestDiscovery:
     def test_select_prefers_default(self, monkeypatch: MonkeyPatch) -> None:
         """The default channel wins over the first network"""
 
-        monkeypatch.setattr(can_scripts, "get_default_can_network", lambda: NETWORK_2)
+        monkeypatch.setattr(
+            can_scripts, "get_default_can_network", lambda: NETWORK_2
+        )
         assert select_can_network([NETWORK_1, NETWORK_2]) == NETWORK_2
 
 
@@ -358,7 +365,9 @@ class TestRoutes:
         assert "interface down" in response.json()["detail"]
 
     @mark.parametrize("path", ["stu", "sth"])
-    async def test_routes_without_connection(self, networks, http, path) -> None:
+    async def test_routes_without_connection(
+        self, networks, http, path
+    ) -> None:
         """Routes needing the CAN connection return 503"""
 
         response = await http.get(path)
@@ -382,12 +391,16 @@ class TestPlatformDiscovery:
                 raise OSError("no pcan")
             return [{"interface": "socketcan", "channel": "can0"}]
 
-        monkeypatch.setattr(can_scripts.can, "detect_available_configs", detect)
+        monkeypatch.setattr(
+            can_scripts.can, "detect_available_configs", detect
+        )
         networks = await discover_can_networks()
         assert probed == ["socketcan", "pcan"]
         assert [n.channel for n in networks] == ["can0"]
 
-    async def test_other_platforms_only_pcan(self, monkeypatch: MonkeyPatch) -> None:
+    async def test_other_platforms_only_pcan(
+        self, monkeypatch: MonkeyPatch
+    ) -> None:
         """SocketCAN is not probed outside of Linux"""
 
         monkeypatch.setattr(can_scripts, "platform", "darwin")
@@ -423,7 +436,9 @@ class TestConnectedSTH:
 class TestResetCAN:
     """Test ``PUT /reset-can``"""
 
-    async def test_reconnects_to_previous_network(self, networks, http) -> None:
+    async def test_reconnects_to_previous_network(
+        self, networks, http
+    ) -> None:
         """A connected API reconnects to the same network"""
 
         networks.extend([NETWORK_1, NETWORK_2])
@@ -450,7 +465,7 @@ class TestResetCAN:
         assert not FakeSystem.created
 
 
-class TestSTUConnectedTracking:  # pylint: disable=too-few-public-methods
+class TestSTUConnectedTracking:
     """Test that lost STU responses are reflected in the state"""
 
     async def test_no_response_in_route_clears_stu_connected(
