@@ -824,21 +824,26 @@ def downsample_min_max(data: pd.DataFrame, max_rows: int) -> pd.DataFrame:
         return data
 
     buckets = max(1, max_rows // (2 * len(channels)))
-    size = rows // buckets
+    # Round the size up: with a rounded down size the buckets only cover
+    # `buckets * size` rows and the rest of the data (up to almost the same
+    # amount again) ends up in the last bucket, reduced to two rows.
+    size = -(-rows // buckets)
     if size < 2:
         return data
+    full = rows // size
 
     keep: list[np.ndarray] = []
     for channel in channels:
         values = data[channel].to_numpy()
-        # The last bucket takes the rows that do not fill a bucket
-        main = values[: (buckets - 1) * size].reshape(buckets - 1, size)
-        offsets = np.arange(buckets - 1) * size
+        main = values[: full * size].reshape(full, size)
+        offsets = np.arange(full) * size
         keep.append(offsets + main.argmin(axis=1))
         keep.append(offsets + main.argmax(axis=1))
-        tail = values[(buckets - 1) * size :]
-        keep.append(np.array([(buckets - 1) * size + tail.argmin()]))
-        keep.append(np.array([(buckets - 1) * size + tail.argmax()]))
+        # The last bucket takes the rows that do not fill a bucket
+        tail = values[full * size :]
+        if len(tail) > 0:
+            keep.append(np.array([full * size + tail.argmin()]))
+            keep.append(np.array([full * size + tail.argmax()]))
     return data.iloc[np.unique(np.concatenate(keep))]
 
 

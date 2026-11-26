@@ -793,3 +793,31 @@ def test_downsample_keeps_peaks() -> None:
     assert reduced["timestamp"].iloc[-1] >= rows - 1 - rows // 1000
     # Small data stays as it is
     assert len(downsample_min_max(data.iloc[:500], 2_000)) == 500
+
+
+def test_downsample_min_max_covers_all_rows() -> None:
+    """The reduced data has no stretch that is reduced to two rows
+
+    The size of the buckets used to be rounded down, so the rows after the
+    last full bucket (up to as many as `max_rows / 2`) all ended up in the
+    last bucket (a recording of 146 403 rows lost its last five seconds)."""
+
+    import numpy as np
+    import pandas as pd
+
+    from icoapi.scripts.data_handling import downsample_min_max
+
+    rows = 146_403
+    data = pd.DataFrame(
+        {
+            "counter": np.arange(rows) % 256,
+            "timestamp": np.arange(rows),
+            "x": np.sin(np.arange(rows) / 7.0),
+        }
+    )
+
+    reduced = downsample_min_max(data, 100_000)
+    gaps = np.diff(reduced["timestamp"].to_numpy())
+    assert len(reduced) <= 100_100
+    assert gaps.max() <= 6
+    assert reduced["timestamp"].iloc[-1] >= rows - 6
