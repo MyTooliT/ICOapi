@@ -85,10 +85,15 @@ async def write_sensor_config_if_required(
     :param network: CAN Network instance from API
     :param sensor_configuration: configuration of sensors from the client
     """
-    if sensor_configuration.requires_channel_configuration_support():
-        try:
-            await system.set_sensor_configuration(sensor_configuration)
-        except UnsupportedFeatureException as exception:
+    # Write the configuration also when it is the default one (first channel
+    # only): a sensor device keeps what an earlier measurement wrote, so
+    # skipping the write would leave the old channels in place (and the
+    # read back check of the preflight would fail). Hardware without channel
+    # configuration support only has the default.
+    try:
+        await system.set_sensor_configuration(sensor_configuration)
+    except UnsupportedFeatureException as exception:
+        if sensor_configuration.requires_channel_configuration_support():
             raise UnsupportedFeatureException(
                 f"Sensor channel configuration “{sensor_configuration}” is "
                 "not supported by the sensor node"
